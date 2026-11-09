@@ -26,7 +26,7 @@ const S={
   weekStart:(()=>{const d=new Date();d.setDate(d.getDate()-dowMon(d));return iso(d)})(),
   almView:'semana', taskList:'Todas', db:null, live:false, readOnly:false,
   uid:null, me:null, gcal:{}, mcp:null, autoSynced:false, gbusy:false,
-  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'inicio', wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null, wallFilter:'all'
+  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'inicio', wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null, wallSel:[], media:{videos:[],radios:[]}
 };
 const GSERVER='Google Calendar';
 
@@ -75,6 +75,7 @@ function handleWriteError(e){
   famBackend.use('mcp').then(m=>{S.mcp=m;maybeAutoSync()}).catch(()=>{});
   famBackend.use('assets').then(a=>{S.assets=a}).catch(()=>{});
   db.doc('config/shopLists').onSnapshot(s=>{const l=s.exists&&s.data().lists;S.shopLists=Array.isArray(l)?l:[];render()},()=>{});
+  db.doc('config/media').onSnapshot(s=>{const d=s.exists?s.data():{};S.media={videos:Array.isArray(d.videos)?d.videos:[],radios:Array.isArray(d.radios)?d.radios:[]};if(overlay.querySelector('[data-mediasheet]'))mediaSheet()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -181,7 +182,7 @@ function gcalOn(d){
   Object.entries(S.gcal).forEach(([mid,doc])=>{
     (doc.events||[]).forEach(x=>{
       const m=x.m||mid;if(!member(m))return;
-      if(S.filter!=='all'&&S.filter!==m)return;
+      if(!gOK(m,x.c))return;
       if(d<x.d||d>x.e)return;
       if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
@@ -255,7 +256,10 @@ async function pushToGoogle(ev,calendarId){
 const member=id=>S.members.find(m=>m.id===id);
 const colorOf=id=>`var(--${(member(id)||{}).color||'muted'})`;
 function whoList(who){return (!who||!who.length||who.includes('all'))?['all']:who}
-function matches(item){const w=whoList(item.who);return S.filter==='all'||w.includes('all')||w.includes(S.filter)}
+function matches(item){const w=whoList(item.who),f=S.filter;if(f==='all')return true;
+  if(typeof f==='object')return f.m.length>0&&(w.includes('all')||w.some(x=>f.m.includes(x)));
+  return w.includes('all')||w.includes(f)}
+function gOK(m,c){const f=S.filter;if(f==='all')return true;if(typeof f==='object')return f.m.includes(m)||(!!c&&f.c.includes(c));return f===m}
 function peopleTags(who){
   const w=whoList(who);
   if(w.includes('all'))return `<span class="ptag" style="--c:var(--accent)">Todos</span>`;
@@ -428,7 +432,7 @@ function viewCalendar(seg){
   let items='';
   items+=birthdaysOn(S.sel).map(b=>{const a=ageOn(b,S.sel);return `<button class="item" data-edit-bday="${b.id}"><span class="time">🎂︎</span><span class="body"><span class="kind">Aniversário</span><div class="t">${esc(b.name)}${a!==null&&a>0?' · '+a+' anos':''}</div></span></button>`}).join('');
   if(holidayOn(S.sel))items+=`<div class="item"><span class="time">Dia</span><span class="body"><span class="kind" style="color:var(--danger)">Feriado nacional</span><div class="t">${esc(holidayOn(S.sel))}</div></span></div>`;
-  items+=breaksOn(S.sel).filter(b=>S.filter==='all'||whoList(b.who).includes('all')||whoList(b.who).includes(S.filter)).map(b=>`<button class="item" data-edit-break="${b.id}"><span class="time">Dia</span><span class="body"><span class="kind">Sem aulas</span><div class="t">${esc(b.title)}</div><div class="people">${peopleTags(b.who)}</div></span></button>`).join('');
+  items+=breaksOn(S.sel).filter(b=>matches(b)).map(b=>`<button class="item" data-edit-break="${b.id}"><span class="time">Dia</span><span class="body"><span class="kind">Sem aulas</span><div class="t">${esc(b.title)}</div><div class="people">${peopleTags(b.who)}</div></span></button>`).join('');
   items+=vacationsOn(S.sel).map(v=>`<button class="item" data-edit-vac="${v.id}"><span class="time">✈︎</span><span class="body"><span class="kind">Férias${v.place?' · '+esc(v.place):''}</span><div class="t">${esc(v.title)}</div><div class="sub">Até ${niceDate(v.end||v.start)}</div><div class="people">${peopleTags(v.who)}</div></span></button>`).join('');
   if(meal)items+=`<button class="item" data-open-meal="${S.sel}"><span class="time">🍽︎</span><span class="body"><span class="kind">Almoço</span><div class="t">${esc(meal.title)}</div>${meal.cook&&member(meal.cook)?`<div class="sub">Cozinha: ${esc(member(meal.cook).name)}</div>`:''}</span></button>`;
   items+=ev.map(e=>`<button class="item" data-edit-event="${e.id}"><span class="time">${e.time?esc(e.time):'Dia'}</span><span class="body">
@@ -778,7 +782,7 @@ function nowHM(){const n=new Date();return pad(n.getHours())+':'+pad(n.getMinute
 const isAll=x=>whoList(x.who).includes('all');
 const forM=(x,m)=>!isAll(x)&&whoList(x.who).includes(m);
 function wallData(d){
-  const f=S.filter;S.filter=(S.wallFilter!=='all'&&member(S.wallFilter))?S.wallFilter:'all';
+  const f=S.filter;S.filter=wFilter();
   const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:gcalOn(d),bd:birthdaysOn(d),meal:S.meals[d]};
   S.filter=f;return r;
 }
@@ -803,10 +807,26 @@ function syncLine(){
   const s=Object.entries(S.gcal).filter(([m,d])=>member(m)&&d.updatedAt).map(([m,d])=>esc(member(m).name)+' '+ago(d.updatedAt));
   return `<p class="small muted row" style="margin:12px 0 0;flex-wrap:wrap">${s.length?'Google atualizado: '+s.join(' · '):'Google Calendar ainda não sincronizado neste Quadro.'}${S.gerr?` <span style="color:var(--danger)">${esc(S.gerr)}</span>`:''}${S.mcp?' <button class="edit" data-gsync>Sincronizar agora</button>':''}</p>`;
 }
-function wallMembers(){const wf=S.wallFilter;return wf&&wf!=='all'&&member(wf)?S.members.filter(m=>m.id===wf):S.members}
-function wMatch(x){const wf=S.wallFilter;if(!wf||wf==='all'||!member(wf))return true;const w=whoList(x.who);return w.includes('all')||w.includes(wf)}
-function whoBar(){const wf=(S.wallFilter&&member(S.wallFilter))?S.wallFilter:'all';
-  return `<div class="fd-people" role="group" aria-label="Filtrar por pessoa"><button class="fd-p fd-all" data-wf="all" aria-pressed="${wf==='all'}"><span class="av av-all"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17.5" cy="9" r="2.4"/><path d="M16 14.2c2.6-.3 4.6 1.3 5 4.3"/></svg></span>Todos</button>${S.members.map(m=>`<button class="fd-p" data-wf="${m.id}" aria-pressed="${wf===m.id}">${avatar(m.id)}<span class="fd-pn">${esc(m.name)}</span></button>`).join('')}</div>`}
+function wSel(){const s=S.wallSel||[];return {m:s.filter(x=>member(x)),c:s.filter(x=>x.startsWith('cal:')).map(x=>x.slice(4))}}
+function wFilter(){const f=wSel();return f.m.length||f.c.length?f:'all'}
+function gcalCals(){const map=new Map();Object.entries(S.gcal).forEach(([mid,doc])=>(doc.events||[]).forEach(x=>{const m=x.m||mid;if(!x.c||!member(m))return;if(!map.has(x.c))map.set(x.c,new Set());map.get(x.c).add(m)}));
+  return [...map].map(([c,ms])=>({c,ms:[...ms]})).sort((a,b)=>a.ms[0].localeCompare(b.ms[0])||a.c.localeCompare(b.c))}
+function wallMembers(){const f=wSel();if(f.m.length)return S.members.filter(m=>f.m.includes(m.id));
+  if(f.c.length){const own=new Set(gcalCals().filter(x=>f.c.includes(x.c)).flatMap(x=>x.ms));return S.members.filter(m=>own.has(m.id))}
+  return S.members}
+function wMatch(x){const sv=S.filter;S.filter=wFilter();const r=matches(x);S.filter=sv;return r}
+function toggleSel(k){const s=new Set(S.wallSel||[]);s.has(k)?s.delete(k):s.add(k);S.wallSel=[...s]}
+const CAL_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>';
+function whoBar(){const f=wSel(),none=!f.m.length&&!f.c.length,cals=gcalCals();
+  return `<div class="fd-people" role="group" aria-label="Filtrar por pessoa (podes escolher várias)"><button class="fd-p fd-all" data-wf="all" aria-pressed="${none}"><span class="av av-all"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17.5" cy="9" r="2.4"/><path d="M16 14.2c2.6-.3 4.6 1.3 5 4.3"/></svg></span>Todos</button>${S.members.map(m=>`<button class="fd-p" data-wf="${m.id}" aria-pressed="${f.m.includes(m.id)}">${avatar(m.id)}<span class="fd-pn">${esc(m.name)}</span></button>`).join('')}${cals.length?`<button class="fd-p" data-wcals aria-pressed="${f.c.length>0}"><span class="av av-all">${CAL_SVG}</span><span class="fd-pn">Calendários${f.c.length?' · '+f.c.length:''}</span></button>`:''}</div>`}
+function calSheet(){
+  const f=wSel(),cals=gcalCals();
+  sheet('Calendários',`<p class="muted small" style="margin:0 0 4px">Escolhe pessoas e calendários do Google. Podes juntar vários: o Quadro mostra tudo o que pertence a qualquer um deles.</p>
+    <div class="field"><span>Pessoas</span><div class="who" style="flex-wrap:wrap">${S.members.map(m=>`<button type="button" class="chip" data-selk="${m.id}" aria-pressed="${f.m.includes(m.id)}"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div></div>
+    <div class="field"><span>Calendários do Google</span><div class="who" style="flex-wrap:wrap">${cals.map(x=>`<button type="button" class="chip" data-selk="cal:${esc(x.c)}" aria-pressed="${f.c.includes(x.c)}">${x.ms.map(m=>`<span class="dot" style="--c:var(--${member(m).color})"></span>`).join('')}${esc(x.c)}</button>`).join('')||'<span class="muted small">Ainda não há calendários sincronizados.</span>'}</div></div>
+    <button type="button" class="ghost" data-selclear>Mostrar todos</button>`);
+  overlay.querySelector('form').dataset.calsheet='1';
+}
 function avatar(id,small){const m=member(id);if(!m)return `<span class="av av-all${small?' sm':''}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17.5" cy="9" r="2.4"/></svg></span>`;
   return `<span class="av${small?' sm':''}" style="--c:var(--${m.color})" aria-hidden="true">${esc((m.name||'?').trim().charAt(0).toUpperCase())}</span>`}
 const NAV_ICONS={
@@ -1059,7 +1079,8 @@ function wallFrame(){
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
       ${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}
       <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
-      ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div></div>
+      ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div>
+      <button class="w-media" data-media aria-label="Vídeo e rádio"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>Vídeo e rádio</button></div>
     <div class="w-side"><h4 class="w-sh">Hoje</h4>${today.map(x=>row(x,true)).join('')||'<div class="muted">Nada marcado</div>'}
       <h4 class="w-sh" style="color:var(--muted)">Amanhã</h4>${tomorrow.map(x=>row(x,false)).join('')||'<div class="muted">Nada marcado</div>'}
       <div class="row" style="gap:10px;margin-top:auto;align-items:stretch;padding-top:12px">
@@ -1067,7 +1088,7 @@ function wallFrame(){
         <div class="w-mini"><small>Lembretes</small><b>${pend} por fazer</b></div>
         ${S.readOnly?'':'<button class="w-btn" data-quickadd aria-label="Adicionar" style="font-size:1.8rem;background:var(--accent);color:var(--accent-ink);border:0">+</button>'}
       </div>
-      <div class="row" style="gap:8px;justify-content:flex-end"><button class="edit" data-wgoogle>Google</button><button class="edit" data-wset>Ajustes</button><button class="edit" data-wfs>Ecrã inteiro</button><button class="edit" data-wexit>Sair</button></div>
+      <div class="row" style="gap:8px;justify-content:flex-end"><button class="edit" data-media>▶ Vídeo e rádio</button><button class="edit" data-wgoogle>Google</button><button class="edit" data-wset>Ajustes</button><button class="edit" data-wfs>Ecrã inteiro</button><button class="edit" data-wexit>Sair</button></div>
     </div></div>`;
 }
 function wallRoutines(){
@@ -1141,7 +1162,7 @@ function enterWall(){S.wall=true;S.wallDate=TODAY;S.wallView=lsGet('fam.wallView
 function exitWall(){S.wall=false;lsSet('fam.wall','0');try{wl&&wl.release()}catch(e){}wl=null;
   if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});render()}
 function bumpIdle(){clearTimeout(idleT);if(!S.wall)return;
-  idleT=setTimeout(()=>{closeSheet();S.wallView=lsGet('fam.rest')||S.wallView;S.rotPart=null;S.wallFilter='all';S.wallDate=TODAY;render();window.scrollTo(0,0)},120000)}
+  idleT=setTimeout(()=>{closeSheet();S.wallView=lsGet('fam.rest')||S.wallView;S.rotPart=null;S.wallSel=[];S.wallDate=TODAY;render();window.scrollTo(0,0)},120000)}
 function toggleFS(){
   try{if(document.fullscreenElement){document.exitFullscreen().catch(()=>{});return}
     const p=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();
@@ -1162,7 +1183,23 @@ document.addEventListener('click',e=>{
   if(d.wshift){wallStep(+d.wshift);return}
   if(d.rpart){S.rotPart=d.rpart;renderWall();return}
   if(d.wset!==undefined){wallSettings();return}
-  if(d.wf){S.wallFilter=d.wf;renderWall();return}
+  if(d.wf){if(d.wf==='all')S.wallSel=[];else toggleSel(d.wf);renderWall();return}
+  if(d.wcals!==undefined){calSheet();return}
+  if(d.selk){toggleSel(d.selk);calSheet();renderWall();return}
+  if(d.selclear!==undefined){S.wallSel=[];closeSheet();renderWall();return}
+  if(d.media!==undefined){mediaSheet();return}
+  if(d.ytplay){playVideo(d.ytplay,d.yttitle||'');closeSheet();return}
+  if(d.ytsave!==undefined){const f=t.closest('form'),u=f.querySelector('#m-yt').value.trim(),id=ytParse(u);if(!id){toast('Link do YouTube não reconhecido');return}
+    const title=f.querySelector('#m-ytt').value.trim()||'Vídeo';saveMedia({videos:[...S.media.videos.filter(v=>v.u!==u),{t:title,u}]});toast('Guardado na lista');return}
+  if(d.ytgo!==undefined){const f=t.closest('form'),u=f.querySelector('#m-yt').value.trim();if(!ytParse(u)){toast('Cola um link do YouTube (vídeo, direto ou lista)');return}playVideo(u,f.querySelector('#m-ytt').value.trim());closeSheet();return}
+  if(d.ytdel){saveMedia({videos:S.media.videos.filter(v=>v.u!==d.ytdel)});return}
+  if(d.radio){playRadio(d.radio,d.rname||'Rádio');return}
+  if(d.rfav){const ex=S.media.radios.some(r=>r.u===d.rfav);saveMedia({radios:ex?S.media.radios.filter(r=>r.u!==d.rfav):[...S.media.radios,{n:d.rname||'Rádio',u:d.rfav}]});return}
+  if(d.rcustom!==undefined){const f=t.closest('form'),u=f.querySelector('#m-ru').value.trim();if(!/^https:\/\//.test(u)){toast('O endereço da rádio tem de começar por https://');return}playRadio(u,f.querySelector('#m-rn').value.trim()||'Rádio')
+    ;saveMedia({radios:[...S.media.radios.filter(r=>r.u!==u),{n:f.querySelector('#m-rn').value.trim()||'Rádio',u}]});return}
+  if(d.rsearch!==undefined){loadStations(true);return}
+  if(d.mstop!==undefined){stopMedia(d.mstop);return}
+  if(d.mmin!==undefined){const L=mediaLayer();L.classList.toggle('mini');return}
   if(d.wgoogle!==undefined){googleSheet();return}
   if(d.gsync!==undefined){if(!S.me||!S.me.memberId){googleSheet();return}S.needTap=false;allowGooglePrompt();syncGoogle(S.me,true);return}
   if(d.delphoto){if(S.readOnly)return;const p=S.photos.find(x=>x.id===d.delphoto);
@@ -1303,3 +1340,69 @@ setTimeout(checkAlarms,4000);
 
 renderBanner();render();
 if(S.wall)keepAwake();
+
+/* ---------- vídeo (YouTube) e rádio ---------- */
+function saveMedia(patch){S.media={...S.media,...patch};if(S.db)S.db.doc('config/media').set(S.media).catch(handleWriteError);if(overlay.querySelector('[data-mediasheet]'))mediaSheet()}
+function ytParse(u){u=String(u||'').trim();if(!u)return null;let id=null,list=null;
+  try{const x=new URL(u.startsWith('http')?u:'https://'+u);const h=x.hostname.replace(/^www\.|^m\./,'');
+    list=x.searchParams.get('list');
+    if(h==='youtu.be')id=x.pathname.slice(1).split('/')[0];
+    else if(/(^|\.)youtube(-nocookie)?\.com$/.test(h)){id=x.searchParams.get('v');const m=/^\/(embed|shorts|live|v)\/([\w-]{6,})/.exec(x.pathname);if(m&&m[2]!=='videoseries')id=m[2]}
+    else return null}catch(e){if(/^[\w-]{11}$/.test(u))id=u;else return null}
+  if(id&&!/^[\w-]{6,}$/.test(id))id=null;if(list&&!/^[\w-]+$/.test(list))list=null;
+  return id||list?{id,list}:null}
+function ytEmbed(p){const q='autoplay=1&rel=0&playsinline=1&modestbranding=1';
+  return p.id?`https://www.youtube-nocookie.com/embed/${p.id}?${q}${p.list?'&list='+p.list:''}`:`https://www.youtube-nocookie.com/embed/videoseries?list=${p.list}&${q}`}
+function mediaLayer(){let L=document.getElementById('mediaLayer');if(!L){L=document.createElement('div');L.id='mediaLayer';document.body.appendChild(L)}return L}
+function playVideo(u,title){const p=ytParse(u);if(!p)return;const L=mediaLayer();L.classList.remove('mini');
+  let v=L.querySelector('.ml-video');if(!v){v=document.createElement('div');v.className='ml-video';L.appendChild(v)}
+  v.innerHTML=`<div class="ml-bar"><b>${esc(title||'YouTube')}</b><span class="spacer"></span><button class="fd-btn" data-mmin>Minimizar</button><button class="fd-btn" data-mstop="video">Fechar</button></div>
+    <iframe src="${ytEmbed(p)}" title="${esc(title||'Vídeo do YouTube')}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  stopMedia('radio',true)}
+let audioEl=null;
+function playRadio(u,name){const L=mediaLayer();if(!audioEl){audioEl=new Audio();audioEl.preload='none'}
+  stopMedia('video',true);audioEl.src=u;audioEl.play().catch(()=>toast('Não foi possível tocar esta rádio. Experimenta outra.'));
+  audioEl.onerror=()=>toast('A rádio '+name+' não está a responder.');
+  let r=L.querySelector('.ml-radio');if(!r){r=document.createElement('div');r.className='ml-radio';L.appendChild(r)}
+  r.innerHTML=`<span class="ml-eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="ml-rn"><small>A ouvir</small><b>${esc(name)}</b></span><button class="fd-btn" data-media aria-label="Mudar de rádio">Mudar</button><button class="fd-btn" data-mstop="radio">Parar</button>`;
+  if(overlay.querySelector('[data-mediasheet]'))mediaSheet()}
+function stopMedia(k,quiet){const L=document.getElementById('mediaLayer');if(!L)return;
+  if(k==='video'||k==='all'){const v=L.querySelector('.ml-video');if(v)v.remove()}
+  if(k==='radio'||k==='all'){if(audioEl){audioEl.pause();audioEl.removeAttribute('src');audioEl.load()}const r=L.querySelector('.ml-radio');if(r)r.remove()}
+  if(!quiet&&overlay.querySelector('[data-mediasheet]'))mediaSheet()}
+let stations=null,stationsBusy=false;
+async function loadStations(force){if(stationsBusy||(stations&&!force))return;stationsBusy=true;
+  for(const h of ['de1','de2','fi1','all']){
+    try{const r=await fetch(`https://${h}.api.radio-browser.info/json/stations/search?countrycode=PT&order=votes&reverse=true&hidebroken=true&limit=120`);if(!r.ok)continue;
+      const j=await r.json(),seen=new Set();
+      stations=j.filter(s=>/^https:\/\//.test(s.url_resolved||'')&&s.name).map(s=>({n:s.name.trim(),u:s.url_resolved,i:/^https:/.test(s.favicon||'')?s.favicon:''})).filter(s=>{const k=s.n.toLowerCase();if(seen.has(k))return false;seen.add(k);return true}).slice(0,60);
+      break}catch(e){}}
+  if(!stations)stations=[];stationsBusy=false;if(overlay.querySelector('[data-mediasheet]'))mediaSheet()}
+function mediaSheet(){
+  const cur=audioEl&&audioEl.src?audioEl.src:'';
+  const st=(r,fav)=>`<div class="m-st${cur===r.u?' on':''}"><button type="button" class="m-play" data-radio="${esc(r.u)}" data-rname="${esc(r.n)}">${r.i?`<img src="${esc(r.i)}" alt="" loading="lazy" onerror="this.remove()">`:'<span class="m-ri">📻︎</span>'}<span>${esc(r.n)}</span></button><button type="button" class="m-fav" data-rfav="${esc(r.u)}" data-rname="${esc(r.n)}" aria-label="${fav?'Tirar dos favoritos':'Juntar aos favoritos'}" aria-pressed="${fav}">${fav?'★':'☆'}</button></div>`;
+  const favU=new Set(S.media.radios.map(r=>r.u));
+  const keep=document.activeElement&&document.activeElement.id,vals={};
+  const was=overlay.querySelector('[data-mediasheet]'),opn=was?[...was.querySelectorAll('details.m-more')].map(x=>x.open):null,sc=was?was.scrollTop:0;
+  if(was)['m-yt','m-ytt','m-ru','m-rn'].forEach(i=>{const e=overlay.querySelector('#'+i);if(e)vals[i]=e.value});
+  sheet('Vídeo e rádio',`
+    <div class="field"><span>YouTube</span>
+      <input id="m-yt" placeholder="Cola aqui o link de um vídeo, direto ou lista" inputmode="url" value="${esc(vals['m-yt']||'')}">
+      <div class="row" style="gap:8px;margin-top:8px"><input id="m-ytt" placeholder="Nome (opcional)" style="flex:1" value="${esc(vals['m-ytt']||'')}"><button type="button" class="addbtn" data-ytgo>Ver</button><button type="button" class="ghost" data-ytsave>Guardar</button></div>
+      ${S.media.videos.length?`<div class="m-list">${S.media.videos.map(v=>`<div class="m-st"><button type="button" class="m-play" data-ytplay="${esc(v.u)}" data-yttitle="${esc(v.t)}"><span class="m-ri">▶︎</span><span>${esc(v.t)}</span></button><button type="button" class="m-fav" data-ytdel="${esc(v.u)}" aria-label="Tirar da lista">×</button></div>`).join('')}</div>`:''}
+    </div>
+    <div class="field"><span>Rádio${cur?' · <button type="button" class="edit" data-mstop="radio">Parar</button>':''}</span>
+      ${S.media.radios.length?`<div class="m-list">${S.media.radios.map(r=>st(r,true)).join('')}</div>`:''}
+      <details class="m-more" ${S.media.radios.length?'':'open'}><summary>Rádios portuguesas</summary>
+        ${stations===null?'<p class="muted small">A carregar…</p>':stations.length?`<div class="m-list m-scroll">${stations.filter(s=>!favU.has(s.u)).map(r=>st(r,false)).join('')}</div>`:'<p class="muted small">Não foi possível carregar a lista. <button type="button" class="edit" data-rsearch>Tentar de novo</button></p>'}
+      </details>
+      <details class="m-more"><summary>Outra rádio (endereço do stream)</summary>
+        <div class="row" style="gap:8px;margin-top:8px"><input id="m-rn" placeholder="Nome" style="flex:1" value="${esc(vals['m-rn']||'')}"><input id="m-ru" placeholder="https://…" inputmode="url" style="flex:2" value="${esc(vals['m-ru']||'')}"><button type="button" class="addbtn" data-rcustom>Ouvir</button></div>
+      </details>
+    </div>`,{saveLabel:''});
+  const nf=overlay.querySelector('form');nf.setAttribute('data-mediasheet','1');
+  if(opn)nf.querySelectorAll('details.m-more').forEach((x,i)=>{if(i in opn)x.open=opn[i]});if(sc)nf.scrollTop=sc;
+  if(was)nf.style.animation='none';
+  if(keep){const e=overlay.querySelector('#'+keep);if(e)e.focus()}
+  loadStations(false);
+}
