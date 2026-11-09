@@ -1070,7 +1070,7 @@ function frameList(D,d){
 }
 function nextUp(){const now=nowHM();return frameList(wallData(TODAY),TODAY).find(x=>x.k&&x.k>now)||null}
 function wallFrame(){
-  const n=S.photos.length,p=n?S.photos[Math.floor(Date.now()/30000)%n]:null;
+  const n=S.photos.length,p=n?S.photos[photoSlot()%n]:null;S.lastSlot=photoSlot();
   const tmr=parse(TODAY);tmr.setDate(tmr.getDate()+1);const td=iso(tmr);
   const now=nowHM();
   const row=(x,today)=>`<div class="w-fr${today&&x.end&&x.end<=now?' past':''}"><span class="tm">${x.k||'Dia'}</span><span class="dot" style="--c:${x.c}"></span><span class="tt" style="min-width:0">${esc(x.t)}</span></div>`;
@@ -1134,11 +1134,12 @@ function wallSettings(){
       ${S.photos.length?`<div class="ph-grid">${S.photos.map(p=>`<figure style="background-image:url('${photoUrl(p)}')"><button type="button" class="ph-del" data-delphoto="${p.id}" aria-label="Apagar fotografia">×</button></figure>`).join('')}</div>`:''}
       ${S.assets&&!S.readOnly?'<label class="uplabel">+ Adicionar fotografias<input id="w-ph" type="file" accept="image/*" multiple hidden></label>':`<p class="muted small" style="margin:0">${S.live?'Só quem pode editar o Quadro consegue adicionar fotografias.':'Configura o Firebase para adicionar fotografias.'}</p>`}
     </div>
+    <label class="field"><span>Tempo de cada fotografia na moldura (segundos)</span><input id="w-psec" type="number" min="3" max="3600" step="1" name="psec" value="${photoSec()}"></label>
     <div class="field"><span>Google Calendar</span><button type="button" class="ghost" data-wgoogle>Ligar e escolher calendários</button></div>
     <div class="two"><label class="field"><span>Prémio da semana</span><input id="w-prize" name="prize" value="${esc(S.prize&&S.prize.title)}" placeholder="Ex.: Noite de cinema"></label>
     <label class="field"><span>Estrelas necessárias</span><input id="w-goal" type="number" min="1" name="goal" value="${esc((S.prize&&S.prize.goal)||50)}"></label></div>`,
   {onSave:f=>{
-    lsSet('fam.rest',val(f,'rest'));
+    lsSet('fam.rest',val(f,'rest'));const ps=Math.round(+val(f,'psec'));if(ps>=3&&ps<=3600)lsSet('fam.photoSec',String(ps));
     const title=val(f,'prize'),goal=+val(f,'goal')||50;
     if(title!==((S.prize&&S.prize.title)||'')||goal!==(+(S.prize&&S.prize.goal)||50)){
       if(S.db)S.db.doc('config/prize').set({title,goal}).catch(handleWriteError);else{S.prize={title,goal};renderWall()}}
@@ -1301,7 +1302,6 @@ setInterval(()=>{
   const t=iso(new Date());
   if(t!==TODAY){const old=TODAY;TODAY=t;if(S.sel===old){S.sel=t;S.month=t.slice(0,7)}if(S.wallDate===old)S.wallDate=t;
     document.getElementById('todayLabel').textContent=niceDate(t);render();return}
-  if(S.wall&&!overlay.innerHTML&&S.wallView==='moldura'&&(S.frameMode||'galeria')==='galeria'&&S.photos.length>1){renderWall();return}
   if(S.wall&&nowHM()!==S.lastHM){if(!overlay.innerHTML)renderWall();else{S.lastHM=nowHM();const c=document.getElementById('wClock');if(c)c.textContent=S.lastHM}}
 },15000);
 setInterval(()=>{if(!S.needTap){S.autoSynced=false;maybeAutoSync()}},15*60*1000);
@@ -1495,3 +1495,7 @@ function frameTV(){const on=!!document.querySelector('#mediaLayer .ml-video[data
     <p class="muted" style="margin:0">Abre o site da NOS TV aqui na moldura. Entra com a tua conta NOS na primeira vez.</p>
     <div class="row" style="gap:8px;flex-wrap:wrap"><button class="addbtn" data-tvstart>Ver NOS TV aqui</button><button class="ghost" data-tvopen>Abrir na app / noutra janela</button><button class="ghost" data-tvurl>Mudar endereço</button></div>
     <p class="muted small" style="margin:0">Se a moldura ficar em branco ou com erro, é a NOS a bloquear o site dentro de outras páginas. Nesse caso usa <b>Abrir na app</b>: no tablet Android abre a app NOS TV; fechas a app e voltas ao Quadro.</p></div>`}
+
+function photoSec(){const s=+lsGet('fam.photoSec');return s>=3?s:30}
+function photoSlot(){return Math.floor(Date.now()/(photoSec()*1000))}
+setInterval(()=>{if(S.wall&&!overlay.innerHTML&&S.wallView==='moldura'&&(S.frameMode||'galeria')==='galeria'&&S.photos.length>1&&photoSlot()!==S.lastSlot)renderWall()},1000);
