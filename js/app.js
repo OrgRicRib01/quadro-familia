@@ -2,6 +2,7 @@ const TABS=[
  {id:'agenda',label:'Agenda',icon:'<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'},
  {id:'lembretes',label:'Lembretes',icon:'<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'},
  {id:'tarefas',label:'Tarefas',icon:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>'},
+ {id:'compras',label:'Compras',icon:'<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'},
  {id:'almocos',label:'Almoços',icon:'<path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M16 21V3c-2 1-3 4-3 7h3"/>'}
 ];
 const LISTS=['Casa','Compras','Escola','Outros'];
@@ -286,11 +287,12 @@ function renderTabs(){
   const pendingToday=S.reminders.filter(r=>!r.done&&r.date&&r.date<=TODAY&&matches(r)).length;
   document.getElementById('tabs').innerHTML=TABS.map(t=>`<button data-tab="${t.id}" ${S.tab===t.id?'aria-current="page"':''}>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg>${t.label}
-    ${t.id==='lembretes'&&pendingToday?`<span class="badge">${pendingToday}</span>`:''}</button>`).join('');
+    ${t.id==='compras'&&shopItems().filter(x=>!x.done).length?`<span class="badge" style="background:var(--accent)">${shopItems().filter(x=>!x.done).length}</span>`:''}${t.id==='lembretes'&&pendingToday?`<span class="badge">${pendingToday}</span>`:''}</button>`).join('');
 }
 function renderMain(){
   const m=document.getElementById('main');
-  m.innerHTML=({agenda:viewAgenda,lembretes:viewReminders,tarefas:viewTasks,almocos:viewLunch})[S.tab]();
+  m.innerHTML=({agenda:viewAgenda,lembretes:viewReminders,tarefas:viewTasks,compras:viewShopping,almocos:viewLunch})[S.tab]();
+  refocus();
 }
 
 function viewAgenda(){
@@ -404,6 +406,22 @@ function viewTasks(){
   </section>`;
 }
 
+function shopItems(){return S.tasks.filter(t=>t.list==='Compras')}
+function shopAddForm(big){return `<form class="shopadd${big?' big':''}" data-shopform><input id="${big?'shop-new-w':'shop-new'}" name="item" placeholder="Acrescentar à lista… (ex.: leite, pão, ovos)" autocomplete="off" aria-label="Novo artigo para comprar"><button class="addbtn" type="submit">Adicionar</button></form>`}
+function refocus(){if(S.refocusId&&Date.now()<S.refocusUntil){const el=document.getElementById(S.refocusId);if(el)el.focus()}}
+function viewShopping(){
+  const it=shopItems(),open=it.filter(t=>!t.done).sort((a,b)=>(a.text||'').localeCompare(b.text||'','pt')),got=it.filter(t=>t.done);
+  const line=t=>`<div class="item ${t.done?'done':''}"><button class="check" role="checkbox" aria-checked="${!!t.done}" data-toggle-task="${t.id}" aria-label="Comprado"></button>
+    <span class="body"><div class="t">${esc(t.text)}</div>${whoList(t.who).includes('all')?'':`<div class="people">${peopleTags(t.who)}</div>`}</span>
+    <button class="edit" data-edit-task="${t.id}">Editar</button></div>`;
+  return `<section class="panel">
+    <div class="row"><h2>Lista de compras</h2><span class="spacer"></span><span class="muted small">${open.length} por comprar</span></div>
+    ${S.readOnly?'':shopAddForm(false)}
+    <div class="list">${open.map(line).join('')||'<div class="empty">A lista está vazia.<br>Escreve acima o que falta em casa. Podes pôr vários de uma vez, separados por vírgulas. Os ingredientes das receitas também vêm parar aqui.</div>'}</div>
+    ${got.length?`<div class="row"><span class="kind">No carrinho (${got.length})</span><span class="spacer"></span><button class="edit" data-clearshop>Limpar comprados</button></div><div class="list">${got.slice(0,40).map(line).join('')}</div>`:''}
+  </section>`;
+}
+
 function viewLunch(){
   const seg=`<div class="seg" role="group"><button data-alm="semana" aria-pressed="${S.almView==='semana'}">Plano da semana</button><button data-alm="receitas" aria-pressed="${S.almView==='receitas'}">Receitas (${S.recipes.length})</button></div>`;
   if(S.almView==='receitas'){
@@ -489,9 +507,10 @@ function reminderForm(r){
     <label class="field"><span>Lembrar de</span><input id="r-text" name="text" value="${esc(r.text)}" placeholder="Ex.: Levar autorização da visita de estudo"></label>
     <div class="two"><label class="field"><span>Dia</span><input id="r-date" type="date" name="date" value="${esc(r.date)}"></label>
     <label class="field"><span>Hora</span><input id="r-time" type="time" name="time" value="${esc(r.time)}"></label></div>
+    <label class="row" style="gap:10px"><input type="checkbox" id="r-alarm" name="alarm" ${r.alarm===false?'':'checked'} style="width:22px;height:22px;accent-color:var(--accent)"><span>Tocar alarme à hora marcada <span class="muted small">(no ecrã da parede e nos aparelhos com o Quadro aberto)</span></span></label>
     ${whoField(r.who)}`,
   {onSave:f=>{const text=val(f,'text');if(!text){toast('Escreve o lembrete.');return false}
-      save('reminders',r.id,{text,date:val(f,'date'),time:val(f,'time'),who:readWho(f),done:!!r.done})},
+      save('reminders',r.id,{text,date:val(f,'date'),time:val(f,'time'),who:readWho(f),done:!!r.done,alarm:!!(f.elements.alarm&&f.elements.alarm.checked)})},
    onDelete:r.id&&!S.readOnly?()=>remove('reminders',r.id):null});
 }
 function taskForm(t){
@@ -658,7 +677,7 @@ function wallMembers(){const wf=S.wallFilter;return wf&&wf!=='all'&&member(wf)?S
 function wMatch(x){const wf=S.wallFilter;if(!wf||wf==='all'||!member(wf))return true;const w=whoList(x.who);return w.includes('all')||w.includes(wf)}
 function whoBar(){const wf=(S.wallFilter&&member(S.wallFilter))?S.wallFilter:'all';
   return `<div class="w-who" role="group" aria-label="Filtrar por pessoa"><button class="chip" data-wf="all" aria-pressed="${wf==='all'}">Todos</button>${S.members.map(m=>`<button class="chip" data-wf="${m.id}" aria-pressed="${wf===m.id}"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div>`}
-const LAYOUTS=[['hoje','Pessoas'],['linha','Linha do tempo'],['semana','Semana'],['mes','Mês'],['rotinas','Rotinas'],['moldura','Moldura']];
+const LAYOUTS=[['hoje','Pessoas'],['linha','Linha do tempo'],['semana','Semana'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
 function curPart(){const h=new Date().getHours();return h<12?'manha':h<19?'tarde':'noite'}
 function addMin(hm,n){const[h,m]=hm.split(':').map(Number);const t=Math.min(23*60+59,h*60+m+n);return pad(Math.floor(t/60))+':'+pad(t%60)}
@@ -679,11 +698,13 @@ function wallLabel(){
     return `Semana<small>${b.getDate()} ${MONTHS[b.getMonth()].slice(0,3)} – ${e.getDate()} ${MONTHS[e.getMonth()].slice(0,3)}</small>`}
   if(v==='mes'){const x=parse(d);return `<span style="text-transform:capitalize">${MONTHS[x.getMonth()]}</span> ${x.getFullYear()}<small>${niceDate(TODAY)}</small>`}
   if(v==='linha'&&d===TODAY){const nx=nextUp();return `${rel(d)}<small>${nx?`A seguir: <span class="w-next">${esc(nx.t)}</span> às ${nx.k}`:niceDate(d)}</small>`}
+  if(v==='compras')return `Lista de compras<small>${shopItems().filter(x=>!x.done).length} por comprar</small>`;
+  if(v==='avisos')return `Avisos e alarmes<small>${niceDate(TODAY)}</small>`;
   if(v==='rotinas'){const p=S.rotPart||curPart();return `${p==='tudo'?'Rotinas de hoje':'Rotina da '+PARTS.find(x=>x[0]===p)[1].toLowerCase()}<small>${niceDate(TODAY)}</small>`}
   return `${rel(d)}<small>${d===TODAY?niceDate(d):'Toca em Hoje para voltar'}</small>`;
 }
 function wallHead(){
-  const nav=S.wallView!=='rotinas';
+  const nav=!['rotinas','compras','avisos'].includes(S.wallView);
   return `<div class="w-top"><div class="w-clock" id="wClock">${nowHM()}</div><div class="w-date">${wallLabel()}</div>
     <div class="w-ctl">${nav?`<button class="w-btn arrow" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="w-btn" data-wtoday>Hoje</button>':''}<button class="w-btn arrow" data-wshift="1" aria-label="Seguinte">›</button>`:''}
       <button class="w-btn" data-wgoogle>Google</button><button class="w-btn" data-wset>Ajustes</button><button class="w-btn" data-wfs aria-label="Ecrã inteiro">⛶</button><button class="w-btn" data-wexit>Sair</button></div></div>${layoutBar()}${whoBar()}`;
@@ -742,9 +763,36 @@ function wallWeek(){
 }
 function renderWall(){
   S.lastHM=nowHM();const v=S.wallView;document.body.dataset.v=v;
-  const body={hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines}[v]||(()=>wallDay(S.wallDate));
+  const body={hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
   document.getElementById('wall').innerHTML=v==='moldura'?wallFrame():wallHead()+body()+fab;
+  refocus();
+}
+function wallShopping(){
+  const it=shopItems(),open=it.filter(t=>!t.done).sort((a,b)=>(a.text||'').localeCompare(b.text||'','pt')),got=it.filter(t=>t.done);
+  const b=(t,ok)=>`<button class="w-rtask w-shopit${ok?' ok':''}" data-toggle-task="${t.id}" role="checkbox" aria-checked="${ok}" style="--c:var(--accent)"><span class="box">${ok?'✓':''}</span><span class="tt">${esc(t.text)}</span></button>`;
+  return `${S.readOnly?'':shopAddForm(true)}
+    <div class="w-shop">${open.map(t=>b(t,false)).join('')||'<div class="empty">Nada em falta. Escreve acima o que acabar.</div>'}</div>
+    ${got.length?`<div class="row" style="margin-top:14px"><span class="kind">No carrinho (${got.length})</span><span class="spacer"></span><button class="edit" data-clearshop>Limpar comprados</button></div><div class="w-shop">${got.map(t=>b(t,true)).join('')}</div>`:''}`;
+}
+function toMin(hm){const[h,m]=String(hm).split(':').map(Number);return h*60+(m||0)}
+function wallAlerts(){
+  const now=nowHM(),rs=S.reminders.filter(r=>!r.done&&r.date&&wMatch(r));
+  const key=r=>r.date+(r.time||'99');
+  const late=rs.filter(r=>r.date<TODAY||(r.date===TODAY&&r.time&&r.time<=now)).sort((a,b)=>key(a).localeCompare(key(b)));
+  const today=rs.filter(r=>r.date===TODAY&&!(r.time&&r.time<=now)).sort((a,b)=>key(a).localeCompare(key(b)));
+  const lim=parse(TODAY);lim.setDate(lim.getDate()+7);const L=iso(lim);
+  const next=rs.filter(r=>r.date>TODAY&&r.date<=L).sort((a,b)=>key(a).localeCompare(key(b)));
+  const row=r=>`<div class="w-it"><button class="check" role="checkbox" aria-checked="false" data-toggle-rem="${r.id}" aria-label="Marcar como feito"></button>
+    <span class="tm">${r.time?esc(r.time):'Dia'}</span><span style="flex:1;min-width:0"><div class="tt">${esc(r.text)}</div>
+    <div class="ss">${r.date!==TODAY?esc(rel(r.date))+' · ':''}${r.time&&r.alarm!==false?'Com alarme':'Sem alarme'}</div><div class="people">${peopleTags(r.who)}</div></span>
+    <button class="edit" data-edit-rem="${r.id}">Editar</button></div>`;
+  const card=(title,list,empty,cls)=>`<div class="w-card${cls||''}"><h4>${title}</h4>${list.map(row).join('')||`<div class="empty">${empty}</div>`}</div>`;
+  const canNotify='Notification' in window&&Notification.permission!=='granted'&&Notification.permission!=='denied';
+  return `<div class="row" style="flex-wrap:wrap;margin-bottom:12px">${S.readOnly?'':'<button class="addbtn" data-new="reminder">+ Novo aviso</button>'}
+      <button class="ghost" data-alarmtest>Testar som</button>${canNotify?'<button class="ghost" data-notif>Ativar notificações</button>':''}
+      <span class="small muted">O alarme toca à hora marcada neste aparelho enquanto o Quadro estiver aberto.</span></div>
+    <div class="w-grid3">${card('Agora e em atraso',late,'Nada em atraso',' w-late')}${card('Mais logo',today,'Nada mais para hoje')}${card('Próximos 7 dias',next,'Sem avisos marcados')}</div>`;
 }
 function dayChips(d,D){
   const ch=[],school={};
@@ -883,7 +931,8 @@ function quickAdd(){
     <button type="button" data-new="task">Tarefa<small>casa, compras</small></button>
     <button type="button" data-open-meal="${S.sel}">Almoço<small>${S.sel===TODAY?'de hoje':niceDate(S.sel)}</small></button>
     <button type="button" data-new="vacation">Férias<small>período</small></button>
-    <button type="button" data-new="birthday">Aniversário<small>todos os anos</small></button></div>`);
+    <button type="button" data-new="birthday">Aniversário<small>todos os anos</small></button>
+    <button type="button" data-wv="compras">Compras<small>lista partilhada</small></button></div>`);
 }
 let wl=null,idleT=null;
 async function keepAwake(){if(!S.wall||document.hidden)return;try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
@@ -908,7 +957,7 @@ document.addEventListener('click',e=>{
   if(d.cancel!==undefined){closeSheet();return}
   if(t.id==='btnWall'){enterWall();return}
   if(t.id==='btnGoogle'){googleSheet();return}
-  if(d.wv){S.wallView=d.wv;lsSet('fam.wallView',d.wv);S.rotPart=null;renderWall();window.scrollTo(0,0);return}
+  if(d.wv){closeSheet();S.wallView=d.wv;lsSet('fam.wallView',d.wv);S.rotPart=null;renderWall();window.scrollTo(0,0);return}
   if(d.wshift){wallStep(+d.wshift);return}
   if(d.rpart){S.rotPart=d.rpart;renderWall();return}
   if(d.wset!==undefined){wallSettings();return}
@@ -955,6 +1004,12 @@ document.addEventListener('click',e=>{
       const cut=parse(TODAY);cut.setDate(cut.getDate()-35);const c=iso(cut);
       save('tasks',id,{...rest,doneDates:[...dd].filter(x=>x>=c).sort()})}
     else save('tasks',id,{...rest,done:!r.done,doneAt:!r.done?TODAY:''})}return}
+  if(d.clearshop!==undefined){if(S.readOnly)return;
+    if(!t.dataset.armed){t.dataset.armed='1';t.textContent='Toca de novo para confirmar';return}
+    shopItems().filter(x=>x.done).forEach(x=>remove('tasks',x.id));return}
+  if(d.alarmtest!==undefined){unlockAudio();beep();toast('Se não ouviste, aumenta o volume deste aparelho.');return}
+  if(d.notif!==undefined){if('Notification' in window)Notification.requestPermission().then(p=>{toast(p==='granted'?'Notificações ativadas neste aparelho.':'As notificações não foram autorizadas.');render()});return}
+  if(d.alDone||d.alSnooze||d.alOk){alarmAction(t);return}
   if(d.clear){
     if(!t.dataset.armed){t.dataset.armed='1';t.textContent='Toca de novo para confirmar';return}
     S[d.clear].filter(x=>x.done&&matches(x)).forEach(x=>remove(d.clear,x.id));return}
@@ -975,6 +1030,7 @@ document.addEventListener('pointerup',e=>{
   else if(k==='wall')wallStep(n);
 },{passive:true});
 setInterval(()=>{
+  checkAlarms();
   const t=iso(new Date());
   if(t!==TODAY){const old=TODAY;TODAY=t;if(S.sel===old){S.sel=t;S.month=t.slice(0,7)}if(S.wallDate===old)S.wallDate=t;
     document.getElementById('todayLabel').textContent=niceDate(t);render();return}
@@ -982,6 +1038,56 @@ setInterval(()=>{
   if(S.wall&&nowHM()!==S.lastHM){if(!overlay.innerHTML)renderWall();else{S.lastHM=nowHM();const c=document.getElementById('wClock');if(c)c.textContent=S.lastHM}}
 },15000);
 setInterval(()=>{if(!S.needTap){S.autoSynced=false;maybeAutoSync()}},15*60*1000);
+
+/* ---------- shopping quick add ---------- */
+document.addEventListener('submit',e=>{
+  const f=e.target.closest&&e.target.closest('[data-shopform]');if(!f)return;
+  e.preventDefault();if(S.readOnly){toast('Estás em modo de leitura.');return}
+  const inp=f.querySelector('input');const items=inp.value.split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);if(!items.length)return;
+  S.refocusId=inp.id;S.refocusUntil=Date.now()+2500;
+  const have=new Set(shopItems().filter(x=>!x.done).map(x=>(x.text||'').toLowerCase()));
+  items.forEach(text=>{if(!have.has(text.toLowerCase()))save('tasks',null,{text,list:'Compras',due:'',who:['all'],done:false,doneAt:'',repeat:'',part:'',doneDates:[]})});
+  inp.value='';S.refocusId=inp.id;S.refocusUntil=Date.now()+2500;
+});
+
+/* ---------- alarms ---------- */
+let actx=null,beepT=null,firing=[];
+function unlockAudio(){try{if(!actx){const C=window.AudioContext||window.webkitAudioContext;if(C)actx=new C()}if(actx&&actx.state==='suspended')actx.resume()}catch(e){}}
+document.addEventListener('pointerdown',unlockAudio,{passive:true});
+function beep(){if(!actx)return;try{const t0=actx.currentTime;[0,0.28,0.56].forEach((d,i)=>{const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=i===2?1175:880;g.gain.setValueAtTime(0.0001,t0+d);g.gain.exponentialRampToValueAtTime(0.5,t0+d+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+d+0.22);o.connect(g).connect(actx.destination);o.start(t0+d);o.stop(t0+d+0.25)})}catch(e){}}
+const lsJSON=(k,d)=>{try{return JSON.parse(lsGet(k)||'null')||d}catch(e){return d}};
+const alarmKey=r=>r.id+'|'+r.date+'|'+r.time;
+function checkAlarms(){
+  const now=nowHM(),acks=lsJSON('fam.acks',{}),snz=lsJSON('fam.snooze',{}),t=Date.now();
+  const due=S.reminders.filter(r=>!r.done&&r.alarm!==false&&r.time&&r.date===TODAY&&r.time<=now&&toMin(now)-toMin(r.time)<=60&&!acks[alarmKey(r)]&&!(snz[alarmKey(r)]>t));
+  const ids=due.map(r=>r.id).join(),cur=firing.map(r=>r.id).join();
+  if(ids&&ids!==cur){const fresh=due.some(r=>!firing.find(x=>x.id===r.id));firing=due;showAlarm(fresh)}
+  else if(!ids&&firing.length){firing=[];hideAlarm()}
+}
+function showAlarm(fresh){
+  let el=document.getElementById('alarm');
+  if(!el){el=document.createElement('div');el.id='alarm';el.className='alarm';el.setAttribute('role','alertdialog');el.setAttribute('aria-label','Alarme');document.body.appendChild(el)}
+  el.innerHTML=`<div class="alarm-card"><div class="alarm-clock">${nowHM()}</div>
+    ${firing.map(r=>`<div class="alarm-row"><div class="alarm-txt"><b>${esc(r.text)}</b><span>${esc(r.time)} · ${whoList(r.who).includes('all')?'Todos':whoList(r.who).map(id=>member(id)?member(id).name:'').filter(Boolean).join(', ')}</span></div>
+      <div class="alarm-btns"><button data-al-done="${r.id}">Feito</button><button data-al-snooze="${r.id}">Adiar 10 min</button><button data-al-ok="${r.id}">Fechar</button></div></div>`).join('')}</div>`;
+  if(fresh){
+    clearInterval(beepT);let n=0;beep();beepT=setInterval(()=>{beep();if(++n>=20)clearInterval(beepT)},2500);
+    try{navigator.vibrate&&navigator.vibrate([300,150,300])}catch(e){}
+    try{if('Notification' in window&&Notification.permission==='granted'&&document.hidden)new Notification('Quadro da Família',{body:firing.map(r=>r.time+' · '+r.text).join('\n'),tag:'quadro-alarme'})}catch(e){}
+  }
+}
+function hideAlarm(){clearInterval(beepT);const el=document.getElementById('alarm');if(el)el.remove()}
+function alarmAction(btn){
+  const d=btn.dataset,id=d.alDone||d.alSnooze||d.alOk,r=S.reminders.find(x=>x.id===id);
+  if(r){const k=alarmKey(r);
+    if(d.alSnooze){const snz=lsJSON('fam.snooze',{});snz[k]=Date.now()+10*60000;lsSet('fam.snooze',JSON.stringify(snz))}
+    else{const acks=lsJSON('fam.acks',{});Object.keys(acks).forEach(x=>{if(x.split('|')[1]<TODAY)delete acks[x]});acks[k]=1;lsSet('fam.acks',JSON.stringify(acks))}
+    if(d.alDone&&!S.readOnly){const{id:_,...rest}=r;save('reminders',r.id,{...rest,done:true})}
+  }
+  firing=firing.filter(x=>x.id!==id);clearInterval(beepT);
+  if(firing.length)showAlarm(false);else hideAlarm();
+}
+setTimeout(checkAlarms,4000);
 
 renderBanner();render();
 if(S.wall)keepAwake();
