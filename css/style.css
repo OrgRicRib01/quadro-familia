@@ -323,3 +323,8 @@ html:has(body.wall-mode[data-v="mes"]){background:#FFFFFF}
 html:has(body.wall-mode[data-v="linha"]){background:#10151F}
 html:has(body.wall-mode[data-v="moldura"]){background:#15171A}
 html:has(body.wall-mode[data-v="rotinas"]){background:#EEF4FB}
+
+/* wall: person filter */
+.w-who{display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none}
+.w-who::-webkit-scrollbar{display:none}
+.w-who .chip{min-height:46px;padding:0 16px;font-size:1rem;flex:none}

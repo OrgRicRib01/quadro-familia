@@ -25,7 +25,7 @@ const S={
   weekStart:(()=>{const d=new Date();d.setDate(d.getDate()-dowMon(d));return iso(d)})(),
   almView:'semana', taskList:'Todas', db:null, live:false, readOnly:false,
   uid:null, me:null, gcal:{}, mcp:null, autoSynced:false, gbusy:false,
-  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'hoje', wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null
+  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'hoje', wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null, wallFilter:'all'
 };
 const GSERVER='Google Calendar';
 
@@ -361,7 +361,7 @@ function viewCalendar(seg){
       <span class="body"><span class="kind">Lembrete${r.time?' · '+esc(r.time):''}</span><div class="t">${esc(r.text)}</div><div class="people">${peopleTags(r.who)}</div></span>
       <button class="edit" data-edit-rem="${r.id}">Editar</button></div>`).join('');
   const synced=Object.entries(S.gcal).filter(([mid,d])=>member(mid)&&d.updatedAt).map(([mid,d])=>`${esc(member(mid).name)} ${ago(d.updatedAt)}`);
-  const gline=`<div class="row small muted" style="flex-wrap:wrap"><span>${synced.length?'Google atualizado: '+synced.join(' · '):'Nenhum Google Calendar ligado ainda.'}</span><span class="spacer"></span><button class="edit" data-gsetup>${S.me&&S.me.memberId?'O meu Google':'Ligar o meu Google'}</button></div>`;
+  const gline=`<div class="row small muted" style="flex-wrap:wrap"><span>${synced.length?'Google atualizado: '+synced.join(' · '):'Nenhum Google Calendar ligado ainda.'}</span><span class="spacer"></span>${S.mcp&&S.me&&S.me.memberId?'<button class="edit" data-gsync>Sincronizar agora</button>':''}<button class="edit" data-gsetup>${S.me&&S.me.memberId?'O meu Google':'Ligar o meu Google'}</button></div>`;
   return `<section class="panel">${seg}
     <div class="cal" data-swipe="month">
       <div class="calhead"><h2>${MONTHS[mo-1]} ${y}</h2>
@@ -629,7 +629,7 @@ function nowHM(){const n=new Date();return pad(n.getHours())+':'+pad(n.getMinute
 const isAll=x=>whoList(x.who).includes('all');
 const forM=(x,m)=>!isAll(x)&&whoList(x.who).includes(m);
 function wallData(d){
-  const f=S.filter;S.filter='all';
+  const f=S.filter;S.filter=(S.wallFilter!=='all'&&member(S.wallFilter))?S.wallFilter:'all';
   const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:gcalOn(d),bd:birthdaysOn(d),meal:S.meals[d]};
   S.filter=f;return r;
 }
@@ -652,8 +652,12 @@ function wItem(x,d){
 }
 function syncLine(){
   const s=Object.entries(S.gcal).filter(([m,d])=>member(m)&&d.updatedAt).map(([m,d])=>esc(member(m).name)+' '+ago(d.updatedAt));
-  return `<p class="small muted" style="margin:12px 0 0">${s.length?'Google atualizado: '+s.join(' · '):'Google Calendar ainda não sincronizado neste Quadro.'}</p>`;
+  return `<p class="small muted row" style="margin:12px 0 0;flex-wrap:wrap">${s.length?'Google atualizado: '+s.join(' · '):'Google Calendar ainda não sincronizado neste Quadro.'}${S.mcp?' <button class="edit" data-gsync>Sincronizar agora</button>':''}</p>`;
 }
+function wallMembers(){const wf=S.wallFilter;return wf&&wf!=='all'&&member(wf)?S.members.filter(m=>m.id===wf):S.members}
+function wMatch(x){const wf=S.wallFilter;if(!wf||wf==='all'||!member(wf))return true;const w=whoList(x.who);return w.includes('all')||w.includes(wf)}
+function whoBar(){const wf=(S.wallFilter&&member(S.wallFilter))?S.wallFilter:'all';
+  return `<div class="w-who" role="group" aria-label="Filtrar por pessoa"><button class="chip" data-wf="all" aria-pressed="${wf==='all'}">Todos</button>${S.members.map(m=>`<button class="chip" data-wf="${m.id}" aria-pressed="${wf===m.id}"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div>`}
 const LAYOUTS=[['hoje','Pessoas'],['linha','Linha do tempo'],['semana','Semana'],['mes','Mês'],['rotinas','Rotinas'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
 function curPart(){const h=new Date().getHours();return h<12?'manha':h<19?'tarde':'noite'}
@@ -682,12 +686,12 @@ function wallHead(){
   const nav=S.wallView!=='rotinas';
   return `<div class="w-top"><div class="w-clock" id="wClock">${nowHM()}</div><div class="w-date">${wallLabel()}</div>
     <div class="w-ctl">${nav?`<button class="w-btn arrow" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="w-btn" data-wtoday>Hoje</button>':''}<button class="w-btn arrow" data-wshift="1" aria-label="Seguinte">›</button>`:''}
-      <button class="w-btn" data-wset>Ajustes</button><button class="w-btn" data-wfs aria-label="Ecrã inteiro">⛶</button><button class="w-btn" data-wexit>Sair</button></div></div>${layoutBar()}`;
+      <button class="w-btn" data-wgoogle>Google</button><button class="w-btn" data-wset>Ajustes</button><button class="w-btn" data-wfs aria-label="Ecrã inteiro">⛶</button><button class="w-btn" data-wexit>Sair</button></div></div>${layoutBar()}${whoBar()}`;
 }
 function railMeal(d){const meal=S.meals[d];
   return `<div class="w-card"><h4>Almoço${d===TODAY?' de hoje':''}</h4><button class="w-it" data-open-meal="${d}"><span style="flex:1;min-width:0"><div class="tt">${meal?esc(meal.title):'Por decidir'}</div><div class="ss">${meal&&meal.cook&&member(meal.cook)?'Cozinha: '+esc(member(meal.cook).name):'Tocar para escolher'}</div></span></button></div>`}
 function railReminders(d){
-  const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,5);
+  const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d&&wMatch(r)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,5);
   return `<div class="w-card"><h4>Lembretes</h4>${pend.map(r=>`<div class="w-it"><button class="check" role="checkbox" aria-checked="false" data-toggle-rem="${r.id}" aria-label="Marcar como feito"></button><span style="flex:1;min-width:0"><div class="tt">${esc(r.text)}</div><div class="ss"${r.date<TODAY?' style="color:var(--danger)"':''}>${rel(r.date)}${r.time?' · '+esc(r.time):''}</div></span></div>`).join('')||'<div class="empty">Sem lembretes pendentes</div>'}</div>`}
 function railBirthdays(){
   const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n).slice(0,3);
@@ -699,16 +703,16 @@ function wallDay(d){
     ...D.vac.filter(isAll).map(v=>`<button class="w-pill" data-edit-vac="${v.id}">Férias · <b>${esc(v.title)}</b></button>`),
     ...D.ev.filter(isAll).map(e=>`<button class="w-pill" data-edit-event="${e.id}"><b>${e.time?esc(e.time):'Dia'}</b> ${esc(e.title)}</button>`)
   ];
-  const cols=S.members.map(m=>{const its=colItems(m.id,D,d);
+  const cols=wallMembers().map(m=>{const its=colItems(m.id,D,d);
     return `<div class="w-col" style="--c:var(--${m.color})"><h3><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}<span class="spacer"></span><span class="small muted">${its.length||''}</span></h3>
       ${its.map(x=>wItem(x,d)).join('')||'<div class="empty">Dia livre</div>'}</div>`}).join('');
-  const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,8);
-  const tasks=S.tasks.filter(t=>!isDone(t)&&taskActive(t,TODAY)).sort((a,b)=>(a.due||'9').localeCompare(b.due||'9')).slice(0,8);
+  const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d&&wMatch(r)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,8);
+  const tasks=S.tasks.filter(t=>!isDone(t)&&taskActive(t,TODAY)&&wMatch(t)).sort((a,b)=>(a.due||'9').localeCompare(b.due||'9')).slice(0,8);
   const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n).slice(0,3);
   const dots=who=>dotsFor(who).map(c=>`<span class="dot" style="--c:${c}"></span>`).join('');
   const meal=D.meal;
   return `${band.length?`<div class="w-band">${band.join('')}</div>`:''}
-    <div class="w-body"><div class="w-cols" style="--n:${S.members.length}" data-swipe="wall">${cols}</div>
+    <div class="w-body"><div class="w-cols" style="--n:${wallMembers().length}" data-swipe="wall">${cols}</div>
     <aside class="w-rail">
       <div class="w-card"><h4>Almoço${d===TODAY?' de hoje':''}</h4><button class="w-it" data-open-meal="${d}"><span style="flex:1;min-width:0"><div class="tt">${meal?esc(meal.title):'Por decidir'}</div><div class="ss">${meal&&meal.cook&&member(meal.cook)?'Cozinha: '+esc(member(meal.cook).name):'Tocar para escolher'}</div></span></button></div>
       <div class="w-card"><h4>Lembretes</h4>${pend.map(r=>`<div class="w-it"><button class="check" role="checkbox" aria-checked="false" data-toggle-rem="${r.id}" aria-label="Marcar como feito"></button><span style="flex:1;min-width:0"><div class="tt">${esc(r.text)}</div><div class="ss"${r.date<TODAY?' style="color:var(--danger)"':''}>${rel(r.date)}${r.time?' · '+esc(r.time):''}</div></span><span class="row" style="gap:3px;padding-top:6px">${dots(r.who)}</span></div>`).join('')||'<div class="empty">Sem lembretes pendentes</div>'}</div>
@@ -770,7 +774,7 @@ function wallLine(){
   const now=d===TODAY?nowHM():null;
   const blk=(a,b,t,c,act)=>{const l=pos(a),w=Math.max(pos(b)-l,2.5),past=now&&b<=now,tag=act?'button':'div';
     return `<${tag} class="w-blk${past?' past':''}" style="left:${l.toFixed(2)}%;width:calc(${w.toFixed(2)}% - 3px);--c:${c}" ${act||''}><b>${esc(t)}</b><span>${a}–${b}</span></${tag}>`};
-  const lanes=[{id:'all',name:'Família',c:'var(--accent)'},...S.members.map(m=>({id:m.id,name:m.name,c:`var(--${m.color})`}))].map(L=>{
+  const lanes=[{id:'all',name:'Família',c:'var(--accent)'},...wallMembers().map(m=>({id:m.id,name:m.name,c:`var(--${m.color})`}))].map(L=>{
     const isF=L.id==='all',bl=[],allDay=[];
     D.ev.filter(e=>isF?isAll(e):forM(e,L.id)).forEach(e=>{if(e.time)bl.push(blk(e.time,schoolEnd(e)||addMin(e.time,60),e.title,L.c,`data-edit-event="${e.id}"`));else allDay.push(e.title)});
     if(!isF)D.g.filter(g=>g.mid===L.id).forEach(g=>{if(g.h&&g.d===d&&g.d===g.e)bl.push(blk(g.h,g.he&&g.he>g.h?g.he:addMin(g.h,60),g.t,L.c));else allDay.push(g.t)});
@@ -800,10 +804,10 @@ function wallFrame(){
   const tmr=parse(TODAY);tmr.setDate(tmr.getDate()+1);const td=iso(tmr);
   const now=nowHM();
   const row=(x,today)=>`<div class="w-fr${today&&x.end&&x.end<=now?' past':''}"><span class="tm">${x.k||'Dia'}</span><span class="dot" style="--c:${x.c}"></span><span class="tt" style="min-width:0">${esc(x.t)}</span></div>`;
-  const meal=S.meals[TODAY],pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=TODAY).length;
+  const meal=S.meals[TODAY],pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=TODAY&&wMatch(r)).length;
   const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n)[0];
   const today=frameList(wallData(TODAY),TODAY),tomorrow=frameList(wallData(td),td).slice(0,5);
-  return `${layoutBar()}<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
+  return `${layoutBar()}${whoBar()}<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
       ${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}
       <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
       ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div></div>
@@ -814,22 +818,23 @@ function wallFrame(){
         <div class="w-mini"><small>Lembretes</small><b>${pend} por fazer</b></div>
         ${S.readOnly?'':'<button class="w-btn" data-quickadd aria-label="Adicionar" style="font-size:1.8rem;background:var(--accent);color:var(--accent-ink);border:0">+</button>'}
       </div>
-      <div class="row" style="gap:8px;justify-content:flex-end"><button class="edit" data-wset>Ajustes</button><button class="edit" data-wfs>Ecrã inteiro</button><button class="edit" data-wexit>Sair</button></div>
+      <div class="row" style="gap:8px;justify-content:flex-end"><button class="edit" data-wgoogle>Google</button><button class="edit" data-wset>Ajustes</button><button class="edit" data-wfs>Ecrã inteiro</button><button class="edit" data-wexit>Sair</button></div>
     </div></div>`;
 }
 function wallRoutines(){
   const part=S.rotPart||curPart();let total=0;
   const tabs=`<div class="seg" role="group" aria-label="Parte do dia" style="max-width:560px;margin-bottom:12px">${PARTS.map(([k,l])=>`<button data-rpart="${k}" aria-pressed="${part===k}">${l}</button>`).join('')}</div>`;
   const partName=part==='tudo'?'hoje':'para a '+PARTS.find(x=>x[0]===part)[1].toLowerCase();
-  const cards=S.members.map(m=>{
+  const cards=wallMembers().map(m=>{
     const ts=S.tasks.filter(t=>forM(t,m.id)&&taskActive(t,TODAY)&&(part==='tudo'||!t.part||t.part===part)&&(t.repeat||!t.done||t.doneAt===TODAY)).sort((a,b)=>isDone(a)-isDone(b));
     const done=ts.filter(t=>isDone(t)).length,st=starsFor(m.id);total+=st;
     const deg=ts.length?Math.round(done/ts.length*360):0;
     return `<div class="w-rc" style="--c:var(--${m.color})"><div class="w-rh"><div class="w-ring" style="background:conic-gradient(var(--c) ${deg}deg,var(--sunk) 0)"><span>${done}/${ts.length}</span></div>
       <div style="min-width:0"><div style="font-family:var(--display);font-weight:600;font-size:1.25rem">${esc(m.name)}</div><div class="small">★ ${st} ${st===1?'estrela':'estrelas'} esta semana</div></div></div>
       ${ts.map(t=>{const ok=isDone(t);return `<button class="w-rtask${ok?' ok':''}" data-toggle-task="${t.id}" role="checkbox" aria-checked="${ok}"><span class="box">${ok?'✓':''}</span><span style="min-width:0"><div class="tt">${esc(t.text)}</div><div class="ss">${esc([t.repeat==='daily'?'Todos os dias':t.repeat==='weekdays'?'Dias úteis':'',t.due?'até '+rel(t.due):''].filter(Boolean).join(' · '))}</div></span></button>`}).join('')||`<div class="empty">Sem tarefas ${partName}</div>`}</div>`}).join('');
+  total=S.members.reduce((a,m)=>a+starsFor(m.id),0);
   const goal=+(S.prize&&S.prize.goal)||50,title=(S.prize&&S.prize.title)||'';
-  return `${tabs}<div class="w-rt" style="--n:${S.members.length}">${cards}</div>
+  return `${tabs}<div class="w-rt" style="--n:${wallMembers().length}">${cards}</div>
     <div class="w-prize"><b>Prémio da semana</b><div class="w-bar"><i style="width:${Math.min(100,total/goal*100).toFixed(0)}%"></i></div><span class="muted">${total} de ${goal} estrelas${title?' · '+esc(title):''}</span>${title?'':'<button class="edit" data-wset>Definir prémio</button>'}</div>
     <p class="small muted" style="margin:10px 0 0">Cada tarefa feita dá uma estrela. Para criar uma rotina, adiciona uma tarefa para uma pessoa com "Repete: todos os dias" e escolhe a parte do dia.</p>`;
 }
@@ -852,6 +857,7 @@ function wallSettings(){
       ${S.photos.length?`<div class="ph-grid">${S.photos.map(p=>`<figure style="background-image:url('${photoUrl(p)}')"><button type="button" class="ph-del" data-delphoto="${p.id}" aria-label="Apagar fotografia">×</button></figure>`).join('')}</div>`:''}
       ${S.assets&&!S.readOnly?'<label class="uplabel">+ Adicionar fotografias<input id="w-ph" type="file" accept="image/*" multiple hidden></label>':`<p class="muted small" style="margin:0">${S.live?'Só quem pode editar o Quadro consegue adicionar fotografias.':'Configura o Firebase para adicionar fotografias.'}</p>`}
     </div>
+    <div class="field"><span>Google Calendar</span><button type="button" class="ghost" data-wgoogle>Ligar e escolher calendários</button></div>
     <div class="two"><label class="field"><span>Prémio da semana</span><input id="w-prize" name="prize" value="${esc(S.prize&&S.prize.title)}" placeholder="Ex.: Noite de cinema"></label>
     <label class="field"><span>Estrelas necessárias</span><input id="w-goal" type="number" min="1" name="goal" value="${esc((S.prize&&S.prize.goal)||50)}"></label></div>`,
   {onSave:f=>{
@@ -885,7 +891,7 @@ function enterWall(){S.wall=true;S.wallDate=TODAY;S.wallView=lsGet('fam.wallView
 function exitWall(){S.wall=false;lsSet('fam.wall','0');try{wl&&wl.release()}catch(e){}wl=null;
   if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});render()}
 function bumpIdle(){clearTimeout(idleT);if(!S.wall)return;
-  idleT=setTimeout(()=>{closeSheet();S.wallView=lsGet('fam.rest')||S.wallView;S.rotPart=null;S.wallDate=TODAY;render();window.scrollTo(0,0)},120000)}
+  idleT=setTimeout(()=>{closeSheet();S.wallView=lsGet('fam.rest')||S.wallView;S.rotPart=null;S.wallFilter='all';S.wallDate=TODAY;render();window.scrollTo(0,0)},120000)}
 function toggleFS(){
   try{if(document.fullscreenElement){document.exitFullscreen().catch(()=>{});return}
     const p=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();
@@ -901,10 +907,14 @@ document.addEventListener('click',e=>{
   if(t.matches('[data-scrim]')){if(e.target===t)closeSheet();return}
   if(d.cancel!==undefined){closeSheet();return}
   if(t.id==='btnWall'){enterWall();return}
+  if(t.id==='btnGoogle'){googleSheet();return}
   if(d.wv){S.wallView=d.wv;lsSet('fam.wallView',d.wv);S.rotPart=null;renderWall();window.scrollTo(0,0);return}
   if(d.wshift){wallStep(+d.wshift);return}
   if(d.rpart){S.rotPart=d.rpart;renderWall();return}
   if(d.wset!==undefined){wallSettings();return}
+  if(d.wf){S.wallFilter=d.wf;renderWall();return}
+  if(d.wgoogle!==undefined){googleSheet();return}
+  if(d.gsync!==undefined){if(!S.me||!S.me.memberId){googleSheet();return}S.needTap=false;allowGooglePrompt();syncGoogle(S.me,true);return}
   if(d.delphoto){if(S.readOnly)return;const p=S.photos.find(x=>x.id===d.delphoto);
     if(!t.dataset.armed){t.dataset.armed='1';t.textContent='✓';t.setAttribute('aria-label','Toca de novo para apagar');return}
     if(p){remove('photos',p.id);if(S.assets&&p.asset)S.assets.delete(p.asset).catch(()=>{})}
@@ -954,7 +964,7 @@ let tt;function toast(msg){clearTimeout(tt);document.querySelector('.toast')?.re
 
 document.getElementById('todayLabel').textContent=niceDate(TODAY);
 document.addEventListener('pointerdown',bumpIdle,{passive:true});
-document.addEventListener('click',()=>{if(S.needTap&&S.mcp&&S.wall&&lsGet('fam.gconsent')){S.needTap=false;S.autoSynced=false;allowGooglePrompt();maybeAutoSync()}},true);
+document.addEventListener('click',()=>{if(S.needTap&&S.mcp&&lsGet('fam.gconsent')){S.needTap=false;S.autoSynced=false;allowGooglePrompt();maybeAutoSync()}},true);
 document.addEventListener('visibilitychange',keepAwake);
 let sw=null;
 document.addEventListener('pointerdown',e=>{const z=e.target.closest('[data-swipe]');sw=z&&!overlay.innerHTML?{x:e.clientX,y:e.clientY,k:z.dataset.swipe}:null},{passive:true});
