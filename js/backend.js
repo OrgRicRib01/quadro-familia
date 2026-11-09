@@ -145,8 +145,10 @@ if (configured) {
   function getToken() {
     if (token && Date.now() < tokenExp - 60000) return Promise.resolve(token);
     // O Google só abre o pedido de autorização a partir de um toque/clique.
+    // Só abre o pedido do Google quando a pessoa pediu (abrir "O meu Google", sincronizar, enviar um evento).
     const active = !navigator.userActivation || navigator.userActivation.isActive;
-    if (!active) return Promise.reject({ code: 'approval_required', message: 'precisa de um toque' });
+    if (!active || !(backend.interactiveUntil > Date.now())) return Promise.reject({ code: 'approval_required', message: 'precisa de um toque' });
+    backend.interactiveUntil = 0;
     if (!tokenClient) {
       if (!(window.google && google.accounts && google.accounts.oauth2)) {
         return Promise.reject({ code: 'server_unavailable', message: 'Google Identity ainda a carregar' });
@@ -240,6 +242,7 @@ if (configured) {
 
   const backend = {
     user: null,
+    interactiveUntil: 0,
     signOut: () => signOut(auth),
     async use(name) {
       await ready;

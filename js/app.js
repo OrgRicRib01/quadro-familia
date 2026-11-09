@@ -166,7 +166,9 @@ function gcalOn(d){
 }
 function ago(isoStr){const m=Math.round((Date.now()-Date.parse(isoStr))/60000);if(m<1)return 'agora';if(m<60)return 'há '+m+' min';const h=Math.round(m/60);if(h<24)return 'há '+h+' h';return 'há '+Math.round(h/24)+' dias'}
 
+function allowGooglePrompt(){if(window.famBackend)window.famBackend.interactiveUntil=Date.now()+4000}
 async function googleSheet(){
+  allowGooglePrompt();
   if(!S.live){toast('Configura o Firebase para ligar o Google (ver README).');return}
   if(!S.uid){toast('Entra com a tua conta Google primeiro.');return}
   const me=S.me||{};
@@ -188,7 +190,7 @@ async function googleSheet(){
       S.me=prof;
       if(prev&&prev!==memberId){try{await S.db.doc('gcal/'+prev).delete()}catch(e){}}
       if(!Object.values(cals).some(v=>v!=='off')){try{await S.db.doc('gcal/'+memberId).delete()}catch(e){};toast('Nenhum calendário a mostrar.');return}
-      syncGoogle(prof,true);
+      allowGooglePrompt();syncGoogle(prof,true);
     })();
   }});
   const box=f.querySelector('#gcals');
@@ -474,7 +476,7 @@ function eventForm(e){
       ${(S.myCals||[]).filter(c=>!/holiday|#/.test(c.id)).map(c=>`<option value="${esc(c.id)}">Sim, em ${esc(c.summary||c.id)}</option>`).join('')}
     </select></label>`:e.gId?`<p class="muted small" style="margin:0">Já enviado para o Google Calendar. Alterações aqui não mudam o evento no Google.</p>`:''}`,
   {onSave:f=>{const title=val(f,'title');if(!title){toast('Escreve o nome do evento.');return false}
-      const id=e.id||uid();const gc=val(f,'gcal');
+      const id=e.id||uid();const gc=val(f,'gcal');if(gc)allowGooglePrompt();
       const body={title,date:val(f,'date')||S.sel,time:val(f,'time'),place:val(f,'place'),repeat:val(f,'repeat'),note:val(f,'note'),who:readWho(f),gId:e.gId||''};
       (async()=>{await save('events',id,body);
         if(gc){const gid=await pushToGoogle(body,gc==='primary'?'':gc);if(gid)await save('events',id,{...body,gId:String(gid)})}})();
@@ -952,7 +954,7 @@ let tt;function toast(msg){clearTimeout(tt);document.querySelector('.toast')?.re
 
 document.getElementById('todayLabel').textContent=niceDate(TODAY);
 document.addEventListener('pointerdown',bumpIdle,{passive:true});
-document.addEventListener('click',()=>{if(S.needTap&&S.mcp){S.needTap=false;S.autoSynced=false;maybeAutoSync()}},true);
+document.addEventListener('click',()=>{if(S.needTap&&S.mcp&&S.wall&&lsGet('fam.gconsent')){S.needTap=false;S.autoSynced=false;allowGooglePrompt();maybeAutoSync()}},true);
 document.addEventListener('visibilitychange',keepAwake);
 let sw=null;
 document.addEventListener('pointerdown',e=>{const z=e.target.closest('[data-swipe]');sw=z&&!overlay.innerHTML?{x:e.clientX,y:e.clientY,k:z.dataset.swipe}:null},{passive:true});
