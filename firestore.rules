@@ -1,0 +1,34 @@
+rules_version = '2';
+
+// Regras do Quadro da Família.
+// Só as contas Google da lista abaixo podem ler e escrever.
+// Substitui os emails de exemplo pelos da tua família ANTES de publicar estas regras
+// no Firebase (Firestore Database → Regras). Não é preciso pôr os emails reais no GitHub.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function family() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'pessoa1@gmail.com',
+          'pessoa2@gmail.com',
+          'pessoa3@gmail.com',
+          'pessoa4@gmail.com',
+          'pessoa5@gmail.com'
+        ];
+    }
+
+    // Escolhas pessoais de cada um (que calendários Google mostrar): só o próprio vê.
+    match /data/users/{uid}/{rest=**} {
+      allow read, write: if family() && request.auth.uid == uid;
+    }
+
+    // Tudo o resto (eventos, lembretes, tarefas, receitas, almoços, aniversários,
+    // férias, fotografias, eventos do Google sincronizados, configuração) é partilhado.
+    match /{col}/{id} {
+      allow read, write: if family() && col != 'data';
+    }
+  }
+}
