@@ -69,7 +69,7 @@ function handleWriteError(e){
     if(user){if(user.can&&(await user.can('data.write'))===false)S.readOnly=true;S.uid=await user.id()}}catch(e){}
   renderBanner();
   if(S.uid){
-    db.doc('data/users/'+S.uid+'/profile').onSnapshot(s=>{S.me=s.exists?s.data():null;maybeAutoSync();render()},()=>{});
+    db.doc('data/users/'+S.uid+'/profile').onSnapshot(s=>{S.me=s.exists?s.data():null;S.meLoaded=true;maybeAutoSync();render()},()=>{});
   }
   db.collection('gcal').onSnapshot(snap=>{S.gcal={};snap.docs.forEach(d=>S.gcal[d.id]=d.data());render()},()=>{});
   famBackend.use('mcp').then(m=>{S.mcp=m;maybeAutoSync()}).catch(()=>{});
@@ -163,6 +163,11 @@ async function syncGoogle(prof,manual){
 }
 function maybeAutoSync(){
   if(S.mcp&&S.me&&S.me.memberId&&!S.calsLoaded){S.calsLoaded=true;fetchCals().then(c=>{S.myCals=c}).catch(()=>{})}
+  const fb=window.famBackend;
+  if(fb&&fb.authError&&S.mcp){S.gerr=gErr(fb.authError);fb.authError=null;toast(S.gerr)}
+  if(fb&&fb.justAuthorized&&S.mcp&&S.db&&S.uid&&S.meLoaded){const what=fb.justAuthorized;fb.justAuthorized='';
+    if(what==='sheet'||!S.me||!S.me.memberId){googleSheet();return}
+    S.autoSynced=true;syncGoogle(S.me,true);return}
   if(S.autoSynced||!S.mcp||!S.db||!S.me||!S.me.memberId)return;
   const last=S.gcal[S.me.memberId]&&S.gcal[S.me.memberId].updatedAt;
   if(last&&Date.now()-Date.parse(last)<15*60*1000){S.autoSynced=true;return}
@@ -187,9 +192,9 @@ function gcalOn(d){
 }
 function ago(isoStr){const m=Math.round((Date.now()-Date.parse(isoStr))/60000);if(m<1)return 'agora';if(m<60)return 'há '+m+' min';const h=Math.round(m/60);if(h<24)return 'há '+h+' h';return 'há '+Math.round(h/24)+' dias'}
 
-function allowGooglePrompt(){if(window.famBackend)window.famBackend.interactiveUntil=Date.now()+4000}
+function allowGooglePrompt(after){if(window.famBackend){window.famBackend.interactiveUntil=Date.now()+4000;window.famBackend.afterAuth=after||'sync'}}
 async function googleSheet(){
-  allowGooglePrompt();
+  allowGooglePrompt('sheet');
   if(!S.live){toast('Configura o Firebase para ligar o Google (ver README).');return}
   if(!S.uid){toast('Entra com a tua conta Google primeiro.');return}
   const me=S.me||{};

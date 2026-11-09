@@ -126,53 +126,60 @@ if (configured) {
     can: async () => true
   };
 
-  // ---------- Google Calendar (Google Identity Services, sem servidor) ----------
+  // ---------- Google Calendar (autorização por redirecionamento, sem servidor) ----------
+  // A página vai ao Google e volta com um token (válido ~1 hora), guardado neste aparelho.
+  // Mais fiável do que a janela pop-up, que alguns browsers isolam da página.
   const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
-  let tokenClient = null, token = null, tokenExp = 0;
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+  const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
+  let token = null, tokenExp = 0, retAuth = '', retErr = null;
+  try { const t = JSON.parse(lsGet('fam.gtoken') || 'null'); if (t && t.exp > Date.now()) { token = t.t; tokenExp = t.exp; } } catch (e) {}
 
-  function waitForGis() {
-    return new Promise((res, rej) => {
-      let n = 0;
-      (function check() {
-        if (window.google && google.accounts && google.accounts.oauth2) return res();
-        if (++n > 100) return rej({ code: 'server_unavailable', message: 'Google Identity não carregou' });
-        setTimeout(check, 100);
-      })();
+  // Regresso do Google: #access_token=...&expires_in=...&state=...
+  (function readReturn() {
+    if (!location.hash || location.hash.length < 2) return;
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (!h.get('access_token') && !h.get('error')) return;
+    const okState = h.get('state') && h.get('state') === lsGet('fam.gstate');
+    history.replaceState(null, '', location.pathname + location.search + (lsGet('fam.ghash') || ''));
+    lsDel('fam.gstate');
+    if (!okState) return;
+    if (h.get('access_token')) {
+      const granted = (h.get('scope') || '').split(' ');
+      if (!granted.some(x => x.includes('calendar'))) { retErr = { code: 'scope_missing', message: 'sem acesso ao calendário' }; return; }
+      token = h.get('access_token');
+      tokenExp = Date.now() + (Number(h.get('expires_in')) || 3600) * 1000;
+      lsSet('fam.gtoken', JSON.stringify({ t: token, exp: tokenExp }));
+      lsSet('fam.gconsent', '1');
+      retAuth = lsGet('fam.afterAuth') || 'sync';
+    } else {
+      retErr = { code: 'approval_required', message: h.get('error') };
+    }
+    lsDel('fam.afterAuth');
+  })();
+
+  function goAuthorize() {
+    const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    lsSet('fam.gstate', state);
+    lsSet('fam.ghash', location.hash && !location.hash.includes('access_token') ? location.hash : '');
+    if (backend.afterAuth) lsSet('fam.afterAuth', backend.afterAuth);
+    const q = new URLSearchParams({
+      client_id: cfg.googleClientId, redirect_uri: REDIRECT, response_type: 'token',
+      scope: SCOPES, include_granted_scopes: 'true', state
     });
+    if (backend.user && backend.user.email) q.set('login_hint', backend.user.email);
+    if (!lsGet('fam.gconsent')) q.set('prompt', 'consent');
+    location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + q);
   }
   function getToken() {
     if (token && Date.now() < tokenExp - 60000) return Promise.resolve(token);
-    // O Google só abre o pedido de autorização a partir de um toque/clique.
-    // Só abre o pedido do Google quando a pessoa pediu (abrir "O meu Google", sincronizar, enviar um evento).
-    const active = !navigator.userActivation || navigator.userActivation.isActive;
-    if (!active || !(backend.interactiveUntil > Date.now())) return Promise.reject({ code: 'approval_required', message: 'precisa de um toque' });
+    // Só vai ao Google quando a pessoa pediu (abrir "O meu Google", sincronizar, enviar um evento).
+    if (!(backend.interactiveUntil > Date.now())) return Promise.reject({ code: 'approval_required', message: 'precisa de um toque' });
     backend.interactiveUntil = 0;
-    if (!tokenClient) {
-      if (!(window.google && google.accounts && google.accounts.oauth2)) {
-        return Promise.reject({ code: 'server_unavailable', message: 'Google Identity ainda a carregar' });
-      }
-      tokenClient = google.accounts.oauth2.initTokenClient({ client_id: cfg.googleClientId, scope: SCOPES, callback: () => {} });
-    }
-    return new Promise((res, rej) => {
-      tokenClient.callback = r => {
-        if (!r || r.error) return rej({ code: 'approval_required', message: (r && r.error) || 'recusado' });
-        // No ecrã de autorização a pessoa tem de marcar as caixas do Google Calendar.
-        if (google.accounts.oauth2.hasGrantedAnyScope && !google.accounts.oauth2.hasGrantedAnyScope(r, 'https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events')) {
-          return rej({ code: 'scope_missing', message: 'caixas do Google Calendar por marcar' });
-        }
-        token = r.access_token;
-        tokenExp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
-        lsSet('fam.gconsent', '1');
-        res(token);
-      };
-      tokenClient.error_callback = e => rej({ code: 'approval_required', message: (e && e.type) || 'fechado' });
-      tokenClient.requestAccessToken({
-        prompt: lsGet('fam.gconsent') ? '' : 'consent',
-        hint: backend.user && backend.user.email || undefined
-      });
-    });
+    goAuthorize();
+    return new Promise(() => {}); // a página vai mudar para o Google
   }
   async function gapi(path, opts = {}) {
     const t = await getToken();
@@ -180,7 +187,7 @@ if (configured) {
       ...opts,
       headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }
     });
-    if (r.status === 401) { token = null; throw { code: 'approval_required', message: 'token expirado' }; }
+    if (r.status === 401) { token = null; lsDel('fam.gtoken'); throw { code: 'approval_required', message: 'token expirado' }; }
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
       throw { code: r.status >= 500 ? 'server_unavailable' : 'tool_error', message: (j.error && j.error.message) || r.statusText };
@@ -247,6 +254,9 @@ if (configured) {
   const backend = {
     user: null,
     interactiveUntil: 0,
+    afterAuth: '',
+    justAuthorized: retAuth,
+    authError: retErr,
     signOut: () => signOut(auth),
     async use(name) {
       await ready;
@@ -255,7 +265,6 @@ if (configured) {
       if (name === 'assets') return assetsNs;
       if (name === 'mcp') {
         if (!cfg.googleClientId || String(cfg.googleClientId).startsWith('COLOCA')) return null;
-        try { await waitForGis(); } catch (e) { return null; }
         return mcpNs;
       }
       return null;
