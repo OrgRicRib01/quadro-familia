@@ -158,6 +158,10 @@ if (configured) {
     return new Promise((res, rej) => {
       tokenClient.callback = r => {
         if (!r || r.error) return rej({ code: 'approval_required', message: (r && r.error) || 'recusado' });
+        // No ecrã de autorização a pessoa tem de marcar as caixas do Google Calendar.
+        if (google.accounts.oauth2.hasGrantedAnyScope && !google.accounts.oauth2.hasGrantedAnyScope(r, 'https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events')) {
+          return rej({ code: 'scope_missing', message: 'caixas do Google Calendar por marcar' });
+        }
         token = r.access_token;
         tokenExp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
         lsSet('fam.gconsent', '1');

@@ -92,6 +92,7 @@ function handleWriteError(e){
 /* ---------- Google Calendar ---------- */
 function gErr(e){
   const c=e&&e.code;
+  if(c==='scope_missing')return 'Na janela do Google, marca as caixas do Google Calendar (ver e editar eventos) antes de carregar em Continuar.';
   if(c==='server_not_connected')return 'O Google Calendar não está configurado nesta instalação (ver README).';
   if(c==='needs_reauth')return 'A autorização do Google expirou. Toca em Agenda → O meu Google para voltar a autorizar.';
   if(c==='selection_required')return 'Escolhe a conta Google no pedido que aparece.';
@@ -126,12 +127,15 @@ async function syncGoogle(prof,manual){
   if(!S.mcp){if(manual)toast('O Google Calendar não está configurado nesta instalação (ver README).');return}
   if(!prof||!prof.memberId)return;
   const chosen=Object.entries(prof.cals||{}).filter(([,v])=>v==='show'||v==='busy');
-  if(S.gbusy)return;S.gbusy=true;if(manual)toast('A sincronizar com o Google…');
+  if(S.gbusy&&Date.now()-S.gbusy<90000)return;S.gbusy=Date.now();if(manual)toast('A sincronizar com o Google…');
+  if(!chosen.length){S.gbusy=false;if(manual){toast('Ainda não escolheste calendários. Abre O meu Google.');googleSheet()}return}
   try{
     const names={};(prof.calNames?Object.entries(prof.calNames):[]).forEach(([k,v])=>names[k]=v);
     const [from,to]=syncWindow();const out=[];
+    const failed=[];let firstErr=null;
     for(const [cid,mode] of chosen){
       let token,n=0;
+      try{
       do{
         const r=await S.mcp.callTool(GSERVER,'list_events',{calendarId:cid,startTime:from,endTime:to,pageSize:250,...(token?{pageToken:token}:{})},{cache:false});
         const p=r.payload||{};
@@ -139,12 +143,23 @@ async function syncGoogle(prof,manual){
         (p.events||[]).forEach(e=>{const x=toEv(e,mode,names[cid]||p.summary);if(x){x.m=owner;out.push(x)}});
         token=p.nextPageToken;n++;
       }while(token&&n<4);
+      }catch(e){
+        // Sem autorização não vale a pena tentar os outros calendários.
+        if(e&&(e.code==='approval_required'||e.code==='scope_missing'))throw e;
+        failed.push(names[cid]||cid);firstErr=firstErr||e;console.warn('Google Calendar',cid,e);
+      }
     }
+    if(failed.length===chosen.length&&firstErr)throw firstErr;
     out.sort((a,b)=>(a.d+a.h).localeCompare(b.d+b.h));
-    await S.db.doc('gcal/'+prof.memberId).set({events:out.slice(0,800),updatedAt:new Date().toISOString()});
-    if(manual)toast(out.length+' eventos do Google sincronizados');
-  }catch(e){if(e&&e.code==='approval_required'&&!manual)S.needTap=true;else toast(gErr(e))}
-  S.gbusy=false;
+    await S.db.doc('gcal/'+prof.memberId).set({events:out.slice(0,1500),updatedAt:new Date().toISOString()});
+    S.gerr='';
+    if(manual)toast(out.length+' eventos do Google sincronizados'+(failed.length?' (não deu: '+failed.join(', ')+')':''));
+  }catch(e){
+    console.warn('Sincronização Google',e);
+    if(e&&e.code==='approval_required'&&!manual)S.needTap=true;
+    else{S.gerr=gErr(e);toast(S.gerr)}
+  }
+  S.gbusy=false;render();
 }
 function maybeAutoSync(){
   if(S.mcp&&S.me&&S.me.memberId&&!S.calsLoaded){S.calsLoaded=true;fetchCals().then(c=>{S.myCals=c}).catch(()=>{})}
@@ -368,7 +383,7 @@ function viewCalendar(seg){
       <span class="body"><span class="kind">Lembrete${r.time?' · '+esc(r.time):''}</span><div class="t">${esc(r.text)}</div><div class="people">${peopleTags(r.who)}</div></span>
       <button class="edit" data-edit-rem="${r.id}">Editar</button></div>`).join('');
   const synced=Object.entries(S.gcal).filter(([mid,d])=>member(mid)&&d.updatedAt).map(([mid,d])=>`${esc(member(mid).name)} ${ago(d.updatedAt)}`);
-  const gline=`<div class="row small muted" style="flex-wrap:wrap"><span>${synced.length?'Google atualizado: '+synced.join(' · '):'Nenhum Google Calendar ligado ainda.'}</span><span class="spacer"></span>${S.mcp&&S.me&&S.me.memberId?'<button class="edit" data-gsync>Sincronizar agora</button>':''}<button class="edit" data-gsetup>${S.me&&S.me.memberId?'O meu Google':'Ligar o meu Google'}</button></div>`;
+  const gline=`<div class="row small muted" style="flex-wrap:wrap"><span>${synced.length?'Google atualizado: '+synced.join(' · '):'Google ainda não sincronizado.'}${S.gerr?` <span style="color:var(--danger)">${esc(S.gerr)}</span>`:''}</span><span class="spacer"></span>${S.mcp&&S.me&&S.me.memberId?'<button class="edit" data-gsync>Sincronizar agora</button>':''}<button class="edit" data-gsetup>${S.me&&S.me.memberId?'O meu Google':'Ligar o meu Google'}</button></div>`;
   return `<section class="panel">${seg}
     <div class="cal" data-swipe="month">
       <div class="calhead"><h2>${MONTHS[mo-1]} ${y}</h2>
@@ -724,7 +739,7 @@ function wItem(x,d){
 }
 function syncLine(){
   const s=Object.entries(S.gcal).filter(([m,d])=>member(m)&&d.updatedAt).map(([m,d])=>esc(member(m).name)+' '+ago(d.updatedAt));
-  return `<p class="small muted row" style="margin:12px 0 0;flex-wrap:wrap">${s.length?'Google atualizado: '+s.join(' · '):'Google Calendar ainda não sincronizado neste Quadro.'}${S.mcp?' <button class="edit" data-gsync>Sincronizar agora</button>':''}</p>`;
+  return `<p class="small muted row" style="margin:12px 0 0;flex-wrap:wrap">${s.length?'Google atualizado: '+s.join(' · '):'Google Calendar ainda não sincronizado neste Quadro.'}${S.gerr?` <span style="color:var(--danger)">${esc(S.gerr)}</span>`:''}${S.mcp?' <button class="edit" data-gsync>Sincronizar agora</button>':''}</p>`;
 }
 function wallMembers(){const wf=S.wallFilter;return wf&&wf!=='all'&&member(wf)?S.members.filter(m=>m.id===wf):S.members}
 function wMatch(x){const wf=S.wallFilter;if(!wf||wf==='all'||!member(wf))return true;const w=whoList(x.who);return w.includes('all')||w.includes(wf)}
