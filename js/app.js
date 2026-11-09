@@ -181,7 +181,7 @@ function gcalOn(d){
   const out=[],seen=new Set();
   Object.entries(S.gcal).forEach(([mid,doc])=>{
     (doc.events||[]).forEach(x=>{
-      const m=x.m||mid;if(!member(m))return;
+      const m=x.m||mid;if(m!=='all'&&!member(m))return;
       if(!gOK(m,x.c))return;
       if(d<x.d||d>x.e)return;
       if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
@@ -202,7 +202,7 @@ async function googleSheet(){
   const me=S.me||{};
   const f=sheet('O meu Google Calendar',`
     <p class="muted small" style="margin:0">Escolhe quem és e que calendários teus aparecem na Agenda. A família vê os eventos dos calendários que marcares. Usa <b>Só "Ocupado"</b> para o calendário do trabalho.</p>
-    <p class="muted small" style="margin:0">Se outra pessoa partilhou o calendário dela contigo no Google, escolhe <b>É de…</b> e os eventos aparecem com a cor dela. Assim o ecrã de parede mostra toda a família sem cada um ter de abrir o Quadro.</p>
+    <p class="muted small" style="margin:0">Se outra pessoa partilhou o calendário dela contigo no Google, escolhe <b>É de…</b> e os eventos aparecem com a cor dela. Um calendário partilhado, como o "Família", fica em <b>É da família</b> e aparece para todos. Assim o ecrã de parede mostra toda a família sem cada um ter de abrir o Quadro.</p>
     <label class="field"><span>Quem és tu</span><select id="g-member" name="member"><option value="">Escolher…</option>${S.members.map(m=>`<option value="${m.id}" ${me.memberId===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>
     <div class="field"><span>Os meus calendários</span><div id="gcals" class="list"><div class="empty">A carregar calendários…</div></div></div>
     <p class="muted small" style="margin:0">Os teus eventos atualizam sempre que abres o Quadro (de 15 em 15 minutos, no máximo).</p>`,
@@ -233,7 +233,7 @@ async function googleSheet(){
           <option value="off" ${mode==='off'?'selected':''}>Não mostrar</option>
           <option value="show" ${mode==='show'?'selected':''}>Mostrar</option>
           <option value="busy" ${mode==='busy'?'selected':''}>Só "Ocupado"</option></select>
-        <select id="gm-${i}" data-calm="${esc(c.id)}" class="gsel" aria-label="De quem é"><option value="">É meu</option>${S.members.map(m=>`<option value="${m.id}" ${cm===m.id?'selected':''}>É de ${esc(m.name)}</option>`).join('')}</select></div>`}).join('');
+        <select id="gm-${i}" data-calm="${esc(c.id)}" class="gsel" aria-label="De quem é"><option value="">É meu</option><option value="all" ${cm==='all'?'selected':''}>É da família (todos)</option>${S.members.map(m=>`<option value="${m.id}" ${cm===m.id?'selected':''}>É de ${esc(m.name)}</option>`).join('')}</select></div>`}).join('');
   }catch(e){box.innerHTML=`<div class="empty">${esc(gErr(e))}</div>`}
 }
 async function pushToGoogle(ev,calendarId){
@@ -254,12 +254,13 @@ async function pushToGoogle(ev,calendarId){
 
 /* ---------- helpers ---------- */
 const member=id=>S.members.find(m=>m.id===id);
-const colorOf=id=>`var(--${(member(id)||{}).color||'muted'})`;
+const colorOf=id=>id==='all'?'var(--accent)':`var(--${(member(id)||{}).color||'muted'})`;
+const gName=id=>member(id)?member(id).name:'Família';
 function whoList(who){return (!who||!who.length||who.includes('all'))?['all']:who}
 function matches(item){const w=whoList(item.who),f=S.filter;if(f==='all')return true;
   if(typeof f==='object')return f.m.length>0&&(w.includes('all')||w.some(x=>f.m.includes(x)));
   return w.includes('all')||w.includes(f)}
-function gOK(m,c){const f=S.filter;if(f==='all')return true;if(typeof f==='object')return f.m.includes(m)||(!!c&&f.c.includes(c));return f===m}
+function gOK(m,c){const f=S.filter;if(f==='all')return true;if(typeof f==='object')return (m==='all'?f.m.length>0:f.m.includes(m))||(!!c&&f.c.includes(c));return m==='all'||f===m}
 function peopleTags(who){
   const w=whoList(who);
   if(w.includes('all'))return `<span class="ptag" style="--c:var(--accent)">Todos</span>`;
@@ -444,7 +445,7 @@ function viewCalendar(seg){
     return `<div class="item"><span class="time">${showT?esc(g.h):'Dia'}</span><span class="body">
       <span class="kind">Google${g.c?' · '+esc(g.c):''}</span><div class="t">${esc(g.t)}</div>
       ${g.p||(showT&&g.he&&!multi)?`<div class="sub">${esc([showT&&g.he&&!multi?'até '+g.he:'',g.p].filter(Boolean).join(' · '))}</div>`:''}
-      <div class="people"><span class="ptag" style="--c:${colorOf(g.mid)}">${esc(member(g.mid).name)}</span></div></span></div>`}).join('');
+      <div class="people"><span class="ptag" style="--c:${colorOf(g.mid)}">${esc(gName(g.mid))}</span></div></span></div>`}).join('');
   items+=rm.map(r=>`<div class="item ${r.done?'done':''}"><button class="check" role="checkbox" aria-checked="${!!r.done}" data-toggle-rem="${r.id}" aria-label="Feito"></button>
       <span class="body"><span class="kind">Lembrete${r.time?' · '+esc(r.time):''}</span><div class="t">${esc(r.text)}</div><div class="people">${peopleTags(r.who)}</div></span>
       <button class="edit" data-edit-rem="${r.id}">Editar</button></div>`).join('');
@@ -790,7 +791,7 @@ function colItems(m,D,d){
   const its=[];
   D.vac.filter(v=>forM(v,m)).forEach(v=>its.push({k:'',t:'Férias · '+v.title,s:'até '+niceDate(v.end||v.start),a:`data-edit-vac="${v.id}"`}));
   D.ev.filter(e=>forM(e,m)).forEach(e=>its.push({k:e.time||'',end:schoolEnd(e),t:e.title,s:e.place||'',a:`data-edit-event="${e.id}"`}));
-  D.g.filter(g=>g.mid===m).forEach(g=>{const st=!!g.h&&g.d===d;its.push({k:st?g.h:'',end:st&&g.d===g.e?g.he:'',t:g.t,s:[g.c,g.p].filter(Boolean).join(' · ')})});
+  D.g.filter(g=>g.mid===m||g.mid==='all').forEach(g=>{const st=!!g.h&&g.d===d;its.push({k:st?g.h:'',end:st&&g.d===g.e?g.he:'',t:g.t,s:[g.c,g.p].filter(Boolean).join(' · ')})});
   D.rm.filter(r=>forM(r,m)&&!r.done).forEach(r=>its.push({k:r.time||'',t:r.text,s:'Lembrete',chk:`data-toggle-rem="${r.id}"`}));
   return its.sort((a,b)=>(a.k||'').localeCompare(b.k||''));
 }
@@ -809,7 +810,7 @@ function syncLine(){
 }
 function wSel(){const s=S.wallSel||[];return {m:s.filter(x=>member(x)),c:s.filter(x=>x.startsWith('cal:')).map(x=>x.slice(4))}}
 function wFilter(){const f=wSel();return f.m.length||f.c.length?f:'all'}
-function gcalCals(){const map=new Map();Object.entries(S.gcal).forEach(([mid,doc])=>(doc.events||[]).forEach(x=>{const m=x.m||mid;if(!x.c||!member(m))return;if(!map.has(x.c))map.set(x.c,new Set());map.get(x.c).add(m)}));
+function gcalCals(){const map=new Map();Object.entries(S.gcal).forEach(([mid,doc])=>(doc.events||[]).forEach(x=>{const m=x.m||mid;if(!x.c||(m!=='all'&&!member(m)))return;if(!map.has(x.c))map.set(x.c,new Set());map.get(x.c).add(m)}));
   return [...map].map(([c,ms])=>({c,ms:[...ms]})).sort((a,b)=>a.ms[0].localeCompare(b.ms[0])||a.c.localeCompare(b.c))}
 function wallMembers(){const f=wSel();if(f.m.length)return S.members.filter(m=>f.m.includes(m.id));
   if(f.c.length){const own=new Set(gcalCals().filter(x=>f.c.includes(x.c)).flatMap(x=>x.ms));return S.members.filter(m=>own.has(m.id))}
@@ -823,7 +824,7 @@ function calSheet(){
   const f=wSel(),cals=gcalCals();
   sheet('Calendários',`<p class="muted small" style="margin:0 0 4px">Escolhe pessoas e calendários do Google. Podes juntar vários: o Quadro mostra tudo o que pertence a qualquer um deles.</p>
     <div class="field"><span>Pessoas</span><div class="who" style="flex-wrap:wrap">${S.members.map(m=>`<button type="button" class="chip" data-selk="${m.id}" aria-pressed="${f.m.includes(m.id)}"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div></div>
-    <div class="field"><span>Calendários do Google</span><div class="who" style="flex-wrap:wrap">${cals.map(x=>`<button type="button" class="chip" data-selk="cal:${esc(x.c)}" aria-pressed="${f.c.includes(x.c)}">${x.ms.map(m=>`<span class="dot" style="--c:var(--${member(m).color})"></span>`).join('')}${esc(x.c)}</button>`).join('')||'<span class="muted small">Ainda não há calendários sincronizados.</span>'}</div></div>
+    <div class="field"><span>Calendários do Google</span><div class="who" style="flex-wrap:wrap">${cals.map(x=>`<button type="button" class="chip" data-selk="cal:${esc(x.c)}" aria-pressed="${f.c.includes(x.c)}">${x.ms.map(m=>`<span class="dot" style="--c:${colorOf(m)}"></span>`).join('')}${esc(x.c)}</button>`).join('')||'<span class="muted small">Ainda não há calendários sincronizados.</span>'}</div></div>
     <button type="button" class="ghost" data-selclear>Mostrar todos</button>`);
   overlay.querySelector('form').dataset.calsheet='1';
 }
@@ -977,7 +978,7 @@ function wallWeek(){
       else{const w=whoList(e.who);its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title,s:w.includes('all')?'Todos':w.map(id=>member(id)&&member(id).name).filter(Boolean).join(', '),a:`data-edit-event="${e.id}"`})}
     });
     Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`}));
-    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:member(g.mid)?member(g.mid).name:''}));
+    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid)}));
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
     cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b></button>
       ${its.map(z=>{const tag=z.a?'button':'div';return `<${tag} class="w-wi" style="--c:${z.c}" ${z.a||''}>${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
@@ -1045,7 +1046,7 @@ function wallLine(){
   const lanes=[{id:'all',name:'Família',c:'var(--accent)'},...wallMembers().map(m=>({id:m.id,name:m.name,c:`var(--${m.color})`}))].map(L=>{
     const isF=L.id==='all',bl=[],allDay=[];
     D.ev.filter(e=>isF?isAll(e):forM(e,L.id)).forEach(e=>{if(e.time)bl.push(blk(e.time,schoolEnd(e)||addMin(e.time,60),e.title,L.c,`data-edit-event="${e.id}"`));else allDay.push(e.title)});
-    if(!isF)D.g.filter(g=>g.mid===L.id).forEach(g=>{if(g.h&&g.d===d&&g.d===g.e)bl.push(blk(g.h,g.he&&g.he>g.h?g.he:addMin(g.h,60),g.t,L.c));else allDay.push(g.t)});
+    D.g.filter(g=>isF?g.mid==='all':g.mid===L.id).forEach(g=>{if(g.h&&g.d===d&&g.d===g.e)bl.push(blk(g.h,g.he&&g.he>g.h?g.he:addMin(g.h,60),g.t,L.c));else allDay.push(g.t)});
     D.vac.filter(v=>isF?isAll(v):forM(v,L.id)).forEach(v=>allDay.push('Férias · '+v.title));
     if(isF)D.bd.forEach(b=>allDay.push('Aniversário · '+b.name));
     return `<div class="w-lane"><div class="lab"><span class="row" style="gap:8px"><span class="dot" style="--c:${L.c}"></span>${esc(L.name)}</span>${allDay.length?`<small>${esc(allDay.join(' · '))}</small>`:''}</div>
@@ -1064,7 +1065,7 @@ function frameList(D,d){
     else{const who=isAll(e)?'':whoList(e.who).map(id=>member(id)&&member(id).name).filter(Boolean).join(', ');its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title+(who?' · '+who:''),end:e.time?addMin(e.time,60):''})}
   });
   Object.entries(sc).forEach(([m,s])=>{if(member(m))its.push({k:s.k,c:colorOf(m),t:'Escola · '+member(m).name+(s.end?' (até '+s.end+')':''),end:s.end})});
-  D.g.forEach(g=>{const h=g.h&&g.d===d?g.h:'';its.push({k:h,c:colorOf(g.mid),t:g.t+' · '+member(g.mid).name,end:h?g.he:''})});
+  D.g.forEach(g=>{const h=g.h&&g.d===d?g.h:'';its.push({k:h,c:colorOf(g.mid),t:g.t+' · '+gName(g.mid),end:h?g.he:''})});
   return its.sort((a,b)=>(a.k||'').localeCompare(b.k||''));
 }
 function nextUp(){const now=nowHM();return frameList(wallData(TODAY),TODAY).find(x=>x.k&&x.k>now)||null}
