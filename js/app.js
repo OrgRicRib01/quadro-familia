@@ -153,6 +153,9 @@ function maybeAutoSync(){
   if(last&&Date.now()-Date.parse(last)<15*60*1000){S.autoSynced=true;return}
   S.autoSynced=true;syncGoogle(S.me,false);
 }
+// Evita mostrar duas vezes a mesma aula: se o Quadro já tem um evento da pessoa à mesma hora, o do Google é omitido.
+let _localCache={};
+function localAt(d){const k=d+'|'+S.events.length+'|'+(S.events[0]&&S.events[0].id);if(_localCache.k!==k){_localCache={k,v:S.events.filter(e=>e.time&&(e.date===d||(e.repeat==='weekly'&&e.date<=d&&dowMon(parse(e.date))===dowMon(parse(d)))))}}return _localCache.v}
 function gcalOn(d){
   const out=[],seen=new Set();
   Object.entries(S.gcal).forEach(([mid,doc])=>{
@@ -161,6 +164,7 @@ function gcalOn(d){
       if(S.filter!=='all'&&S.filter!==m)return;
       if(d<x.d||d>x.e)return;
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
+      if(x.h&&x.d===d&&localAt(d).some(e=>e.time===x.h&&whoList(e.who).includes(m)))return;
       out.push({...x,mid:m});
     });
   });
