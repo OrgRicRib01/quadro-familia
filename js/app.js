@@ -26,7 +26,7 @@ const S={
   weekStart:(()=>{const d=new Date();d.setDate(d.getDate()-dowMon(d));return iso(d)})(),
   almView:'semana', taskList:'Todas', db:null, live:false, readOnly:false,
   uid:null, me:null, gcal:{}, mcp:null, autoSynced:false, gbusy:false,
-  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'hoje', wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null, wallFilter:'all'
+  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'inicio', wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null, wallFilter:'all'
 };
 const GSERVER='Google Calendar';
 
@@ -806,8 +806,25 @@ function syncLine(){
 function wallMembers(){const wf=S.wallFilter;return wf&&wf!=='all'&&member(wf)?S.members.filter(m=>m.id===wf):S.members}
 function wMatch(x){const wf=S.wallFilter;if(!wf||wf==='all'||!member(wf))return true;const w=whoList(x.who);return w.includes('all')||w.includes(wf)}
 function whoBar(){const wf=(S.wallFilter&&member(S.wallFilter))?S.wallFilter:'all';
-  return `<div class="w-who" role="group" aria-label="Filtrar por pessoa"><button class="chip" data-wf="all" aria-pressed="${wf==='all'}">Todos</button>${S.members.map(m=>`<button class="chip" data-wf="${m.id}" aria-pressed="${wf===m.id}"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div>`}
-const LAYOUTS=[['hoje','Pessoas'],['linha','Linha do tempo'],['semana','Semana'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['moldura','Moldura']];
+  return `<div class="fd-people" role="group" aria-label="Filtrar por pessoa"><button class="fd-p fd-all" data-wf="all" aria-pressed="${wf==='all'}"><span class="av av-all"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17.5" cy="9" r="2.4"/><path d="M16 14.2c2.6-.3 4.6 1.3 5 4.3"/></svg></span>Todos</button>${S.members.map(m=>`<button class="fd-p" data-wf="${m.id}" aria-pressed="${wf===m.id}">${avatar(m.id)}<span class="fd-pn">${esc(m.name)}</span></button>`).join('')}</div>`}
+function avatar(id,small){const m=member(id);if(!m)return `<span class="av av-all${small?' sm':''}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17.5" cy="9" r="2.4"/></svg></span>`;
+  return `<span class="av${small?' sm':''}" style="--c:var(--${m.color})" aria-hidden="true">${esc((m.name||'?').trim().charAt(0).toUpperCase())}</span>`}
+const NAV_ICONS={
+  inicio:['#44403C','<path d="M4 11.5 12 5l8 6.5V20H4z"/><path d="M10 20v-5h4v5"/>'],
+  semana:['#3B82F6','<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>'],
+  hoje:['#0D9488','<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 19c.5-3 2.5-4.5 5-4.5s4.5 1.5 5 4.5M11 19c.5-3 2.5-4.5 5-4.5s4.5 1.5 5 4.5"/>'],
+  linha:['#6366F1','<path d="M4 7h10M4 12h16M4 17h7"/>'],
+  mes:['#0EA5E9','<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M8 14h2M12 14h2M16 14h0M8 17h2M12 17h2"/>'],
+  rotinas:['#A855F7','<path d="M5 7l2 2 3-3M5 14l2 2 3-3M13 8h6M13 15h6"/>'],
+  compras:['#F97316','<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'],
+  avisos:['#EF4444','<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'],
+  moldura:['#10B981','<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="9" r="1.5"/>']};
+function navBar(){
+  return `<nav class="fd-nav" aria-label="Vistas"><div class="fd-nav-in">${LAYOUTS.map(([k,l])=>{const ic=NAV_ICONS[k]||['#888',''];
+    return `<button data-wv="${k}" aria-pressed="${S.wallView===k}"><span class="ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span><span class="lb">${l}</span></button>`}).join('')}
+    <button data-wset><span class="ic" style="--ic:#A3A3A3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></span><span class="lb">Ajustes</span></button>
+    <button data-wexit><span class="ic" style="--ic:#78716C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg></span><span class="lb">Sair</span></button></div></nav>`}
+const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
 function curPart(){const h=new Date().getHours();return h<12?'manha':h<19?'tarde':'noite'}
 function addMin(hm,n){const[h,m]=hm.split(':').map(Number);const t=Math.min(23*60+59,h*60+m+n);return pad(Math.floor(t/60))+':'+pad(t%60)}
@@ -817,7 +834,7 @@ function weekStartOf(d){const x=parse(d);x.setDate(x.getDate()-dowMon(x));return
 function starsFor(m){const ws=weekStartOf(TODAY);let n=0;
   S.tasks.forEach(t=>{if(!forM(t,m))return;if(t.repeat)n+=(t.doneDates||[]).filter(x=>x>=ws&&x<=TODAY).length;else if(t.done&&t.doneAt&&t.doneAt>=ws)n++});return n}
 function photoUrl(p){return String(p.url||('/_blob/'+p.asset)).replace(/["'()\\\s]/g,'')}
-function layoutBar(){return `<div class="w-lay" role="group" aria-label="Vista">${LAYOUTS.map(([k,l])=>`<button data-wv="${k}" aria-pressed="${S.wallView===k}">${l}</button>`).join('')}</div>`}
+function layoutBar(){return '';return `<div class="w-lay" role="group" aria-label="Vista">${LAYOUTS.map(([k,l])=>`<button data-wv="${k}" aria-pressed="${S.wallView===k}">${l}</button>`).join('')}</div>`}
 function wallStep(n){const v=S.wallView,x=parse(S.wallDate);
   if(v==='mes')S.wallDate=iso(new Date(x.getFullYear(),x.getMonth()+n,1));
   else{x.setDate(x.getDate()+(v==='semana'?7:1)*n);S.wallDate=iso(x)}
@@ -834,10 +851,65 @@ function wallLabel(){
   return `${rel(d)}<small>${d===TODAY?niceDate(d):'Toca em Hoje para voltar'}</small>`;
 }
 function wallHead(){
-  const nav=!['rotinas','compras','avisos'].includes(S.wallView);
-  return `<div class="w-top"><div class="w-clock" id="wClock">${nowHM()}</div><div class="w-date">${wallLabel()}</div>
-    <div class="w-ctl">${nav?`<button class="w-btn arrow" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="w-btn" data-wtoday>Hoje</button>':''}<button class="w-btn arrow" data-wshift="1" aria-label="Seguinte">›</button>`:''}
-      <button class="w-btn" data-wgoogle>Google</button><button class="w-btn" data-wset>Ajustes</button><button class="w-btn" data-wfs aria-label="Ecrã inteiro">⛶</button><button class="w-btn" data-wexit>Sair</button></div></div>${layoutBar()}${whoBar()}`;
+  const nav=!['rotinas','compras','avisos','inicio'].includes(S.wallView);
+  const n=new Date();
+  return `<div class="fd-top"><div class="fd-clock" id="wClock">${nowHM()}</div>
+    <div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
+    ${whoBar()}
+    <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
+      <button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
+}
+function familyName(){const last=S.members.map(m=>(m.name||'').trim().split(/\s+/).slice(-1)[0]).filter(x=>x&&x.length>2);return S.familyName||'Ribeiro'}
+function homeItems(d){
+  const D=wallData(d),its=[],sc={};
+  if(holidayOn(d))its.push({k:'',t:holidayOn(d),s:'Feriado nacional',m:'all'});
+  D.bd.forEach(b=>its.push({k:'',t:'Aniversário · '+b.name,m:'all',a:`data-edit-bday="${b.id}"`}));
+  D.vac.forEach(v=>{const w=whoList(v.who);its.push({k:'',t:'Férias · '+v.title,m:w.includes('all')||w.length>1?'all':w[0],a:`data-edit-vac="${v.id}"`})});
+  D.ev.forEach(e=>{const w=whoList(e.who);
+    if(e.school){const en=schoolEnd(e);w.forEach(m=>{const x=sc[m]||(sc[m]={k:e.time,end:en});if(e.time<x.k)x.k=e.time;if(en>x.end)x.end=en})}
+    else its.push({k:e.time||'',end:e.time?(schoolEnd(e)||addMin(e.time,60)):'',t:e.title,s:e.place||'',m:w.includes('all')||w.length>1?'all':w[0],a:`data-edit-event="${e.id}"`})});
+  Object.entries(sc).forEach(([m,x])=>{if(member(m))its.push({k:x.k,end:x.end,t:'Escola',s:member(m).name,m})});
+  D.g.forEach(g=>{const h=g.h&&g.d===d?g.h:'';its.push({k:h,end:h?(g.he||addMin(h,60)):'',t:g.t,s:g.p||g.c||'',m:g.mid})});
+  D.rm.filter(r=>!r.done&&r.time).forEach(r=>{const w=whoList(r.who);its.push({k:r.time,end:r.time,t:r.text,s:'Lembrete',m:w.includes('all')||w.length>1?'all':w[0],a:`data-edit-rem="${r.id}"`})});
+  return its.sort((a,b)=>(a.k||'').localeCompare(b.k||''));
+}
+function wallHome(){
+  const now=nowHM(),its=homeItems(TODAY),timed=its.filter(x=>x.k);
+  const cur=timed.find(x=>x.k<=now&&x.end&&now<x.end),next=timed.find(x=>x.k>now);
+  const main=cur||next,after=main?timed.find(x=>x.k>main.k&&x!==main):null;
+  const mins=x=>toMin(x.k)-toMin(now);
+  const col=m=>m&&m!=='all'&&member(m)?`var(--${member(m).color})`:'var(--accent)';
+  const up=main?`<div class="fd-card fd-next" style="--c:${col(main.m)}"><div class="fd-next-main"><span class="fd-eyebrow">${cur?'AGORA':'A SEGUIR'}</span>
+      <div class="fd-next-t">${esc(main.t)}</div><div class="fd-next-s">${esc(main.k)}${cur?' · até '+esc(main.end):' · <b>daqui a '+(mins(main)>=60?Math.floor(mins(main)/60)+' h '+(mins(main)%60?mins(main)%60+' min':''):mins(main)+' min')+'</b>'}${main.s?' · '+esc(main.s):''}</div></div>
+      ${after?`<div class="fd-then"><span>depois</span><b>${esc(after.t)}</b><span>${esc(after.k)}</span></div>`:''}</div>`
+    :`<div class="fd-card fd-next" style="--c:var(--accent)"><div class="fd-next-main"><span class="fd-eyebrow">A SEGUIR</span><div class="fd-next-t">Nada mais para hoje</div><div class="fd-next-s">Bom descanso!</div></div></div>`;
+  const row=x=>{const past=x.k&&x.end&&x.end<=now,tag=x.a?'button':'div';
+    return `<${tag} class="fd-row${past?' past':''}" style="--c:${col(x.m)}" ${x.a||''}><span class="fd-bar"></span><span class="fd-rt"><b>${esc(x.t)}</b><small>${x.k?esc(x.k)+(x.end&&x.end!==x.k?' – '+esc(x.end):''):'Dia todo'}${x.s?' · '+esc(x.s):''}</small></span>${avatar(x.m,true)}</${tag}>`};
+  const tmr=parse(TODAY);tmr.setDate(tmr.getDate()+1);const ti=homeItems(iso(tmr)).filter(x=>x.k);
+  const tline=ti.length?`<button class="fd-tomorrow" data-wday="${iso(tmr)}"><b>Amanhã:</b> ${esc(ti[0].t)} ${esc(ti[0].k)}${ti.length>1?' · +'+(ti.length-1)+' mais':''}<span>›</span></button>`:'';
+  // right column
+  const part=curPart(),members=wallMembers();
+  const rout=members.map(m=>{const ts=S.tasks.filter(t=>forM(t,m.id)&&t.repeat&&taskActive(t,TODAY)&&(!t.part||t.part===part));const dn=ts.filter(t=>isDone(t)).length;
+    return `<div class="fd-rrow">${avatar(m.id)}<span class="fd-rn">${esc(m.name)}</span><span class="fd-rc">${dn}/${ts.length}</span><span class="fd-prog"><i style="width:${ts.length?Math.round(dn/ts.length*100):0}%;background:var(--${m.color})"></i></span></div>`}).join('');
+  const stars=S.members.map(m=>({m,n:starsFor(m.id)}));const mx=Math.max(1,...stars.map(x=>x.n));
+  const board=`<div class="fd-bars">${stars.map(x=>`<div class="fd-bcol"><b>${x.n}</b><span class="fd-b" style="height:${Math.max(4,Math.round(x.n/mx*86))}px;background:var(--${x.m.color})"></span><small>${esc(x.m.name)}</small></div>`).join('')}</div>`;
+  const meal=S.meals[TODAY],nx=[1,2].map(k=>{const x=parse(TODAY);x.setDate(x.getDate()+k);const ds=iso(x);return `<div class="fd-mrow"><span>${DOW[dowMon(x)]}</span>${S.meals[ds]?esc(S.meals[ds].title):'<i>por decidir</i>'}</div>`}).join('');
+  const shopN=shopItems().filter(x=>!x.done).length;
+  const todos=S.tasks.filter(t=>t.list!=='Compras'&&!t.repeat&&!t.done&&wMatch(t)).sort((a,b)=>(a.due||'9').localeCompare(b.due||'9'));
+  const head=(ic,t,sub,v)=>`<button class="fd-ch" ${v}><span class="fd-ci">${ic}</span><span><b>${t}</b><small>${sub}</small></span><span class="fd-chev">›</span></button>`;
+  const IC=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS[k][1]}</svg>`;
+  return `<div class="fd-home">
+    <div class="fd-left">${up}
+      <div class="fd-card fd-today"><div class="fd-eyebrow" style="padding:18px 20px 6px">HOJE</div>
+        <div class="fd-list">${its.map(row).join('')||'<div class="empty">Nada marcado para hoje.</div>'}</div>${tline}</div></div>
+    <div class="fd-right">
+      <div class="fd-card">${head(IC('rotinas'),'Rotinas',PARTS.find(x=>x[0]===part)[1],'data-wv="rotinas"')}<div class="fd-cb">${rout}</div></div>
+      <div class="fd-card">${head('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6"/></svg>','Estrelas','Esta semana'+(S.prize&&S.prize.title?' · '+esc(S.prize.title):''),'data-wv="rotinas"')}<div class="fd-cb">${board}</div></div>
+      <div class="fd-card">${head('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M16 21V3c-2 1-3 4-3 7h3"/></svg>','Almoço','Hoje','data-open-meal="'+TODAY+'"')}
+        <div class="fd-cb"><div class="fd-meal">${meal?esc(meal.title):'Por decidir'}</div>${meal&&meal.cook&&member(meal.cook)?`<small class="muted">Cozinha: ${esc(member(meal.cook).name)}</small>`:''}${nx}
+        <button class="fd-chip" data-wv="compras">Compras · ${shopN}</button></div></div>
+      <div class="fd-card">${head(IC('rotinas'),'Tarefas',todos.length+' por fazer','data-wv="avisos"')}<div class="fd-cb">${todos.slice(0,4).map(t=>`<div class="fd-todo"><button class="check" role="checkbox" aria-checked="false" data-toggle-task="${t.id}" aria-label="Feita"></button><span><b>${esc(t.text)}</b><small>${esc(t.list||'')}${t.due?' · até '+esc(rel(t.due)):''}</small></span><span class="dot" style="--c:${dotsFor(t.who)[0]}"></span></div>`).join('')||'<div class="muted small">Tudo feito!</div>'}</div></div>
+    </div></div>`;
 }
 function railMeal(d){const meal=S.meals[d];
   return `<div class="w-card"><h4>Almoço${d===TODAY?' de hoje':''}</h4><button class="w-it" data-open-meal="${d}"><span style="flex:1;min-width:0"><div class="tt">${meal?esc(meal.title):'Por decidir'}</div><div class="ss">${meal&&meal.cook&&member(meal.cook)?'Cozinha: '+esc(member(meal.cook).name):'Tocar para escolher'}</div></span></button></div>`}
@@ -882,10 +954,10 @@ function wallWeek(){
     const school={};
     D.ev.forEach(e=>{
       if(e.school){const en=schoolEnd(e);whoList(e.who).forEach(m=>{const s=school[m]||(school[m]={k:e.time,end:en});if(e.time<s.k)s.k=e.time;if(en>s.end)s.end=en})}
-      else its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title,a:`data-edit-event="${e.id}"`});
+      else{const w=whoList(e.who);its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title,s:w.includes('all')?'Todos':w.map(id=>member(id)&&member(id).name).filter(Boolean).join(', '),a:`data-edit-event="${e.id}"`})}
     });
     Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`}));
-    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t}));
+    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:member(g.mid)?member(g.mid).name:''}));
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
     cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b></button>
       ${its.map(z=>{const tag=z.a?'button':'div';return `<${tag} class="w-wi" style="--c:${z.c}" ${z.a||''}>${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
@@ -895,9 +967,9 @@ function wallWeek(){
 }
 function renderWall(){
   S.lastHM=nowHM();const v=S.wallView;document.body.dataset.v=v;
-  const body={hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts}[v]||(()=>wallDay(S.wallDate));
+  const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
-  document.getElementById('wall').innerHTML=v==='moldura'?wallFrame():wallHead()+body()+fab;
+  document.getElementById('wall').innerHTML=(v==='moldura'?wallFrame():wallHead()+body()+fab)+navBar();
   refocus();
 }
 function wallShopping(){return shopBody(true)}
@@ -984,7 +1056,7 @@ function wallFrame(){
   const meal=S.meals[TODAY],pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=TODAY&&wMatch(r)).length;
   const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n)[0];
   const today=frameList(wallData(TODAY),TODAY),tomorrow=frameList(wallData(td),td).slice(0,5);
-  return `${layoutBar()}${whoBar()}<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
+  return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
       ${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}
       <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
       ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div></div>
@@ -1065,7 +1137,7 @@ function quickAdd(){
 }
 let wl=null,idleT=null;
 async function keepAwake(){if(!S.wall||document.hidden)return;try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
-function enterWall(){S.wall=true;S.wallDate=TODAY;S.wallView=lsGet('fam.wallView')||'hoje';lsSet('fam.wall','1');keepAwake();render();bumpIdle();window.scrollTo(0,0)}
+function enterWall(){S.wall=true;S.wallDate=TODAY;S.wallView=lsGet('fam.wallView')||'inicio';lsSet('fam.wall','1');keepAwake();render();bumpIdle();window.scrollTo(0,0)}
 function exitWall(){S.wall=false;lsSet('fam.wall','0');try{wl&&wl.release()}catch(e){}wl=null;
   if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});render()}
 function bumpIdle(){clearTimeout(idleT);if(!S.wall)return;

@@ -6,7 +6,7 @@ Calendário, lembretes, tarefas, rotinas, aniversários, férias e almoços da f
 - **Google Calendar:** mostra os calendários de cada pessoa e envia eventos para o Google.
 - **Lembretes e tarefas:** tarefas que se repetem todos os dias formam as rotinas, que dão estrelas.
 - **Almoços:** plano da semana e livro de receitas. Os ingredientes de uma receita podem ir para a lista de compras.
-- **Modo de parede:** seis vistas (Pessoas, Linha do tempo, Semana, Mês, Rotinas e Moldura com fotografias). Volta sozinho à vista de repouso, mantém o ecrã ligado e muda de dia com um deslizar.
+- **Modo de parede:** ecrã Início (a seguir, hoje, rotinas, estrelas, almoço e tarefas) e as vistas Semana, Pessoas, Linha, Mês, Rotinas, Compras, Avisos e Moldura, com navegação em baixo. Volta sozinho à vista de repouso, mantém o ecrã ligado e muda de dia com um deslizar.
 
 Os dados ficam no **Firebase**, no plano gratuito, e só as contas Google da família têm acesso. O site é alojado no **GitHub Pages**.
 
