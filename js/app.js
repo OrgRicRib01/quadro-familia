@@ -31,8 +31,8 @@ const S={
 const GSERVER='Google Calendar';
 
 /* ---------- store layer: shared db when available, in-memory otherwise ---------- */
-const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory'];
-S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
+const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory','schoolBreaks'];
+S.schoolBreaks=[];S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 async function save(col,id,data){
   id=id||uid();
@@ -265,6 +265,7 @@ function eventsOn(d){
   const dd=parse(d);
   return S.events.filter(e=>{
     if(!e.date||!matches(e))return false;
+    if(e.school&&whoList(e.who).every(m=>schoolOff(m,d)))return false;
     if(e.date===d)return true;
     if(e.date>d)return false;
     if(e.repeat==='yearly')return e.date.slice(5)===d.slice(5);
@@ -273,6 +274,11 @@ function eventsOn(d){
     return false;
   }).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
+function breaksOn(d){return S.schoolBreaks.filter(b=>b.start&&d>=b.start&&d<=(b.end||b.start))}
+// Só feriados nacionais (o calendário "Feriados" do Google também tem dias comemorativos, como o Dia do Pai).
+const NATIONAL_HOLIDAY=/ano novo|sexta-feira santa|domingo de p[áa]scoa|liberdade|dia do trabalhador|corpo de deus|dia de portugal|assun[çc][ãa]o|implanta[çc][ãa]o da rep[úu]blica|todos os santos|restaura[çc][ãa]o da independ[êe]ncia|imaculada concei[çc][ãa]o|^natal|dia de natal/i;
+function holidayOn(d){for(const doc of Object.values(S.gcal))for(const x of (doc.events||[]))if(x.c&&/feriad/i.test(x.c)&&d>=x.d&&d<=x.e&&NATIONAL_HOLIDAY.test(x.t)&&!/v[ée]spera/i.test(x.t))return x.t;return ''}
+function schoolOff(m,d){return breaksOn(d).some(b=>{const w=whoList(b.who);return w.includes('all')||w.includes(m)})||!!holidayOn(d)}
 const remindersOn=d=>S.reminders.filter(r=>r.date===d&&matches(r));
 function birthdaysOn(d){
   const md=d.slice(5);const leap=new Date(+d.slice(0,4),1,29).getMonth()===1;
@@ -321,10 +327,45 @@ function renderMain(){
 }
 
 function viewAgenda(){
-  const seg=`<div class="seg" role="group" aria-label="Agenda"><button data-ag="cal" aria-pressed="${S.agView==='cal'}">Calendário</button><button data-ag="aniv" aria-pressed="${S.agView==='aniv'}">Aniversários</button><button data-ag="ferias" aria-pressed="${S.agView==='ferias'}">Férias</button></div>`;
+  const seg=`<div class="seg" role="group" aria-label="Agenda"><button data-ag="cal" aria-pressed="${S.agView==='cal'}">Calendário</button><button data-ag="aniv" aria-pressed="${S.agView==='aniv'}">Aniversários</button><button data-ag="ferias" aria-pressed="${S.agView==='ferias'}">Férias</button><button data-ag="escola" aria-pressed="${S.agView==='escola'}">Férias escolares</button></div>`;
   if(S.agView==='aniv')return viewBirthdays(seg);
+  if(S.agView==='escola')return viewSchoolBreaks(seg);
   if(S.agView==='ferias')return viewVacations(seg);
   return viewCalendar(seg);
+}
+const SCHOOL_PRESET_2627=[
+  {title:'Natal',start:'2026-12-16',end:'2027-01-03'},
+  {title:'Carnaval',start:'2027-02-08',end:'2027-02-10'},
+  {title:'Páscoa',start:'2027-03-22',end:'2027-04-02'}];
+function schoolMembers(){return [...new Set(S.events.filter(e=>e.school).flatMap(e=>whoList(e.who)).filter(m=>m!=='all'&&member(m)))]}
+function viewSchoolBreaks(seg){
+  const rows=[...S.schoolBreaks].sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+  const up=rows.filter(b=>(b.end||b.start)>=TODAY),past=rows.filter(b=>(b.end||b.start)<TODAY).reverse();
+  const days=b=>Math.round((parse(b.end||b.start)-parse(b.start))/864e5)+1;
+  const line=b=>`<button class="item" data-edit-break="${b.id}"><span class="body"><div class="t">${esc(b.title)}</div>
+    <div class="sub">${niceDate(b.start)}${b.end&&b.end!==b.start?' → '+niceDate(b.end):''} · ${days(b)} ${days(b)===1?'dia':'dias'} sem aulas</div>
+    <div class="people">${peopleTags(b.who)}</div></span>${b.start<=TODAY&&TODAY<=(b.end||b.start)?'<span class="ptag" style="--c:var(--accent)">A decorrer</span>':''}</button>`;
+  const missing=SCHOOL_PRESET_2627.filter(p=>!S.schoolBreaks.some(b=>b.start===p.start));
+  return `<section class="panel">${seg}
+    <div class="row"><h2>Férias escolares</h2><span class="spacer"></span>${S.readOnly?'':'<button class="addbtn" data-new="break">+ Período</button>'}</div>
+    <p class="muted small" style="margin:0">Nestes dias as aulas das pessoas escolhidas deixam de aparecer no Quadro, incluindo as que vêm do Google. Os feriados do calendário "Feriados" também contam.</p>
+    ${missing.length&&!S.readOnly?`<div class="banner row" style="flex-wrap:wrap"><span style="flex:1;min-width:200px">Calendário escolar 2026/27 (continente): Natal 16/12–3/1, Carnaval 8–10/2, Páscoa 22/3–2/4.</span><button class="addbtn" data-schoolpreset>Adicionar para ${schoolMembers().map(m=>esc(member(m).name)).join(' e ')||'todos'}</button></div>`:''}
+    <div class="list">${up.map(line).join('')||'<div class="empty">Sem férias escolares marcadas.<br>Acrescenta um período e escolhe quem fica sem aulas.</div>'}</div>
+    ${past.length?`<span class="kind">Anteriores</span><div class="list">${past.slice(0,10).map(line).join('')}</div>`:''}
+  </section>`;
+}
+function breakForm(b){
+  b=b||{start:S.sel,end:S.sel,who:schoolMembers().length?schoolMembers():['all']};
+  sheet(b.id?'Editar férias escolares':'Novas férias escolares',`
+    <label class="field"><span>Nome</span><input id="sb-title" name="title" value="${esc(b.title)}" placeholder="Ex.: Férias da Páscoa, Ponte, Greve"></label>
+    <div class="two"><label class="field"><span>De</span><input id="sb-start" type="date" name="start" value="${esc(b.start)}"></label>
+    <label class="field"><span>Até</span><input id="sb-end" type="date" name="end" value="${esc(b.end)}"></label></div>
+    ${whoField(b.who)}`,
+  {onSave:f=>{const title=val(f,'title'),start=val(f,'start'),end=val(f,'end')||start;
+      if(!title||!start){toast('Preenche o nome e a data de início.');return false}
+      if(end<start){toast('A data de fim é antes do início.');return false}
+      save('schoolBreaks',b.id,{title,start,end,who:readWho(f)})},
+   onDelete:b.id&&!S.readOnly?()=>remove('schoolBreaks',b.id):null});
 }
 function viewBirthdays(seg){
   const rows=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n);
@@ -372,6 +413,7 @@ function viewCalendar(seg){
   const ev=eventsOn(S.sel),rm=remindersOn(S.sel),meal=S.meals[S.sel];
   let items='';
   items+=birthdaysOn(S.sel).map(b=>{const a=ageOn(b,S.sel);return `<button class="item" data-edit-bday="${b.id}"><span class="time">🎂︎</span><span class="body"><span class="kind">Aniversário</span><div class="t">${esc(b.name)}${a!==null&&a>0?' · '+a+' anos':''}</div></span></button>`}).join('');
+  items+=breaksOn(S.sel).filter(b=>S.filter==='all'||whoList(b.who).includes('all')||whoList(b.who).includes(S.filter)).map(b=>`<button class="item" data-edit-break="${b.id}"><span class="time">Dia</span><span class="body"><span class="kind">Sem aulas</span><div class="t">${esc(b.title)}</div><div class="people">${peopleTags(b.who)}</div></span></button>`).join('');
   items+=vacationsOn(S.sel).map(v=>`<button class="item" data-edit-vac="${v.id}"><span class="time">✈︎</span><span class="body"><span class="kind">Férias${v.place?' · '+esc(v.place):''}</span><div class="t">${esc(v.title)}</div><div class="sub">Até ${niceDate(v.end||v.start)}</div><div class="people">${peopleTags(v.who)}</div></span></button>`).join('');
   if(meal)items+=`<button class="item" data-open-meal="${S.sel}"><span class="time">🍽︎</span><span class="body"><span class="kind">Almoço</span><div class="t">${esc(meal.title)}</div>${meal.cook&&member(meal.cook)?`<div class="sub">Cozinha: ${esc(member(meal.cook).name)}</div>`:''}</span></button>`;
   items+=ev.map(e=>`<button class="item" data-edit-event="${e.id}"><span class="time">${e.time?esc(e.time):'Dia'}</span><span class="body">
@@ -691,7 +733,7 @@ function familyForm(){
 }
 function exportData(){
   const out={app:'quadro-familia',version:1,exportedAt:new Date().toISOString(),config:{family:{members:S.members},prize:S.prize||null},profile:S.me||null};
-  ['events','reminders','tasks','recipes','birthdays','vacations','shopHistory'].forEach(c=>{out[c]=S[c]});out.config.shopLists=S.shopLists||[];
+  ['events','reminders','tasks','recipes','birthdays','vacations','shopHistory','schoolBreaks'].forEach(c=>{out[c]=S[c]});out.config.shopLists=S.shopLists||[];
   out.meals=Object.values(S.meals);
   const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='quadro-familia-'+TODAY+'.json';
@@ -702,7 +744,7 @@ async function importData(j){
   if(!S.db){toast('Configura o Firebase antes de importar.');return}
   toast('A importar…');let n=0,fail=0;
   const put=async(path,data)=>{try{await S.db.doc(path).set(data);n++}catch(e){fail++}};
-  for(const c of ['events','reminders','tasks','recipes','birthdays','vacations','meals','shopHistory']){
+  for(const c of ['events','reminders','tasks','recipes','birthdays','vacations','meals','shopHistory','schoolBreaks']){
     for(const row of (Array.isArray(j[c])?j[c]:[])){
       if(!row||!row.id)continue;const {id,...data}=row;
       await put(c+'/'+String(id).replace(/\//g,'_'),data);
@@ -795,6 +837,7 @@ function wallDay(d){
   const band=[
     ...D.bd.map(b=>{const a=ageOn(b,d);return `<button class="w-pill" data-edit-bday="${b.id}">🎂︎ <b>${esc(b.name)}</b>${a>0?' faz '+a+' anos':''}</button>`}),
     ...D.vac.filter(isAll).map(v=>`<button class="w-pill" data-edit-vac="${v.id}">Férias · <b>${esc(v.title)}</b></button>`),
+    ...breaksOn(d).map(b=>`<button class="w-pill" data-edit-break="${b.id}">Sem aulas · <b>${esc(b.title)}</b></button>`),
     ...D.ev.filter(isAll).map(e=>`<button class="w-pill" data-edit-event="${e.id}"><b>${e.time?esc(e.time):'Dia'}</b> ${esc(e.title)}</button>`)
   ];
   const cols=wallMembers().map(m=>{const its=colItems(m.id,D,d);
@@ -865,6 +908,7 @@ function dayChips(d,D){
   const ch=[],school={};
   D.bd.forEach(b=>ch.push({k:'',c:'var(--accent)',t:'🎂︎ '+b.name}));
   D.vac.forEach(v=>ch.push({k:'',c:dotsFor(v.who)[0],t:'Férias · '+v.title}));
+  breaksOn(d).forEach(b=>ch.push({k:'',c:'var(--muted)',t:'Sem aulas · '+b.title}));
   D.ev.forEach(e=>{if(e.school)whoList(e.who).forEach(m=>{school[m]=1});else ch.push({k:e.time||'',c:dotsFor(e.who)[0],t:(e.time?e.time+' ':'')+e.title})});
   Object.keys(school).forEach(m=>{if(member(m))ch.push({k:'00',c:colorOf(m),t:'Escola · '+member(m).name})});
   D.g.forEach(g=>{const h=g.h&&g.d===d?g.h:'';ch.push({k:h,c:colorOf(g.mid),t:(h?h+' ':'')+g.t})});
@@ -1056,10 +1100,14 @@ document.addEventListener('click',e=>{
   if(d.gsetup!==undefined){googleSheet();return}
   if(d.editBday){birthdayForm(S.birthdays.find(x=>x.id===d.editBday));return}
   if(d.editVac){vacationForm(S.vacations.find(x=>x.id===d.editVac));return}
+  if(d.editBreak){breakForm(S.schoolBreaks.find(x=>x.id===d.editBreak));return}
+  if(d.schoolpreset!==undefined){if(S.readOnly)return;const who=schoolMembers().length?schoolMembers():['all'];
+    SCHOOL_PRESET_2627.filter(p=>!S.schoolBreaks.some(b=>b.start===p.start)).forEach(p=>save('schoolBreaks',null,{...p,who}));
+    toast('Férias escolares 2026/27 adicionadas');return}
   if(d.tlist){S.taskList=d.tlist;render();return}
   if(t.id==='btnFamily'){familyForm();return}
   if(S.readOnly&&(d.new||d.toggleRem||d.toggleTask||d.clear)){toast('Estás em modo de leitura.');return}
-  if(d.new){({event:eventForm,reminder:reminderForm,task:taskForm,recipe:recipeForm,birthday:birthdayForm,vacation:vacationForm})[d.new]();return}
+  if(d.new){({event:eventForm,reminder:reminderForm,task:taskForm,recipe:recipeForm,birthday:birthdayForm,vacation:vacationForm,break:breakForm})[d.new]();return}
   if(d.editEvent){eventForm(S.events.find(x=>x.id===d.editEvent));return}
   if(d.editRem){reminderForm(S.reminders.find(x=>x.id===d.editRem));return}
   if(d.editTask){taskForm(S.tasks.find(x=>x.id===d.editTask));return}
