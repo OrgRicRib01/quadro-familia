@@ -183,6 +183,7 @@ function gcalOn(d){
       const m=x.m||mid;if(!member(m))return;
       if(S.filter!=='all'&&S.filter!==m)return;
       if(d<x.d||d>x.e)return;
+      if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
       if(x.h&&x.d===d&&localAt(d).some(e=>e.time===x.h&&whoList(e.who).includes(m)))return;
       out.push({...x,mid:m});
@@ -275,9 +276,21 @@ function eventsOn(d){
   }).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
 function breaksOn(d){return S.schoolBreaks.filter(b=>b.start&&d>=b.start&&d<=(b.end||b.start))}
-// Só feriados nacionais (o calendário "Feriados" do Google também tem dias comemorativos, como o Dia do Pai).
-const NATIONAL_HOLIDAY=/ano novo|sexta-feira santa|domingo de p[áa]scoa|liberdade|dia do trabalhador|corpo de deus|dia de portugal|assun[çc][ãa]o|implanta[çc][ãa]o da rep[úu]blica|todos os santos|restaura[çc][ãa]o da independ[êe]ncia|imaculada concei[çc][ãa]o|^natal|dia de natal/i;
-function holidayOn(d){for(const doc of Object.values(S.gcal))for(const x of (doc.events||[]))if(x.c&&/feriad/i.test(x.c)&&d>=x.d&&d<=x.e&&NATIONAL_HOLIDAY.test(x.t)&&!/v[ée]spera/i.test(x.t))return x.t;return ''}
+// Feriados nacionais de Portugal (fixos + móveis calculados a partir da Páscoa).
+function easterOf(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+  h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+  mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da)}
+const _hol={};
+function holidaysOf(y){
+  if(_hol[y])return _hol[y];const r={},add=(dt,n)=>{r[iso(dt)]=n};
+  [[1,1,'Ano Novo'],[4,25,'Dia da Liberdade'],[5,1,'Dia do Trabalhador'],[6,10,'Dia de Portugal'],[8,15,'Assunção de Nossa Senhora'],
+   [10,5,'Implantação da República'],[11,1,'Dia de Todos os Santos'],[12,1,'Restauração da Independência'],[12,8,'Imaculada Conceição'],[12,25,'Natal']]
+   .forEach(([m,d,n])=>add(new Date(y,m-1,d),n));
+  const e=easterOf(y),sh=n=>{const x=new Date(e);x.setDate(x.getDate()+n);return x};
+  add(sh(-2),'Sexta-feira Santa');add(sh(0),'Páscoa');add(sh(60),'Corpo de Deus');
+  return _hol[y]=r;
+}
+function holidayOn(d){return holidaysOf(+d.slice(0,4))[d]||''}
 function schoolOff(m,d){return breaksOn(d).some(b=>{const w=whoList(b.who);return w.includes('all')||w.includes(m)})||!!holidayOn(d)}
 const remindersOn=d=>S.reminders.filter(r=>r.date===d&&matches(r));
 function birthdaysOn(d){
@@ -348,7 +361,7 @@ function viewSchoolBreaks(seg){
   const missing=SCHOOL_PRESET_2627.filter(p=>!S.schoolBreaks.some(b=>b.start===p.start));
   return `<section class="panel">${seg}
     <div class="row"><h2>Férias escolares</h2><span class="spacer"></span>${S.readOnly?'':'<button class="addbtn" data-new="break">+ Período</button>'}</div>
-    <p class="muted small" style="margin:0">Nestes dias as aulas das pessoas escolhidas deixam de aparecer no Quadro, incluindo as que vêm do Google. Os feriados do calendário "Feriados" também contam.</p>
+    <p class="muted small" style="margin:0">Nestes dias as aulas das pessoas escolhidas deixam de aparecer no Quadro, incluindo as que vêm do Google. Nos feriados nacionais também não há aulas.</p>
     ${missing.length&&!S.readOnly?`<div class="banner row" style="flex-wrap:wrap"><span style="flex:1;min-width:200px">Calendário escolar 2026/27 (continente): Natal 16/12–3/1, Carnaval 8–10/2, Páscoa 22/3–2/4.</span><button class="addbtn" data-schoolpreset>Adicionar para ${schoolMembers().map(m=>esc(member(m).name)).join(' e ')||'todos'}</button></div>`:''}
     <div class="list">${up.map(line).join('')||'<div class="empty">Sem férias escolares marcadas.<br>Acrescenta um período e escolhe quem fica sem aulas.</div>'}</div>
     ${past.length?`<span class="kind">Anteriores</span><div class="list">${past.slice(0,10).map(line).join('')}</div>`:''}
@@ -404,6 +417,7 @@ function viewCalendar(seg){
       ...vacationsOn(ds).flatMap(v=>dotsFor(v.who)),
       ...ev.flatMap(e=>dotsFor(e.who)),
       ...gcalOn(ds).map(g=>colorOf(g.mid)),
+      ...(holidayOn(ds)?['var(--danger)']:[]),
       ...(birthdaysOn(ds).length?['var(--accent)']:[])
     ])].slice(0,4);
     if(rm.length&&dots.length<4)dots.push('var(--muted)');
@@ -413,6 +427,7 @@ function viewCalendar(seg){
   const ev=eventsOn(S.sel),rm=remindersOn(S.sel),meal=S.meals[S.sel];
   let items='';
   items+=birthdaysOn(S.sel).map(b=>{const a=ageOn(b,S.sel);return `<button class="item" data-edit-bday="${b.id}"><span class="time">🎂︎</span><span class="body"><span class="kind">Aniversário</span><div class="t">${esc(b.name)}${a!==null&&a>0?' · '+a+' anos':''}</div></span></button>`}).join('');
+  if(holidayOn(S.sel))items+=`<div class="item"><span class="time">Dia</span><span class="body"><span class="kind" style="color:var(--danger)">Feriado nacional</span><div class="t">${esc(holidayOn(S.sel))}</div></span></div>`;
   items+=breaksOn(S.sel).filter(b=>S.filter==='all'||whoList(b.who).includes('all')||whoList(b.who).includes(S.filter)).map(b=>`<button class="item" data-edit-break="${b.id}"><span class="time">Dia</span><span class="body"><span class="kind">Sem aulas</span><div class="t">${esc(b.title)}</div><div class="people">${peopleTags(b.who)}</div></span></button>`).join('');
   items+=vacationsOn(S.sel).map(v=>`<button class="item" data-edit-vac="${v.id}"><span class="time">✈︎</span><span class="body"><span class="kind">Férias${v.place?' · '+esc(v.place):''}</span><div class="t">${esc(v.title)}</div><div class="sub">Até ${niceDate(v.end||v.start)}</div><div class="people">${peopleTags(v.who)}</div></span></button>`).join('');
   if(meal)items+=`<button class="item" data-open-meal="${S.sel}"><span class="time">🍽︎</span><span class="body"><span class="kind">Almoço</span><div class="t">${esc(meal.title)}</div>${meal.cook&&member(meal.cook)?`<div class="sub">Cozinha: ${esc(member(meal.cook).name)}</div>`:''}</span></button>`;
@@ -837,6 +852,7 @@ function wallDay(d){
   const band=[
     ...D.bd.map(b=>{const a=ageOn(b,d);return `<button class="w-pill" data-edit-bday="${b.id}">🎂︎ <b>${esc(b.name)}</b>${a>0?' faz '+a+' anos':''}</button>`}),
     ...D.vac.filter(isAll).map(v=>`<button class="w-pill" data-edit-vac="${v.id}">Férias · <b>${esc(v.title)}</b></button>`),
+    ...(holidayOn(d)?[`<span class="w-pill" style="background:color-mix(in srgb,var(--danger) 16%,var(--surface))">Feriado · <b>${esc(holidayOn(d))}</b></span>`]:[]),
     ...breaksOn(d).map(b=>`<button class="w-pill" data-edit-break="${b.id}">Sem aulas · <b>${esc(b.title)}</b></button>`),
     ...D.ev.filter(isAll).map(e=>`<button class="w-pill" data-edit-event="${e.id}"><b>${e.time?esc(e.time):'Dia'}</b> ${esc(e.title)}</button>`)
   ];
@@ -908,6 +924,7 @@ function dayChips(d,D){
   const ch=[],school={};
   D.bd.forEach(b=>ch.push({k:'',c:'var(--accent)',t:'🎂︎ '+b.name}));
   D.vac.forEach(v=>ch.push({k:'',c:dotsFor(v.who)[0],t:'Férias · '+v.title}));
+  if(holidayOn(d))ch.unshift({k:'',c:'var(--danger)',t:'Feriado · '+holidayOn(d)});
   breaksOn(d).forEach(b=>ch.push({k:'',c:'var(--muted)',t:'Sem aulas · '+b.title}));
   D.ev.forEach(e=>{if(e.school)whoList(e.who).forEach(m=>{school[m]=1});else ch.push({k:e.time||'',c:dotsFor(e.who)[0],t:(e.time?e.time+' ':'')+e.title})});
   Object.keys(school).forEach(m=>{if(member(m))ch.push({k:'00',c:colorOf(m),t:'Escola · '+member(m).name})});
@@ -947,6 +964,7 @@ function wallLine(){
 }
 function frameList(D,d){
   const its=[],sc={};
+  if(holidayOn(d))its.push({k:'',c:'var(--danger)',t:'Feriado · '+holidayOn(d)});
   D.bd.forEach(b=>its.push({k:'',c:'var(--accent)',t:'Aniversário · '+b.name}));
   D.vac.forEach(v=>its.push({k:'',c:dotsFor(v.who)[0],t:'Férias · '+v.title}));
   D.ev.forEach(e=>{
