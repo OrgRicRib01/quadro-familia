@@ -1078,8 +1078,8 @@ function wallFrame(){
   const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n)[0];
   const today=frameList(wallData(TODAY),TODAY),tomorrow=frameList(wallData(td),td).slice(0,5);
   const fm=S.frameMode||'galeria';
-  const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
-  if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
+  const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['tv','NOS TV'],['radio','Rádio']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
+  if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
       ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}
       <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
@@ -1195,13 +1195,22 @@ document.addEventListener('click',e=>{
   if(d.selk){toggleSel(d.selk);calSheet();renderWall();return}
   if(d.selclear!==undefined){S.wallSel=[];closeSheet();renderWall();return}
   if(d.media!==undefined){mediaSheet();return}
+  if(d.ytopen!==undefined){openYouTube();return}
+  if(d.ytlist!==undefined){const v=document.querySelector('#mediaLayer .ml-video');if(v)v.remove();S.frameMode='video';lsSet('fam.frameMode','video');if(S.wall&&S.wallView==='moldura')renderWall();else mediaSheet();return}
+  if(d.ytfav!==undefined){const v=document.querySelector('#mediaLayer .ml-video[data-kind="yt"]');if(!v)return;const u=v.dataset.u,ex=S.media.videos.some(x=>x.u===u);
+    let title=v.dataset.t;if(!ex&&!title){title=prompt('Nome para guardar',ytParse(u)&&ytParse(u).list?'Playlist':'Vídeo')||'';if(!title)return}
+    saveMedia({videos:ex?S.media.videos.filter(x=>x.u!==u):[...S.media.videos,{t:title,u}]});v.dataset.t=title;
+    t.textContent=ex?'☆':'★';t.setAttribute('aria-pressed',String(!ex));toast(ex?'Tirado dos favoritos':'Guardado nos favoritos');return}
+  if(d.tvstart!==undefined){playTV();renderWall();return}
+  if(d.tvopen!==undefined){openNosApp();return}
+  if(d.tvurl!==undefined){const u=prompt('Endereço da NOS TV',lsGet('fam.tvUrl')||NOS_URL);if(u&&/^https:\/\//.test(u.trim())){lsSet('fam.tvUrl',u.trim());playTV();renderWall()}return}
   if(d.fmode){S.frameMode=d.fmode;lsSet('fam.frameMode',d.fmode);if(d.fmode!=='video'){const v=document.querySelector('#mediaLayer .ml-video');if(v)mediaLayer().classList.add('mini')}renderWall();return}
   if(d.mfull!==undefined){const v=document.querySelector('#mediaLayer .ml-video');if(v){v.classList.toggle('full');dockVideo()}return}
   if(d.ytplay){playVideo(d.ytplay,d.yttitle||'');closeSheet();if(S.wall&&S.wallView==='moldura')renderWall();return}
   if(d.ytsave!==undefined){const f=t.closest('form,.fm-panel'),u=f.querySelector('#m-yt').value.trim(),id=ytParse(u);if(!id){toast('Link do YouTube não reconhecido');return}
     const title=f.querySelector('#m-ytt').value.trim()||'Vídeo';saveMedia({videos:[...S.media.videos.filter(v=>v.u!==u),{t:title,u}]});toast('Guardado na lista');if(S.wall&&S.wallView==='moldura')renderWall();return}
   if(d.ytgo!==undefined){const f=t.closest('form,.fm-panel'),u=f.querySelector('#m-yt').value.trim();if(!ytParse(u)){toast('Cola um link do YouTube (vídeo, direto ou lista)');return}playVideo(u,f.querySelector('#m-ytt').value.trim());closeSheet();if(S.wall&&S.wallView==='moldura')renderWall();return}
-  if(d.ytdel){saveMedia({videos:S.media.videos.filter(v=>v.u!==d.ytdel)});return}
+  if(d.ytdel){saveMedia({videos:S.media.videos.filter(v=>v.u!==d.ytdel)});if(S.wall&&S.wallView==='moldura')renderWall();return}
   if(d.radio){playRadio(d.radio,d.rname||'Rádio',d.ralt);return}
   if(d.rfav){const ex=S.media.radios.some(r=>r.u===d.rfav);const st0=(stations||[]).find(s=>s.u===d.rfav);saveMedia({radios:ex?S.media.radios.filter(r=>r.u!==d.rfav):[...S.media.radios,{n:d.rname||'Rádio',u:d.rfav,...(st0&&st0.a?{a:st0.a}:{})}]});return}
   if(d.rcustom!==undefined){const f=t.closest('form'),u=f.querySelector('#m-ru').value.trim();if(!/^https:\/\//.test(u)){toast('O endereço da rádio tem de começar por https://');return}playRadio(u,f.querySelector('#m-rn').value.trim()||'Rádio')
@@ -1365,7 +1374,8 @@ function ytEmbed(p){const q='autoplay=1&rel=0&playsinline=1&modestbranding=1';
 function mediaLayer(){let L=document.getElementById('mediaLayer');if(!L){L=document.createElement('div');L.id='mediaLayer';document.body.appendChild(L)}return L}
 function playVideo(u,title){const p=ytParse(u);if(!p)return;const L=mediaLayer();L.classList.remove('mini');
   let v=L.querySelector('.ml-video');if(!v){v=document.createElement('div');v.className='ml-video';L.appendChild(v)}
-  v.innerHTML=`<div class="ml-bar"><b>${esc(title||'YouTube')}</b><span class="spacer"></span><button class="fd-btn" data-mfull>Ecrã inteiro</button><button class="fd-btn" data-mmin>Minimizar</button><button class="fd-btn" data-mstop="video">Fechar</button></div>
+  v.dataset.kind='yt';v.dataset.u=u;v.dataset.t=title||'';const fav=S.media.videos.some(x=>x.u===u);
+  v.innerHTML=`<div class="ml-bar"><b>${esc(title||'YouTube')}</b><span class="spacer"></span><button class="fd-btn" data-ytfav aria-pressed="${fav}" aria-label="${fav?'Tirar dos favoritos':'Guardar nos favoritos'}">${fav?'★':'☆'}</button><button class="fd-btn" data-ytlist>Favoritos</button><button class="fd-btn" data-ytopen>YouTube</button><button class="fd-btn" data-mfull>Ecrã inteiro</button><button class="fd-btn" data-mmin>Minimizar</button><button class="fd-btn" data-mstop="video">Fechar</button></div>
     <iframe src="${ytEmbed(p)}" title="${esc(title||'Vídeo do YouTube')}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
   stopMedia('radio',true)}
 let audioEl=null;
@@ -1380,8 +1390,9 @@ async function startStream(u){
   const isH=/\.m3u8(\?|$)/i.test(u);
   if(isH&&!audioEl.canPlayType('application/vnd.apple.mpegurl')){
     const H=await loadHls();if(!H||!H.isSupported())throw new Error('hls');
-    await new Promise((ok,ko)=>{hls=new H({enableWorker:true});hls.on(H.Events.ERROR,(e,d)=>{if(d.fatal)ko(new Error('hls '+d.details))});hls.on(H.Events.MANIFEST_PARSED,ok);hls.loadSource(u);hls.attachMedia(audioEl)});
-    return audioEl.play()}
+    try{await new Promise((ok,ko)=>{hls=new H({enableWorker:true});hls.on(H.Events.ERROR,(e,d)=>{if(d.fatal)ko(new Error('hls '+d.details))});hls.on(H.Events.MANIFEST_PARSED,ok);hls.loadSource(u);hls.attachMedia(audioEl)});
+      return await audioEl.play()}
+    catch(e){try{hls.destroy()}catch(_){}hls=null;audioEl.src=u;return audioEl.play()}}
   audioEl.src=u;return audioEl.play()}
 async function playRadio(u,name,alt){
   if(!audioEl){audioEl=new Audio();audioEl.preload='none'}
@@ -1390,12 +1401,14 @@ async function playRadio(u,name,alt){
   const urls=[u,alt].filter((x,i,a)=>x&&/^https:\/\//.test(x)&&a.indexOf(x)===i);
   for(const x of urls){
     try{await Promise.race([startStream(x),new Promise((_,ko)=>setTimeout(()=>ko(new Error('timeout')),15000))]);
-      if(my!==radioTry)return;radioBar(name,'on');S.radioNow={u:x,k:u,n:name};
+      if(my!==radioTry)return;markBroken(u,false);radioBar(name,'on');S.radioNow={u:x,k:u,n:name};
       audioEl.onerror=()=>{if(my===radioTry){toast('A rádio '+name+' deixou de responder.');stopMedia('radio')}};
       if(overlay.querySelector('[data-mediasheet]'))mediaSheet();refreshFrame();return}
     catch(e){console.warn('Rádio',name,x,e);if(my!==radioTry)return}
   }
-  stopMedia('radio');refreshFrame();toast('Não foi possível tocar '+name+'. Esta rádio pode não emitir num formato compatível; experimenta outra.')}
+  markBroken(u,true);stopMedia('radio');refreshFrame();toast('A '+name+' não deixa ser ouvida fora do site dela. Passou para o fim da lista; escolhe outra.')}
+function brokenSet(){try{return new Set(JSON.parse(lsGet('fam.radioBad')||'[]'))}catch(e){return new Set()}}
+function markBroken(u,bad){const s=brokenSet();bad?s.add(u):s.delete(u);lsSet('fam.radioBad',JSON.stringify([...s].slice(-200)))}
 function stopMedia(k,quiet){const L=document.getElementById('mediaLayer');if(!L)return;
   if(k==='video'||k==='all'){const v=L.querySelector('.ml-video');if(v)v.remove()}
   if(k==='radio'||k==='all'){S.radioNow=null;if(hls){try{hls.destroy()}catch(e){}hls=null}if(audioEl){audioEl.onerror=null;audioEl.pause();audioEl.removeAttribute('src');audioEl.load()}const r=L.querySelector('.ml-radio');if(r)r.remove()}
@@ -1424,7 +1437,7 @@ function mediaSheet(){
     <div class="field"><span>Rádio${cur?' · <button type="button" class="edit" data-mstop="radio">Parar</button>':''}</span>
       ${S.media.radios.length?`<div class="m-list">${S.media.radios.map(r=>st(r,true)).join('')}</div>`:''}
       <details class="m-more" ${S.media.radios.length?'':'open'}><summary>Rádios portuguesas</summary>
-        ${stations===null?'<p class="muted small">A carregar…</p>':stations.length?`<div class="m-list m-scroll">${stations.filter(s=>!favU.has(s.u)).map(r=>st(r,false)).join('')}</div>`:'<p class="muted small">Não foi possível carregar a lista. <button type="button" class="edit" data-rsearch>Tentar de novo</button></p>'}
+        ${stations===null?'<p class="muted small">A carregar…</p>':stations.length?`<div class="m-list m-scroll">${(()=>{const bad=brokenSet();return stations.filter(s=>!favU.has(s.u)).sort((a,b)=>bad.has(a.u)-bad.has(b.u)).map(r=>st(r,false)).join('')})()}</div>`:'<p class="muted small">Não foi possível carregar a lista. <button type="button" class="edit" data-rsearch>Tentar de novo</button></p>'}
       </details>
       <details class="m-more"><summary>Outra rádio (endereço do stream)</summary>
         <div class="row" style="gap:8px;margin-top:8px"><input id="m-rn" placeholder="Nome" style="flex:1" value="${esc(vals['m-rn']||'')}"><input id="m-ru" placeholder="https://…" inputmode="url" style="flex:2" value="${esc(vals['m-ru']||'')}"><button type="button" class="addbtn" data-rcustom>Ouvir</button></div>
@@ -1439,18 +1452,46 @@ function mediaSheet(){
 
 function refreshFrame(){if(S.wall&&S.wallView==='moldura'&&S.frameMode!=='galeria'&&!overlay.innerHTML)renderWall()}
 function dockVideo(){const v=document.querySelector('#mediaLayer .ml-video');if(!v)return;
-  const slot=S.wall&&S.wallView==='moldura'&&S.frameMode==='video'&&!v.classList.contains('full')&&document.querySelector('.fm-video');
+  const want=v.dataset.kind==='tv'?'tv':'video';
+  const slot=S.wall&&S.wallView==='moldura'&&S.frameMode===want&&!v.classList.contains('full')&&document.querySelector('.fm-'+want);
+  if(!slot&&S.wall&&S.wallView==='moldura'&&!v.classList.contains('full'))mediaLayer().classList.add('mini');
   if(slot){mediaLayer().classList.remove('mini');const r=slot.getBoundingClientRect();v.classList.add('docked');Object.assign(v.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'})}
   else{v.classList.remove('docked');v.style.left=v.style.top=v.style.width=v.style.height=''}}
 addEventListener('resize',()=>dockVideo());
-function frameVideo(){const playing=!!document.querySelector('#mediaLayer .ml-video');
+function frameVideo(){const playing=!!document.querySelector('#mediaLayer .ml-video[data-kind="yt"]');
   if(playing)return '<div class="fm-slot"></div>';
-  return `<div class="fm-panel"><h3>YouTube</h3>
+  const isPl=u=>{const p=ytParse(u);return !!(p&&p.list)};
+  const pls=S.media.videos.filter(v=>isPl(v.u)),vids=S.media.videos.filter(v=>!isPl(v.u));
+  const tiles=a=>`<div class="fm-tiles">${a.map(v=>`<div class="fm-tw"><button class="fm-tile" data-ytplay="${esc(v.u)}" data-yttitle="${esc(v.t)}"><span class="fm-ti">${isPl(v.u)?'☰':'▶︎'}</span><b>${esc(v.t)}</b></button><button class="fm-x" data-ytdel="${esc(v.u)}" aria-label="Tirar dos favoritos">×</button></div>`).join('')}</div>`;
+  return `<div class="fm-panel"><div class="row" style="gap:10px;align-items:center"><h3 style="flex:1">YouTube</h3><button class="addbtn" data-ytopen>▶ Abrir o YouTube</button></div>
     <div class="row" style="gap:8px"><input id="m-yt" placeholder="Cola aqui o link de um vídeo, direto ou lista" inputmode="url" style="flex:1"><button class="addbtn" data-ytgo>Ver</button></div>
-    <div class="row" style="gap:8px;margin-top:8px"><input id="m-ytt" placeholder="Nome (para guardar)" style="flex:1"><button class="ghost" data-ytsave>Guardar</button></div>
-    ${S.media.videos.length?`<div class="fm-tiles">${S.media.videos.map(v=>`<button class="fm-tile" data-ytplay="${esc(v.u)}" data-yttitle="${esc(v.t)}"><span class="fm-ti">▶︎</span><b>${esc(v.t)}</b></button>`).join('')}</div>`:'<p class="muted">Guarda aqui os vídeos e diretos que a família vê mais vezes.</p>'}</div>`}
+    <div class="row" style="gap:8px;margin-top:8px"><input id="m-ytt" placeholder="Nome (ex.: Louvor da manhã)" style="flex:1"><button class="ghost" data-ytsave>Guardar</button></div>
+    ${pls.length?`<h4 class="fm-h">Playlists favoritas</h4>${tiles(pls)}`:''}
+    ${vids.length?`<h4 class="fm-h">Vídeos favoritos</h4>${tiles(vids)}`:''}
+    ${S.media.videos.length?'':'<p class="muted">Para guardar uma playlist: no YouTube, abre a playlist, toca em Partilhar → Copiar link e cola aqui em cima. Também podes guardar com ☆ o que estiver a dar.</p>'}</div>`}
+function openYouTube(){const u='https://www.youtube.com/';
+  if(/Android/i.test(navigator.userAgent)){location.href='intent://www.youtube.com/#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url='+encodeURIComponent(u)+';end';return}
+  window.open(u,'_blank','noopener')}
 function frameRadio(){const now=S.radioNow,favU=new Set(S.media.radios.map(r=>r.u));
   const tile=r=>`<button class="fm-tile${now&&now.k===r.u?' on':''}" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">${r.i?`<img src="${esc(r.i)}" alt="" loading="lazy" onerror="this.remove()">`:'<span class="fm-ti">📻︎</span>'}<b>${esc(r.n)}</b></button>`;
-  const list=[...S.media.radios,...(stations||[]).filter(s=>!favU.has(s.u)).slice(0,Math.max(0,18-S.media.radios.length))];
+  const bad=brokenSet();const list=[...S.media.radios,...(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)).slice(0,Math.max(0,18-S.media.radios.length))];
   return `<div class="fm-panel"><div class="fm-now">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="ghost" data-mstop="radio">Parar</button>`:'<span class="muted">Toca numa rádio para ouvir</span>'}<button class="ghost" data-media style="margin-left:auto">Favoritas e mais</button></div>
     ${list.length?`<div class="fm-tiles">${list.map(tile).join('')}</div>`:`<p class="muted">${stations===null?'A carregar rádios…':'Não foi possível carregar a lista de rádios.'}</p>`}</div>`}
+
+const NOS_URL='https://nostv.pt/';
+function tvUrl(){return lsGet('fam.tvUrl')||NOS_URL}
+function playTV(){const L=mediaLayer();L.classList.remove('mini');
+  let v=L.querySelector('.ml-video');if(!v){v=document.createElement('div');v.className='ml-video';L.appendChild(v)}
+  v.dataset.kind='tv';
+  v.innerHTML=`<div class="ml-bar"><b>NOS TV</b><span class="spacer"></span><button class="fd-btn" data-tvopen>Abrir fora</button><button class="fd-btn" data-mfull>Ecrã inteiro</button><button class="fd-btn" data-mmin>Minimizar</button><button class="fd-btn" data-mstop="video">Fechar</button></div>
+    <iframe src="${esc(tvUrl())}" title="NOS TV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write" allowfullscreen></iframe>`;
+  stopMedia('radio',true)}
+function openNosApp(){const u=tvUrl();
+  if(/Android/i.test(navigator.userAgent)){location.href='intent://'+u.replace(/^https:\/\//,'')+'#Intent;scheme=https;package=pt.nos.iris.online;S.browser_fallback_url='+encodeURIComponent(u)+';end';return}
+  window.open(u,'_blank','noopener')}
+function frameTV(){const on=!!document.querySelector('#mediaLayer .ml-video[data-kind="tv"]');
+  if(on)return '<div class="fm-slot"></div>';
+  return `<div class="fm-panel"><h3>NOS TV</h3>
+    <p class="muted" style="margin:0">Abre o site da NOS TV aqui na moldura. Entra com a tua conta NOS na primeira vez.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button class="addbtn" data-tvstart>Ver NOS TV aqui</button><button class="ghost" data-tvopen>Abrir na app / noutra janela</button><button class="ghost" data-tvurl>Mudar endereço</button></div>
+    <p class="muted small" style="margin:0">Se a moldura ficar em branco ou com erro, é a NOS a bloquear o site dentro de outras páginas. Nesse caso usa <b>Abrir na app</b>: no tablet Android abre a app NOS TV; fechas a app e voltas ao Quadro.</p></div>`}
