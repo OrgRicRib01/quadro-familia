@@ -84,6 +84,7 @@ function handleWriteError(e){
   db.doc('config/clock').onSnapshot(s=>{const d=s.exists?s.data():{};S.clock={alarms:Array.isArray(d.alarms)?d.alarms:[]};if(S.wall&&S.wallView==='relogio'&&!overlay.innerHTML)renderWall()},()=>{});
   db.doc('config/weather').onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&typeof d.lat==='number'){const ch=!S.wxPlace||S.wxPlace.lat!==d.lat||S.wxPlace.lon!==d.lon;S.wxPlace=d;if(ch){WX=null;wxLoad(true)}}},()=>{});
   db.doc('config/gonly').onSnapshot(s=>{const d=s.exists?s.data():{};S.gOnly=!!d.on;S.famCal=d.famCal||'';render()},()=>{});
+  db.doc('config/youversion').onSnapshot(s=>{S.yv=s.exists?s.data():{};votdLoad(false)},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -1158,14 +1159,14 @@ function wallFrame(){
   const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio'],['tv','NOS TV ↗']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
   if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
-      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${dragBox('wx',frameWx(true))}${dragBox('radio',galleryRadio())}
+      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${dragBox('wx',frameWx(true))}${dragBox('radio',galleryRadio())}${dragBox('votd',votdWidget())}
       <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
       ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div>
       </div>
     ${frameSide(today,tomorrow,row,up,pend)}</div>`;
 }
 function frameSide(today,tomorrow,row,up,pend){
-  return `<div class="w-side">${S.frameMode&&S.frameMode!=='galeria'?frameWx(false):''}<h4 class="w-sh">Hoje</h4>${today.map(x=>row(x,true)).join('')||'<div class="muted">Nada marcado</div>'}
+  return `<div class="w-side">${S.frameMode&&S.frameMode!=='galeria'?frameWx(false)+votdWidget():''}<h4 class="w-sh">Hoje</h4>${today.map(x=>row(x,true)).join('')||'<div class="muted">Nada marcado</div>'}
       <h4 class="w-sh" style="color:var(--muted)">Amanhã</h4>${tomorrow.map(x=>row(x,false)).join('')||'<div class="muted">Nada marcado</div>'}
       <div class="row" style="gap:10px;margin-top:auto;align-items:stretch;padding-top:12px">
         ${up?`<div class="w-mini"><small>Aniversário</small><b>${esc(up.name)}</b><span class="small muted">${up.n===0?'Hoje!':up.n===1?'Amanhã':'daqui a '+up.n+' dias'}</span></div>`:''}
@@ -1884,6 +1885,7 @@ function configHub(){
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
     ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
+    ${it('data-cfg="votd"','📖','Versículo do dia','YouVersion na Moldura'+(yvCfg().key?' · ligado':''))}
     ${it('data-cfg="escola"','🎒︎','Férias escolares','Períodos sem aulas')}
     ${it('data-migrate','🔄','Só calendários do Google',gOnly()?'Ativo · calendário Família e de cada pessoa':'Passar tudo do Quadro para o Google')}
     ${it('data-cfg="dados"','💾︎','Dados','Exportar ou importar uma cópia')}
@@ -1891,7 +1893,7 @@ function configHub(){
   f.addEventListener('click',e=>{const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
     if(k==='pessoas')familyForm();else if(k==='google')googleSheet();else if(k==='ecra')wallSettings();
     else if(k==='escola'){closeSheet();if(S.wall)exitWall();S.tab='agenda';render();setTimeout(()=>{const x=document.querySelector('[data-ag="escola"]');if(x)x.click()},60)}
-    else if(k==='dados'){if(!isAdmin()){toast('Só a conta principal pode importar ou exportar os dados.');return}dataSheet()}else if(k==='tempo')wxSheet();else if(k==='sair')window.famBackend.signOut()});
+    else if(k==='dados'){if(!isAdmin()){toast('Só a conta principal pode importar ou exportar os dados.');return}dataSheet()}else if(k==='tempo')wxSheet();else if(k==='votd')yvSheet();else if(k==='sair')window.famBackend.signOut()});
 }
 function dataSheet(){
   const f=sheet('Dados',`<p class="muted small" style="margin:0">Uma cópia guarda tudo num ficheiro: agenda, lembretes, tarefas, receitas, listas de compras e configuração.</p>
@@ -2322,3 +2324,42 @@ function gMark(){if(!gOnly())return;
   const h=document.querySelector('#overlay .sheet h2');
   if(h&&!h.querySelector('.gbadge')&&/^(Novo evento|Novo aniversário|Novas férias|Novo teste|Novo: |Teste|Exame|Trabalho|Apresentação|Sessão de estudo|Livro|Evento especial|Editar no Google|Evento do Google)/.test(h.textContent))h.insertAdjacentHTML('beforeend',' '+GBADGE)}
 (function(){let t=null;new MutationObserver(()=>{if(t)return;t=requestAnimationFrame(()=>{t=null;try{gMark()}catch(e){}})}).observe(document.body,{childList:true,subtree:true})})();
+
+/* ---------- Versículo do dia (YouVersion Platform) ---------- */
+var YV_BASE='https://api.youversion.com/v1',VOTD=null,votdBusy=false;
+function yvCfg(){return S.yv||{}}
+function dayOfYear(d){const x=parse(d),s=new Date(x.getFullYear(),0,0);return Math.round((x-s)/864e5)}
+async function yvGet(path){const k=yvCfg().key;if(!k)throw new Error('sem chave');const r=await fetch(YV_BASE+path,{headers:{'X-YVP-App-Key':k}});
+  if(!r.ok){let m='';try{const j=await r.json();m=(j&&(j.message||j.error||j.detail))||''}catch(e){}const er=new Error(m||('erro '+r.status));er.status=r.status;throw er}return r.json()}
+function stripHtml(h){const t=document.createElement('div');t.innerHTML=String(h||'');return (t.textContent||'').replace(/\s+/g,' ').trim()}
+async function votdLoad(force){const c=yvCfg();if(!c.key||!c.bible||c.off)return;
+  const key=TODAY+'|'+c.bible;if(!VOTD){const s=lsJSON('fam.votd',null);if(s&&s.key===key)VOTD=s}
+  if(votdBusy||(!force&&VOTD&&VOTD.key===key))return;votdBusy=true;
+  try{const v=await yvGet('/verse_of_the_days/'+dayOfYear(TODAY));const ref=v.passage_id||(v.passage&&v.passage.id)||v.reference||'';if(!ref)throw new Error('sem referência');
+    const p=await yvGet('/bibles/'+encodeURIComponent(c.bible)+'/passages/'+encodeURIComponent(ref)+'?format=text');
+    VOTD={key,ref:p.reference||ref,text:stripHtml(p.content||p.text||''),bible:c.bibleName||'',at:Date.now()};lsSet('fam.votd',JSON.stringify(VOTD));S.yvErr=''}
+  catch(e){console.warn('YouVersion',e);S.yvErr=e.status===401||e.status===403?'A chave da YouVersion não foi aceite.':(e instanceof TypeError?'A YouVersion não respondeu (rede ou bloqueio do browser).':'Versículo indisponível: '+e.message)}
+  votdBusy=false;if(S.wall&&S.wallView==='moldura'&&!overlay.innerHTML&&!S.dragging)renderWall()}
+function votdWidget(){const c=yvCfg();if(!c.key||!c.bible||c.off)return '';votdLoad(false);
+  if(!VOTD||VOTD.key!==TODAY+'|'+c.bible)return S.yvErr?`<div class="votd"><small>Versículo do dia</small><span class="muted">${esc(S.yvErr)}</span></div>`:'';
+  return `<button class="votd" data-votd><small>📖 Versículo do dia</small><span class="votd-t">“${esc(VOTD.text)}”</span><b>${esc(VOTD.ref)}${VOTD.bible?' · '+esc(VOTD.bible):''}</b></button>`}
+function yvSheet(){const c=yvCfg();
+  const f=sheet('Versículo do dia (YouVersion)',`
+    <p class="muted small" style="margin:0">Cria uma conta de programador gratuita em <a href="https://platform.youversion.com" target="_blank" rel="noopener">platform.youversion.com</a>, cria uma aplicação e copia a <b>App Key</b>. Uso não comercial.</p>
+    <label class="field"><span>App Key</span><input name="key" value="${esc(c.key||'')}" placeholder="Cola aqui a chave" autocomplete="off" spellcheck="false"></label>
+    <div class="field"><span>Bíblia em português</span><div class="row" style="gap:8px;flex-wrap:wrap"><select name="bible" style="flex:1;min-width:200px">${c.bible?`<option value="${esc(c.bible)}" selected>${esc(c.bibleName||c.bible)}</option>`:'<option value="">— procura primeiro —</option>'}</select><button type="button" class="ghost" data-yvfind>Procurar Bíblias</button></div>
+      <label class="prof-chk"><input type="checkbox" name="all"> Incluir todas as versões do catálogo</label></div>
+    <label class="prof-chk"><input type="checkbox" name="off" ${c.off?'checked':''}> Esconder o widget</label>
+    <div id="yv-msg" class="small muted"></div>`,
+  {saveLabel:'Guardar',onSave:f=>{const sel=f.elements.bible;const nc={key:val(f,'key'),bible:val(f,'bible'),bibleName:sel.selectedOptions[0]?sel.selectedOptions[0].textContent:'',off:!!f.elements.off.checked};
+    S.yv=nc;VOTD=null;lsSet('fam.votd','');if(S.db)S.db.doc('config/youversion').set(nc).catch(handleWriteError);votdLoad(true);toast('Guardado')}});
+  f.querySelector('[data-yvfind]').addEventListener('click',async()=>{const msg=f.querySelector('#yv-msg');const k=val(f,'key');if(!k){msg.textContent='Cola primeiro a App Key.';return}
+    msg.textContent='A procurar…';const old=S.yv;S.yv={...(S.yv||{}),key:k};
+    try{const j=await yvGet('/bibles?language_ranges[]=por'+(f.elements.all.checked?'&all_available=true':''));const arr=Array.isArray(j)?j:(j.data||j.bibles||j.items||[]);
+      if(!arr.length){msg.textContent='Nenhuma Bíblia em português ativa para esta chave. Ativa uma no painel da YouVersion ou marca "Incluir todas".';return}
+      f.elements.bible.innerHTML=arr.map(b=>{const nm=[b.abbreviation||b.local_abbreviation,b.title||b.local_title||b.name].filter(Boolean).join(' — ');return `<option value="${esc(b.id)}">${esc(nm||b.id)}</option>`}).join('');
+      msg.textContent=arr.length+' versões encontradas. Escolhe uma e carrega em Guardar.'}
+    catch(e){msg.textContent=e.status===401||e.status===403?'A chave não foi aceite.':e instanceof TypeError?'A YouVersion não respondeu ao browser (pode estar a bloquear pedidos diretos).':'Erro: '+e.message}
+    finally{S.yv=old}});
+}
+document.addEventListener('click',e=>{if(e.target.closest('[data-votd]')){if(VOTD)sheet(VOTD.ref,`<p style="font-size:1.25rem;line-height:1.5;margin:0">“${esc(VOTD.text)}”</p><p class="muted">${esc(VOTD.bible||'')} · YouVersion</p>`)}});

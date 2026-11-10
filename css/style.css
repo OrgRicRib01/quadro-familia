@@ -665,3 +665,11 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .w-av .av{width:26px;height:26px;font-size:.72rem;box-shadow:0 0 0 2px var(--surface)}
 .w-av .av+.av{margin-right:-8px}
 .w-av .av-all svg{width:15px;height:15px}
+
+/* versículo do dia */
+.votd{display:flex;flex-direction:column;gap:6px;max-width:min(460px,70vw);text-align:left;border:0;border-radius:20px;padding:14px 18px;background:rgb(0 0 0 / .38);backdrop-filter:blur(8px);color:#fff;font:500 1rem/1.45 var(--body);letter-spacing:normal}
+.votd small{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+.votd-t{font-size:1.08rem;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.votd b{font-weight:700;font-size:.9rem;opacity:.95}
+.fr-drag.fr-votd{left:32px;top:96px}
+.w-side>.votd{background:var(--surface);color:var(--fg);max-width:none;margin:6px 0}
