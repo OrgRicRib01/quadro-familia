@@ -651,3 +651,9 @@ body.wall-mode .edu-card{border:0;box-shadow:0 1px 2px rgb(0 0 0 / .04),0 4px 18
 .edu-bar{height:8px;border-radius:4px;background:var(--sunk);overflow:hidden;margin:6px 0 2px}
 .edu-bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
 body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;border:0;padding:0}
+.gbadge{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 7px 1px 5px;border-radius:999px;background:#E8F0FE;color:#1A56C4;font-size:.68rem;font-weight:700;letter-spacing:0;text-transform:none;vertical-align:middle;line-height:1.6;white-space:nowrap}
+.gbadge svg{width:11px;height:11px}
+.qa button .gbadge{position:absolute;top:8px;right:8px;margin:0}
+.qa button{position:relative}
+.sheet h2 .gbadge{font-size:.72rem}
+@media (prefers-color-scheme:dark){.gbadge{background:#1E3A6B;color:#BFD4FF}}

@@ -2307,3 +2307,11 @@ function groupSchoolG(gs,d){if(!gOnly())return gs;const sc={},rest=[];
   return [...Object.entries(sc).map(([m,s])=>({t:'Escola',d,e:d,h:s.h,he:s.he,mid:m,src:m,i:'',c:'Escola',p:''})),...rest]}
 
 function memberByName(n){n=String(n||'').trim().toLowerCase();if(!n)return null;if(n==='todos'||n==='família'||n==='familia')return {id:'all'};return S.members.find(m=>(m.name||'').trim().toLowerCase()===n)||S.members.find(m=>(m.name||'').toLowerCase().split(/\s+/)[0]===n.split(/\s+/)[0])||null}
+
+/* marca com "Google" o que vai ficar no Google Calendar */
+var GBADGE='<span class="gbadge" title="Fica no Google Calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Google</span>';
+function gMark(){if(!gOnly())return;
+  document.querySelectorAll('[data-new="event"],[data-new="birthday"],[data-new="vacation"],[data-new="test"],[data-edunew],[data-propok],[data-propall]').forEach(b=>{if(!b.querySelector('.gbadge'))b.insertAdjacentHTML('beforeend',GBADGE)});
+  const h=document.querySelector('#overlay .sheet h2');
+  if(h&&!h.querySelector('.gbadge')&&/^(Novo evento|Novo aniversário|Novas férias|Novo teste|Novo: |Teste|Exame|Trabalho|Apresentação|Sessão de estudo|Livro|Evento especial|Editar no Google|Evento do Google)/.test(h.textContent))h.insertAdjacentHTML('beforeend',' '+GBADGE)}
+(function(){let t=null;new MutationObserver(()=>{if(t)return;t=requestAnimationFrame(()=>{t=null;try{gMark()}catch(e){}})}).observe(document.body,{childList:true,subtree:true})})();
