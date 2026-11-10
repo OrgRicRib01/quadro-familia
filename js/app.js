@@ -29,7 +29,7 @@ const S={
   weekStart:(()=>{const d=new Date();d.setDate(d.getDate()-dowMon(d));return iso(d)})(),
   almView:'semana', taskList:'Todas', db:null, live:false, readOnly:false,
   uid:null, me:null, gcal:{}, mcp:null, autoSynced:false, gbusy:false,
-  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'inicio', frameMode:lsGet('fam.frameMode')||'galeria', wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null, wallSel:[], media:{videos:[],radios:[],sites:[],hidden:[]}
+  wall:lsGet('fam.wall')==='1'||location.hash==='#mural', wallView:lsGet('fam.wallView')||'inicio', frameMode:(lsGet('fam.frameMode')||'galeria').replace(/^tv$/,'galeria'), wallDate:TODAY, lastHM:'', rotPart:null, prize:null, assets:null, wallSel:[], media:{videos:[],radios:[],sites:[],hidden:[]}
 };
 const GSERVER='Google Calendar';
 
@@ -1086,7 +1086,7 @@ function wallFrame(){
   const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n)[0];
   const today=frameList(wallData(TODAY),TODAY),tomorrow=frameList(wallData(td),td).slice(0,5);
   const fm=S.frameMode||'galeria';
-  const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['tv','NOS TV'],['radio','Rádio']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
+  const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio'],['tv','NOS TV ↗']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
   if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
       ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}
@@ -1221,13 +1221,14 @@ document.addEventListener('click',e=>{
   if(d.rhide){if(S.radioNow&&S.radioNow.k===d.rhide)stopMedia('radio',true);saveMedia({hidden:[...new Set([...(S.media.hidden||[]),d.rhide])]});toast('Rádio eliminada da lista');return}
   if(d.runhide!==undefined){saveMedia({hidden:[]});return}
   if(d.siteopen!==undefined){const v=document.querySelector('#mediaLayer .ml-video');if(!v)return;if(v.dataset.kind==='tv')openNosApp();else window.open(v.dataset.u,'_blank','noopener');return}
-  if(d.site){stopMedia('radio',true);playSite(d.site,d.sname||'Rádio','site');renderWall();return}
+  if(d.site){stopMedia('radio',true);window.open(d.site,'_blank','noopener');return}
   if(d.sitedel){saveMedia({sites:(S.media.sites||[]).filter(s=>s.u!==d.sitedel)});return}
   if(d.siteadd!==undefined){const box=t.closest('.fm-add'),n=box.querySelector('#s-n').value.trim(),u0=box.querySelector('#s-u').value.trim();
     const u=/^https?:\/\//.test(u0)?u0:(u0?'https://'+u0:'');if(!/^https:\/\/[^\s]+\.[^\s]+/.test(u)){toast('Escreve o endereço do site (https://…)');return}
     let nm=n;if(!nm){try{nm=new URL(u).pathname.split('/').filter(Boolean).pop()||new URL(u).hostname}catch(e){nm='Rádio'}nm=nm.replace(/-/g,' ').replace(/^./,x=>x.toUpperCase())}
     saveMedia({sites:[...(S.media.sites||[]).filter(s=>s.u!==u),{n:nm,u}]});toast('Site adicionado');return}
   if(d.tvurl!==undefined){const u=prompt('Endereço da NOS TV',lsGet('fam.tvUrl')||NOS_URL);if(u&&/^https:\/\//.test(u.trim())){lsSet('fam.tvUrl',u.trim());playTV();renderWall()}return}
+  if(d.fmode==='tv'){openNosApp();return}
   if(d.fmode){S.frameMode=d.fmode;lsSet('fam.frameMode',d.fmode);if(d.fmode!=='video'){const v=document.querySelector('#mediaLayer .ml-video');if(v)mediaLayer().classList.add('mini')}renderWall();return}
   if(d.mfull!==undefined){const v=document.querySelector('#mediaLayer .ml-video');if(v){v.classList.toggle('full');dockVideo()}return}
   if(d.ytplay){playVideo(d.ytplay,d.yttitle||'');closeSheet();if(S.wall&&S.wallView==='moldura')renderWall();return}
@@ -1515,7 +1516,7 @@ function radioAddSheet(){
   const f=sheet('Adicionar rádio',`
     <label class="field"><span>Nome</span><input id="ra-n" placeholder="Ex.: Rádio Comercial"></label>
     <label class="field"><span>Endereço</span><input id="ra-u" placeholder="Site (https://rayo.pt/radio-comercial) ou stream (https://…mp3)" inputmode="url"></label>
-    <p class="muted small" style="margin:0">Se for o endereço do <b>site</b> da rádio, abre dentro da moldura com o leitor do site. Se for o endereço direto do <b>stream</b> (.mp3, .aac, .m3u8…), toca no leitor do Quadro.</p>
+    <p class="muted small" style="margin:0">Se for o endereço do <b>site</b> da rádio, abre numa janela à parte. Se for o endereço direto do <b>stream</b> (.mp3, .aac, .m3u8…), toca no leitor do Quadro.</p>
     <div class="field"><span>Ou escolhe uma rádio portuguesa</span><input id="ra-q" type="search" placeholder="Procurar (ex.: Antena, RFM, Renascença)">
       <div class="m-list m-scroll" id="ra-list"></div></div>`,{onSave:f=>{
     const n=val(f,'ra-n')||f.querySelector('#ra-n').value.trim(),u0=f.querySelector('#ra-u').value.trim();
