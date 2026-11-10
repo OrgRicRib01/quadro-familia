@@ -1216,6 +1216,7 @@ document.addEventListener('click',e=>{
   if(d.tvstart!==undefined){playTV();renderWall();return}
   if(d.tvopen!==undefined){openNosApp();return}
   if(d.framefree!==undefined){return}
+  if(d.rfold!==undefined){lsSet('fam.sugMin',lsGet('fam.sugMin')==='1'?'0':'1');renderWall();return}
   if(d.radd!==undefined){radioAddSheet();return}
   if(d.raddst){const st=(stations||[]).find(s=>s.u===d.raddst);saveMedia({radios:[...S.media.radios.filter(r=>r.u!==d.raddst),{n:d.rname||'Rádio',u:d.raddst,...(d.ralt?{a:d.ralt}:{}),...(st&&st.i?{i:st.i}:{})}],hidden:(S.media.hidden||[]).filter(x=>x!==d.raddst)});closeSheet();toast((d.rname||'Rádio')+' adicionada');return}
   if(d.rdel){if(S.radioNow&&S.radioNow.k===d.rdel)stopMedia('radio',true);saveMedia({radios:S.media.radios.filter(r=>r.u!==d.rdel)});toast('Rádio eliminada das tuas');return}
@@ -1507,6 +1508,7 @@ function frameRadio(){if(document.querySelector('#mediaLayer .ml-video[data-kind
   const tile=(r,fav)=>`<div class="fm-tw${fav?'':' fm-sug'}" data-key="${esc(r.u)}"><button class="fm-tile${now&&now.k===r.u?' on':''}" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">${r.i?`<img src="${esc(r.i)}" alt="" loading="lazy" onerror="this.remove()">`:'<span class="fm-ti">📻︎</span>'}<b>${esc(r.n)}</b></button>${x(fav?'data-rdel':'data-rhide',r.u,(fav?'Eliminar ':'Esconder ')+r.n)}${fav?'':`<button class="fm-plus" data-raddst="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}" aria-label="Adicionar ${esc(r.n)} às minhas rádios">＋ Minhas</button>`}</div>`;
   const stile=s=>`<div class="fm-tw" data-key="${esc(s.u)}"><button class="fm-tile" data-site="${esc(s.u)}" data-sname="${esc(s.n)}"><span class="fm-ti">🌐︎</span><b>${esc(s.n)}</b></button>${x('data-sitedel',s.u,'Eliminar '+s.n)}</div>`;
   const ord=S.media.order||[],pos=u=>{const i=ord.indexOf(u);return i<0?1e6:i},byOrd=a=>a.map((x,i)=>[x,i]).sort((p,q)=>pos(p[0].u)-pos(q[0].u)||p[1]-q[1]).map(x=>x[0]);
+  const sugMin=lsGet('fam.sugMin')==='1';
   const rq=(S.radioQ||'').trim().toLowerCase(),norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const more=rq?(stations||[]).filter(s=>!favU.has(s.u)&&norm(s.n).includes(norm(rq))).slice(0,30):(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)&&!hid.has(s.u)).slice(0,12);
   const ours=byOrd(S.media.radios);
@@ -1515,8 +1517,8 @@ function frameRadio(){if(document.querySelector('#mediaLayer .ml-video[data-kind
     <h4 class="fm-h">As minhas rádios</h4>
     <div class="fm-tiles" data-sortable="ours">${ours.map(r=>tile(r,true)).join('')}${add}</div>
     ${ours.length>1?'<p class="muted small" style="margin:0">Para mudar a ordem, carrega numa rádio sem largar e arrasta-a.</p>':ours.length?'':'<p class="muted small" style="margin:0">Ainda não há rádios tuas. Usa <b>＋ Minhas</b> numa sugestão ou <b>Adicionar rádio</b>.</p>'}
-    <div class="row fm-sh" style="gap:10px;align-items:center;margin-top:6px"><h4 class="fm-h" style="margin:0;flex:1">Sugestões</h4><input id="r-q" type="search" placeholder="Procurar rádio por nome" value="${esc(S.radioQ||'')}" enterkeyhint="search" style="max-width:280px;flex:1"></div>
-    ${more.length?`<div class="fm-tiles">${more.map(r=>tile(r,false)).join('')}</div>`:stations===null?'<p class="muted">A carregar sugestões…</p>':rq?`<p class="muted">Nenhuma rádio com “${esc(S.radioQ)}”.</p>`:''}
+    <div class="row fm-sh" style="gap:10px;align-items:center;margin-top:6px"><button class="fm-fold" data-rfold aria-expanded="${!sugMin}"><span aria-hidden="true">${sugMin?'▸':'▾'}</span> Sugestões</button>${sugMin?'<span style="flex:1"></span>':`<input id="r-q" type="search" placeholder="Procurar rádio por nome" value="${esc(S.radioQ||'')}" enterkeyhint="search" style="max-width:280px;flex:1;margin-left:auto">`}<button class="ghost" data-rfold>${sugMin?'Mostrar':'Minimizar'}</button></div>
+    ${sugMin?'':more.length?`<div class="fm-tiles">${more.map(r=>tile(r,false)).join('')}</div>`:stations===null?'<p class="muted">A carregar sugestões…</p>':rq?`<p class="muted">Nenhuma rádio com “${esc(S.radioQ)}”.</p>`:''}
     ${hid.size?`<p class="muted small" style="margin:0">${hid.size} ${hid.size===1?'sugestão escondida':'sugestões escondidas'} · <button class="edit" data-runhide>Mostrar de novo</button></p>`:''}</div>`}
 function radioAddSheet(){
   const favU=new Set(S.media.radios.map(r=>r.u));
