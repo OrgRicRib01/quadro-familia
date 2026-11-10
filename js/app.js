@@ -847,9 +847,9 @@ function schoolEnd(e){const m=/até (\d\d:\d\d)/.exec(e.note||'');return m?m[1]:
 function nowHM(){const n=new Date();return pad(n.getHours())+':'+pad(n.getMinutes())}
 const isAll=x=>whoList(x.who).includes('all');
 const forM=(x,m)=>!isAll(x)&&whoList(x.who).includes(m);
-function wallData(d){
+function wallData(d,raw){
   const f=S.filter;S.filter=wFilter();
-  const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:groupSchoolG(gcalOn(d),d),bd:birthdaysOn(d),meal:S.meals[d]};
+  const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:raw?gcalOn(d):groupSchoolG(gcalOn(d),d),bd:birthdaysOn(d),meal:S.meals[d]};
   S.filter=f;return r;
 }
 function colItems(m,D,d){
@@ -1009,7 +1009,7 @@ function railBirthdays(){
   const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n).slice(0,3);
   return `<div class="w-card"><h4>Próximos aniversários</h4>${up.map(b=>`<button class="w-it" data-edit-bday="${b.id}"><span class="tm">${+b.md.slice(3)}/${+b.md.slice(0,2)}</span><span style="flex:1;min-width:0"><div class="tt">${esc(b.name)}</div><div class="ss">${b.n===0?'Hoje!':b.n===1?'Amanhã':'Daqui a '+b.n+' dias'}</div></span></button>`).join('')||'<div class="empty">Sem aniversários registados</div>'}</div>`}
 function wallDay(d){
-  const D=wallData(d);
+  const D=wallData(d,true);
   const band=[
     ...D.bd.map(b=>{const a=ageOn(b,d);return `<button class="w-pill" data-edit-bday="${b.id}">🎂︎ <b>${esc(b.name)}</b>${a>0?' faz '+a+' anos':''}</button>`}),
     ...D.vac.filter(isAll).map(v=>`<button class="w-pill" data-edit-vac="${v.id}">Férias · <b>${esc(v.title)}</b></button>`),
@@ -1115,7 +1115,7 @@ function wallMonth(){
     <aside class="w-rail"><div class="w-card"><h4>Hoje · ${niceDate(TODAY)}</h4>${tl.map(z=>`<div class="w-it" style="min-height:48px"><span class="dot" style="--c:${z.c};margin-top:8px"></span><span class="tt" style="flex:1;min-width:0">${esc(z.t)}</span></div>`).join('')||'<div class="empty">Nada marcado</div>'}</div>${railMeal(TODAY)}</aside></div>${syncLine()}`;
 }
 function wallLine(){
-  const d=S.wallDate,D=wallData(d),H0=7,H1=23;
+  const d=S.wallDate,D=wallData(d,true),H0=7,H1=23;
   const pos=hm=>{const[h,m]=hm.split(':').map(Number);return Math.max(0,Math.min(100,((h+m/60)-H0)/(H1-H0)*100))};
   const now=d===TODAY?nowHM():null;
   const blk=(a,b,t,c,act)=>{const l=pos(a),w=Math.max(pos(b)-l,2.5),past=now&&b<=now,tag=act?'button':'div';
