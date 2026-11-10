@@ -1140,8 +1140,8 @@ function wallFrame(){
   const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio'],['tv','NOS TV ↗']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
   if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
-      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${galleryRadio()}
-      <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>${frameWx(true)}
+      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${dragBox('wx',frameWx(true))}${dragBox('radio',galleryRadio())}
+      <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
       ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div>
       </div>
     ${frameSide(today,tomorrow,row,up,pend)}</div>`;
@@ -1193,6 +1193,7 @@ function wallSettings(){
       ${S.photos.length?`<div class="ph-grid">${S.photos.map(p=>`<figure style="background-image:url('${photoUrl(p)}')"><button type="button" class="ph-del" data-delphoto="${p.id}" aria-label="Apagar fotografia">×</button></figure>`).join('')}</div>`:''}
       ${S.assets&&!S.readOnly?'<label class="uplabel">+ Adicionar fotografias<input id="w-ph" type="file" accept="image/*" multiple hidden></label>':`<p class="muted small" style="margin:0">${S.live?'Só quem pode editar o Quadro consegue adicionar fotografias.':'Configura o Firebase para adicionar fotografias.'}</p>`}
     </div>
+    <div class="field"><span>Widgets da galeria (tempo e rádio)</span><button type="button" class="ghost" data-wposreset>Repor no sítio original</button></div>
     <label class="field"><span>Tempo de cada fotografia na moldura (segundos)</span><input id="w-psec" type="number" min="3" max="3600" step="1" name="psec" value="${photoSec()}"></label>
     <div class="field"><span>Google Calendar</span><button type="button" class="ghost" data-wgoogle>Ligar e escolher calendários</button></div>
     <div class="two"><label class="field"><span>Prémio da semana</span><input id="w-prize" name="prize" value="${esc(S.prize&&S.prize.title)}" placeholder="Ex.: Noite de cinema"></label>
@@ -1252,6 +1253,7 @@ document.addEventListener('click',e=>{
   if(d.wshift){wallStep(+d.wshift);return}
   if(d.rpart){S.rotPart=d.rpart;renderWall();return}
   if(d.wset!==undefined){configHub();return}
+  if(d.wposreset!==undefined){lsSet('fam.wpos','{}');toast('Widgets repostos');if(S.wall)renderWall();return}
   if(d.wxinfo!==undefined){wxSheet();return}
   if(d.gev){gEventSheet(d.gev);return}
   if(d.wf){if(d.wf==='all')S.wallSel=[];else toggleSel(d.wf);renderWall();return}
@@ -1616,7 +1618,7 @@ function frameTV(){const on=!!document.querySelector('#mediaLayer .ml-video[data
 
 function photoSec(){const s=+lsGet('fam.photoSec');return s>=3?s:30}
 function photoSlot(){return Math.floor(Date.now()/(photoSec()*1000))}
-setInterval(()=>{if(S.wall&&!overlay.innerHTML&&S.wallView==='moldura'&&(S.frameMode||'galeria')==='galeria'&&S.photos.length>1&&photoSlot()!==S.lastSlot)renderWall()},1000);
+setInterval(()=>{if(S.wall&&!S.dragging&&!overlay.innerHTML&&S.wallView==='moldura'&&(S.frameMode||'galeria')==='galeria'&&S.photos.length>1&&photoSlot()!==S.lastSlot)renderWall()},1000);
 
 function ytKey(){const C=window.QUADRO_CONFIG||{};return C.youtubeApiKey||(C.firebase&&C.firebase.apiKey)||''}
 async function ytLoad(q){
@@ -1987,3 +1989,19 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-mema
   if(b.dataset.calunlink){const id=b.dataset.calunlink,me=S.me||{};const p={...me,cals:{...(me.cals||{}),[id]:'off'}};
     if(await saveMyProfile(p)){toast('Calendário desligado');S.gbusy=0;syncGoogle(p,false);setTimeout(familyForm,150)}return}
 });
+
+/* widgets que se podem mover na galeria */
+function wPos(){return lsJSON('fam.wpos',{})}
+function dragBox(k,html){if(!html)return '';const p=wPos()[k];
+  const st=p?`left:${(p.x*100).toFixed(2)}%;top:${(p.y*100).toFixed(2)}%;right:auto;bottom:auto`:'';
+  return `<div class="fr-drag fr-${k}" data-dragbox="${k}" style="${st}"><span class="fr-hd" data-handle title="Arrastar para mudar de sítio" aria-label="Mover">⠿</span>${html}</div>`}
+(function(){let dr=null;
+  document.addEventListener('pointerdown',e=>{const h=e.target.closest('[data-handle]');if(!h)return;const box=h.closest('[data-dragbox]'),ph=box&&box.closest('.w-photo');if(!ph)return;
+    e.preventDefault();const r=box.getBoundingClientRect(),pr=ph.getBoundingClientRect();
+    dr={box,ph,dx:e.clientX-r.left,dy:e.clientY-r.top,pr};S.dragging=true;box.classList.add('moving');try{h.setPointerCapture(e.pointerId)}catch(_){}});
+  document.addEventListener('pointermove',e=>{if(!dr)return;const {box,pr}=dr,bw=box.offsetWidth,bh=box.offsetHeight;
+    const x=Math.max(0,Math.min(pr.width-bw,e.clientX-pr.left-dr.dx)),y=Math.max(0,Math.min(pr.height-bh,e.clientY-pr.top-dr.dy));
+    Object.assign(box.style,{left:x+'px',top:y+'px',right:'auto',bottom:'auto'})});
+  const end=()=>{if(!dr)return;const {box,pr}=dr;const p=wPos();p[box.dataset.dragbox]={x:box.offsetLeft/pr.width,y:box.offsetTop/pr.height};lsSet('fam.wpos',JSON.stringify(p));
+    box.classList.remove('moving');dr=null;S.dragging=false};
+  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);})();

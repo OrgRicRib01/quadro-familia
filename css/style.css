@@ -622,3 +622,14 @@ body.wall-mode .sheet{max-width:min(500px,100vw);width:100%;height:100%;max-heig
 :root{--p6:#DB2777;--p7:#0891B2;--p8:#65A30D}
 .prof-cal{margin-top:2px}
 .prof-cal .ptag .edit{padding:0 4px;min-height:0;border:0;background:transparent}
+
+/* widgets móveis da galeria */
+.fr-drag{position:absolute;z-index:3;display:flex;align-items:center;gap:4px}
+.fr-wx-def,.fr-drag.fr-wx{left:32px;bottom:28px}
+.fr-drag.fr-radio{right:20px;bottom:20px}
+.fr-drag .g-radio{position:static;max-width:none}
+.fr-drag .fr-wx.fr-big{margin:0}
+.fr-hd{width:34px;height:44px;display:grid;place-items:center;border-radius:12px;background:rgb(0 0 0 / .35);color:#fff;font-size:1.2rem;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;opacity:.75}
+.fr-drag.moving .fr-hd{cursor:grabbing;opacity:1}
+.fr-drag.moving{filter:drop-shadow(0 10px 24px rgb(0 0 0 / .4))}
+.w-photo:not(.fm-video):not(.fm-radio) .ov{padding-bottom:84px}
