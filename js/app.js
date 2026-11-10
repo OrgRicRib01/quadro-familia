@@ -828,10 +828,17 @@ async function importData(j){
       await put(c+'/'+String(id).replace(/\//g,'_'),data);
     }
   }
-  if(j.config&&j.config.family&&Array.isArray(j.config.family.members))await put('config/family',{members:j.config.family.members});
+  if(j.config&&j.config.family&&Array.isArray(j.config.family.members)){
+    // junta aos dados atuais (não apaga fotografias nem outros campos)
+    const cur=S.members||[],inc=j.config.family.members,ids=new Set(cur.map(m=>m.id));
+    const merged=cur.map(m=>{const x=inc.find(y=>y.id===m.id);return x?{...m,...x}:m}).concat(inc.filter(x=>!ids.has(x.id)));
+    await put('config/family',{members:merged})}
+  if(j.config&&j.config.gonly){let cur={};try{const s=await S.db.doc('config/gonly').get();cur=s.exists?s.data():{}}catch(e){}await put('config/gonly',{...cur,...j.config.gonly})}
   if(j.config&&j.config.prize)await put('config/prize',j.config.prize);
   if(j.config&&Array.isArray(j.config.shopLists)&&j.config.shopLists.length)await put('config/shopLists',{lists:j.config.shopLists});
-  if(j.profile&&S.uid)await put('data/users/'+S.uid+'/profile',j.profile);
+  if(j.profile&&S.uid){const me=S.me||{},p=j.profile;
+    const ex=[...(me.extra||[]).filter(x=>!(p.extra||[]).some(y=>y.id===x.id)),...(p.extra||[])];
+    await put('data/users/'+S.uid+'/profile',{...me,...p,cals:{...(me.cals||{}),...(p.cals||{})},calMember:{...(me.calMember||{}),...(p.calMember||{})},calNames:{...(me.calNames||{}),...(p.calNames||{})},extra:ex,hidden:(me.hidden||[]).filter(x=>!(p.cals&&p.cals[x]))});S.autoSynced=false}
   toast(fail?n+' itens importados, '+fail+' falharam.':n+' itens importados.');
 }
 
