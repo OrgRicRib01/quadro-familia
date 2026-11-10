@@ -657,3 +657,11 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .qa button{position:relative}
 .sheet h2 .gbadge{font-size:.72rem}
 @media (prefers-color-scheme:dark){.gbadge{background:#1E3A6B;color:#BFD4FF}}
+
+/* semana: círculo da pessoa no canto superior direito */
+.w-wi{position:relative}
+.w-wi.has-av{padding-right:40px}
+.w-av{position:absolute;top:6px;right:6px;display:flex;flex-direction:row-reverse}
+.w-av .av{width:26px;height:26px;font-size:.72rem;box-shadow:0 0 0 2px var(--surface)}
+.w-av .av+.av{margin-right:-8px}
+.w-av .av-all svg{width:15px;height:15px}

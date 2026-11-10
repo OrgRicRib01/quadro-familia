@@ -1040,17 +1040,17 @@ function wallWeek(){
   for(let i=0;i<7;i++){
     const x=new Date(b);x.setDate(b.getDate()+i);const d=iso(x);const D=wallData(d);const its=[];
     D.bd.forEach(z=>its.push({k:'',c:'var(--accent)',t:'🎂︎ '+z.name,a:`data-edit-bday="${z.id}"`}));
-    D.vac.forEach(v=>its.push({k:'',c:dotsFor(v.who)[0],t:'Férias · '+v.title,a:`data-edit-vac="${v.id}"`}));
+    D.vac.forEach(v=>its.push({k:'',c:dotsFor(v.who)[0],t:'Férias · '+v.title,a:`data-edit-vac="${v.id}"`,ms:whoList(v.who)}));
     const school={};
     D.ev.forEach(e=>{
       if(e.school){const en=schoolEnd(e);whoList(e.who).forEach(m=>{const s=school[m]||(school[m]={k:e.time,end:en});if(e.time<s.k)s.k=e.time;if(en>s.end)s.end=en})}
-      else{const w=whoList(e.who);its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title,s:w.includes('all')?'Todos':w.map(id=>member(id)&&member(id).name).filter(Boolean).join(', '),a:`data-edit-event="${e.id}"`})}
+      else{const w=whoList(e.who);its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title,s:w.includes('all')?'Todos':w.map(id=>member(id)&&member(id).name).filter(Boolean).join(', '),a:`data-edit-event="${e.id}"`,ms:w})}
     });
-    Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`}));
-    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid),a:(g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:g.t==='Escola'?`data-wday="${g.d}"`:'')}));
+    Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`,ms:[m]}));
+    D.g.forEach(g=>its.push({ms:[g.mid],k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid),a:(g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:g.t==='Escola'?`data-wday="${g.d}"`:'')}));
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
     cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b>${wxLine(d)}</button>
-      ${its.map(z=>{const tag=z.a?'button':'div';return `<${tag} class="w-wi" style="--c:${z.c}" ${z.a||''}>${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
+      ${its.map(z=>{const tag=z.a?'button':'div';const ms=(z.ms||[]).filter(id=>id==='all'||member(id));const av=ms.length?`<span class="w-av">${(ms.includes('all')?['all']:ms.slice(0,3)).map(id=>avatar(id,true)).join('')}</span>`:'';return `<${tag} class="w-wi${av?' has-av':''}" style="--c:${z.c}" ${z.a||''}>${av}${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
       ${D.meal?`<button class="w-wi meal" data-open-meal="${d}" style="--c:var(--line)"><span class="ss">Almoço</span><span class="tt">${esc(D.meal.title)}</span></button>`:''}</div>`;
   }
   return `<div class="w-week" data-swipe="wall">${cols}</div>${syncLine()}`;
