@@ -1018,7 +1018,7 @@ function renderWall(){
   S.lastHM=nowHM();const v=S.wallView;document.body.dataset.v=v;
   const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts,relogio:wallClock}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
-  const ytFocus=document.activeElement&&['yt-q','r-q'].includes(document.activeElement.id)&&document.activeElement.id;
+  const ytFocus=document.activeElement&&['yt-q','r-q','tm-name'].includes(document.activeElement.id)&&document.activeElement.id;
   let html;
   try{html=(v==='moldura'?wallFrame():wallHead()+body()+fab)+navBar()}
   catch(e){console.error('Ecrã de parede',e);S.frameMode='galeria';lsSet('fam.frameMode','galeria');if(v!=='inicio'){S.wallView='inicio';lsSet('fam.wallView','inicio')}
@@ -1241,7 +1241,7 @@ document.addEventListener('click',e=>{
   if(d.tvstart!==undefined){playTV();renderWall();return}
   if(d.tvopen!==undefined){openNosApp();return}
   if(d.framefree!==undefined){return}
-  if(d.ck!==undefined||d.ckTab||d.ckNew!==undefined||d.ckEdit||d.ckToggle||d.tmAdd||d.tmGo||d.tmPause||d.tmReset||d.tmDel||d.swGo!==undefined||d.swLap!==undefined||d.swReset!==undefined||d.ringStop!==undefined||d.ringSnooze!==undefined||d.tmStep||d.tmNew!==undefined){clockClick(t,d);return}
+  if(d.ck!==undefined||d.ckTab||d.ckNew!==undefined||d.ckEdit||d.ckToggle||d.tmAdd||d.tmGo||d.tmPause||d.tmReset||d.tmDel||d.swGo!==undefined||d.swLap!==undefined||d.swReset!==undefined||d.ringStop!==undefined||d.ringSnooze!==undefined||d.tmStep||d.tmNew!==undefined||d.tmBell||d.tmRen){clockClick(t,d);return}
   if(d.rfold!==undefined){lsSet('fam.sugMin',lsGet('fam.sugMin')==='1'?'0':'1');renderWall();return}
   if(d.radd!==undefined){radioAddSheet();return}
   if(d.raddst){const st=(stations||[]).find(s=>s.u===d.raddst);saveMedia({radios:[...S.media.radios.filter(r=>r.u!==d.raddst),{n:d.rname||'Rádio',u:d.raddst,...(d.ralt?{a:d.ralt}:{}),...(st&&st.i?{i:st.i}:{})}],hidden:(S.media.hidden||[]).filter(x=>x!==d.raddst)});closeSheet();toast((d.rname||'Rádio')+' adicionada');return}
@@ -1417,7 +1417,7 @@ function ytParse(u){u=String(u||'').trim();if(!u)return null;let id=null,list=nu
   try{const x=new URL(u.startsWith('http')?u:'https://'+u);const h=x.hostname.replace(/^www\.|^m\./,'');
     list=x.searchParams.get('list');
     if(h==='youtu.be')id=x.pathname.slice(1).split('/')[0];
-    else if(/(^|\.)youtube(-nocookie)?\.com$/.test(h)){id=x.searchParams.get('v');const m=/^\/(embed|shorts|live|v)\/([\w-]{6,})/.exec(x.pathname);if(m&&m[2]!=='videoseries')id=m[2]}
+    else if(/(^|\.)youtube(-nocookie)?\.com$/.test(h)){const ch=/^\/channel\/UC([\w-]{20,})/.exec(x.pathname);if(ch)return {id:null,list:'UU'+ch[1]};id=x.searchParams.get('v');const m=/^\/(embed|shorts|live|v)\/([\w-]{6,})/.exec(x.pathname);if(m&&m[2]!=='videoseries')id=m[2]}
     else return null}catch(e){if(/^[\w-]{11}$/.test(u))id=u;else return null}
   if(id&&!/^[\w-]{6,}$/.test(id))id=null;if(list&&!/^[\w-]+$/.test(list))list=null;
   return id||list?{id,list}:null}
@@ -1655,10 +1655,12 @@ function wallClock(){
       <p class="muted small" style="margin:8px 0 0">Os alarmes tocam no ecrã de parede. O som funciona depois de alguém tocar uma vez no ecrã.</p>`}
   else if(tab==='temporizador'){
     const ts=timers();
-    body=`<div class="ck-presets">${[1,3,5,10,15,20,30,45,60].map(m=>`<button class="fd-btn" data-tm-add="${m*60}">${m<60?m+' min':'1 h'}</button>`).join('')}<button class="fd-btn" data-tm-new>Outro…</button></div>
+    body=`<div class="ck-tmopts row" style="gap:10px;flex-wrap:wrap;align-items:center"><input id="tm-name" placeholder="Título (ex.: Massa, TPC, Forno)" value="${esc(S.tmName||'')}" style="flex:1;min-width:220px;max-width:420px">
+        <label class="prof-chk"><input type="checkbox" id="tm-alarm" ${S.tmAlarm===false?'':'checked'}> Tocar alarme no fim</label></div>
+      <div class="ck-presets">${[1,3,5,10,15,20,30,45,60].map(m=>`<button class="fd-btn" data-tm-add="${m*60}">${m<60?m+' min':'1 h'}</button>`).join('')}<button class="fd-btn" data-tm-new>Outro…</button></div>
       <div class="ck-grid">${ts.map(t=>{const left=tmLeft(t),pct=t.total?Math.max(0,Math.min(1,left/t.total)):0;
         return `<div class="ck-card ck-tm${left<=0?' done':''}"><div class="ck-ring" style="--p:${(pct*360).toFixed(1)}deg"><span data-tick="tm" data-id="${t.id}">${fmtDur(left)}</span></div>
-          <div class="ck-tmr"><b>${esc(t.label||'Temporizador')}</b><span class="muted small">${fmtDur(t.total)}</span>
+          <div class="ck-tmr"><button class="ck-tmt" data-tm-ren="${t.id}"><b>${esc(t.label||'Temporizador')}</b> <span aria-hidden="true">✎</span></button><span class="muted small">${fmtDur(t.total)} · <button class="edit" data-tm-bell="${t.id}" aria-pressed="${t.alarm!==false}">${t.alarm!==false?'🔔 Com alarme':'🔕 Sem alarme'}</button></span>
           <div class="row" style="gap:6px;flex-wrap:wrap">${t.endAt?`<button class="fd-btn" data-tm-pause="${t.id}">Pausa</button>`:left>0?`<button class="addbtn" data-tm-go="${t.id}">${left<t.total?'Continuar':'Começar'}</button>`:''}
             <button class="fd-btn" data-tm-step="${t.id}|60">+1 min</button><button class="fd-btn" data-tm-reset="${t.id}">Repor</button><button class="fd-btn" data-tm-del="${t.id}" aria-label="Apagar">✕</button></div></div></div>`}).join('')||'<p class="muted">Escolhe um tempo acima para começar uma contagem decrescente.</p>'}</div>`}
   else{
@@ -1670,32 +1672,40 @@ function wallClock(){
 }
 function alarmSheet(a){
   const isNew=!a;a=a||{id:uid(),h:'07:30',label:'',days:[0,1,2,3,4],on:true,sound:'despertador',snooze:10};
-  const snd=[['despertador','Despertador'],['bip','Bip'],['suave','Suave'],...S.media.radios.map(r=>['radio:'+r.u,'Rádio · '+r.n])];
+  const snd=[['despertador','Despertador'],['bip','Bip'],['suave','Suave']],rad=S.media.radios.map(r=>['radio:'+r.u,r.n]),yts=S.media.videos.map(v=>['yt:'+v.u,v.t]);
+  const cur=a.sound||'despertador',curYt=cur.startsWith('yt:')&&!yts.some(x=>x[0]===cur)?cur.slice(3):'';
+  const opt=([k,l])=>`<option value="${esc(k)}" ${cur===k?'selected':''}>${esc(l)}</option>`;
   const f=sheet(isNew?'Novo alarme':'Alarme',`
     <label class="field"><span>Hora</span><input type="time" name="h" value="${esc(a.h)}" required style="font-size:2rem;font-weight:700"></label>
     <label class="field"><span>Nome</span><input name="label" value="${esc(a.label||'')}" placeholder="Ex.: Acordar, Escola, Medicamento"></label>
     <div class="field"><span>Repetir</span><div class="who" style="flex-wrap:wrap" data-ckdays>${WD.map((w,i)=>`<button type="button" class="chip" data-day="${i}" aria-pressed="${(a.days||[]).includes(i)}">${w}</button>`).join('')}</div>
       <div class="row" style="gap:8px;margin-top:6px"><button type="button" class="edit" data-dayset="0,1,2,3,4">Dias úteis</button><button type="button" class="edit" data-dayset="5,6">Fim de semana</button><button type="button" class="edit" data-dayset="0,1,2,3,4,5,6">Todos</button><button type="button" class="edit" data-dayset="">Só uma vez</button></div></div>
-    <div class="two"><label class="field"><span>Som</span><select name="sound">${snd.map(([k,l])=>`<option value="${esc(k)}" ${a.sound===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+    <div class="two"><label class="field"><span>Ao tocar</span><select name="sound" data-sndsel><optgroup label="Som">${snd.map(opt).join('')}</optgroup>${rad.length?`<optgroup label="Iniciar uma rádio">${rad.map(opt).join('')}</optgroup>`:''}<optgroup label="Abrir YouTube">${yts.map(opt).join('')}<option value="yt:" ${curYt?'selected':''}>Outro vídeo, playlist ou canal…</option></optgroup></select></label>
     <label class="field"><span>Adiar (minutos)</span><input type="number" name="snooze" min="1" max="60" value="${esc(a.snooze||10)}"></label></div>
-    <button type="button" class="ghost" data-sndtest>▶ Ouvir o som</button>`,
+    <label class="field" data-ytbox ${cur==='yt:'||curYt?'':'hidden'}><span>Link do YouTube</span><input name="yturl" value="${esc(curYt)}" placeholder="Vídeo, playlist ou canal (youtube.com/@nome)" inputmode="url"></label>
+    <button type="button" class="ghost" data-sndtest>▶ Experimentar</button>`,
   {onSave:f=>{const h=val(f,'h');if(!/^\d\d:\d\d$/.test(h)){toast('Escolhe a hora');return false}
-    const days=[...f.querySelectorAll('[data-day][aria-pressed="true"]')].map(b=>+b.dataset.day);
-    const na={...a,h,label:val(f,'label'),days,sound:val(f,'sound')||'despertador',snooze:Math.max(1,Math.min(60,+val(f,'snooze')||10)),on:true};
-    saveClock([...clockCfg().alarms.filter(x=>x.id!==a.id),na]);unlockAudio();toast(untilTxt(nextRing(na))||'Alarme guardado')},
+    let sound=val(f,'sound')||'despertador';
+    if(sound==='yt:'){const u=val(f,'yturl');if(!u){toast('Cola o link do YouTube');return false}
+      if(!ytParse(u)){ytResolve(u).then(r=>{if(!r){toast('Não reconheci esse link do YouTube');return}finishAlarm(f,a,h,'yt:'+r)});return}
+      sound='yt:'+u}
+    finishAlarm(f,a,h,sound)},
    onDelete:isNew?null:()=>saveClock(clockCfg().alarms.filter(x=>x.id!==a.id)),saveLabel:'Guardar'});
+  f.querySelector('[data-sndsel]').addEventListener('change',e=>{f.querySelector('[data-ytbox]').hidden=e.target.value!=='yt:'});
   f.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     if(b.dataset.day!==undefined){b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));return}
     if(b.dataset.dayset!==undefined){const s=b.dataset.dayset.split(',').filter(Boolean).map(Number);f.querySelectorAll('[data-day]').forEach(x=>x.setAttribute('aria-pressed',String(s.includes(+x.dataset.day))));return}
-    if(b.dataset.sndtest!==undefined){unlockAudio();playSound(val(f,'sound'),true)}});
+    if(b.dataset.sndtest!==undefined){unlockAudio();const s=val(f,'sound');playSound(s==='yt:'?'yt:'+val(f,'yturl'):s,true)}});
 }
 function timerSheet(){
   const f=sheet('Temporizador',`<div class="two"><label class="field"><span>Horas</span><input type="number" name="th" min="0" max="23" value="0"></label><label class="field"><span>Minutos</span><input type="number" name="tm" min="0" max="59" value="10"></label></div>
     <label class="field"><span>Segundos</span><input type="number" name="ts" min="0" max="59" value="0"></label>
-    <label class="field"><span>Nome</span><input name="tl" placeholder="Ex.: Massa, TPC, Forno"></label>`,
-  {onSave:f=>{const s=(+val(f,'th')||0)*3600+(+val(f,'tm')||0)*60+(+val(f,'ts')||0);if(s<1){toast('Escolhe um tempo');return false}addTimer(s,val(f,'tl'))},saveLabel:'Começar'});
+    <label class="field"><span>Título</span><input name="tl" placeholder="Ex.: Massa, TPC, Forno" value="${esc(S.tmName||'')}"></label>
+    <label class="prof-chk"><input type="checkbox" name="ta" ${S.tmAlarm===false?'':'checked'}> Tocar alarme no fim</label>`,
+  {onSave:f=>{const s=(+val(f,'th')||0)*3600+(+val(f,'tm')||0)*60+(+val(f,'ts')||0);if(s<1){toast('Escolhe um tempo');return false}addTimer(s,val(f,'tl'),!!f.elements.ta.checked)},saveLabel:'Começar'});
 }
-function addTimer(sec,label){unlockAudio();const t={id:uid(),label:label||'',total:sec*1000,remain:sec*1000,endAt:Date.now()+sec*1000};saveTimers([...timers(),t]);renderWall()}
+function addTimer(sec,label,alarm){unlockAudio();if(alarm===undefined)alarm=S.tmAlarm!==false;if(label===undefined||label==='')label=S.tmName||'';S.tmName='';
+  const t={id:uid(),label:label||'',alarm,total:sec*1000,remain:sec*1000,endAt:Date.now()+sec*1000};saveTimers([...timers(),t]);renderWall()}
 function clockClick(t,d){
   unlockAudio();
   if(d.ckTab){S.ckTab=d.ckTab;renderWall();return}
@@ -1703,7 +1713,9 @@ function clockClick(t,d){
   if(d.ckEdit){alarmSheet(clockCfg().alarms.find(a=>a.id===d.ckEdit));return}
   if(d.ckToggle){saveClock(clockCfg().alarms.map(a=>a.id===d.ckToggle?{...a,on:!a.on}:a));return}
   const ts=timers(),upd=(id,fn)=>{saveTimers(ts.map(x=>x.id===id?fn(x):x));renderWall()};
-  if(d.tmAdd){addTimer(+d.tmAdd,'');return}
+  if(d.tmAdd){addTimer(+d.tmAdd);return}
+  if(d.tmBell){upd(d.tmBell,x=>({...x,alarm:x.alarm===false}));return}
+  if(d.tmRen){const x=ts.find(y=>y.id===d.tmRen);const n=prompt('Título do temporizador',x&&x.label||'');if(n!==null)upd(d.tmRen,y=>({...y,label:n.trim()}));return}
   if(d.tmNew!==undefined){timerSheet();return}
   if(d.tmGo){upd(d.tmGo,x=>({...x,endAt:Date.now()+x.remain}));return}
   if(d.tmPause){upd(d.tmPause,x=>({...x,remain:x.endAt-Date.now(),endAt:null}));return}
@@ -1724,7 +1736,9 @@ function tone(seq,type){if(!actx)return;try{const t0=actx.currentTime;seq.forEac
 const SOUNDS={bip:()=>beep(),
   suave:()=>tone([[0,523,0.9,0.35],[0.35,659,0.9,0.35],[0.7,784,1.2,0.35]]),
   despertador:()=>tone([0,0.12,0.24,0.36,0.6,0.72,0.84,0.96].map(d=>[d,d<0.5?988:1319,0.09,0.55]),'square')};
-function playSound(k,once){if(k&&k.startsWith('radio:')){const u=k.slice(6),r=S.media.radios.find(x=>x.u===u);if(once){toast('Vai tocar a rádio '+(r?r.n:''));return}playRadio(u,r?r.n:'Rádio',r&&r.a);return 'radio'}
+function playSound(k,once){if(k&&k.startsWith('yt:')){const u=k.slice(3),v=S.media.videos.find(x=>x.u===u);if(once){if(ytParse(u))toast('Vai abrir no YouTube: '+(v?v.t:'o link escolhido'));else toast('Link do YouTube ainda por confirmar');return}
+    playVideo(u,v?v.t:'Alarme');const L=document.getElementById('mediaLayer');if(L)L.classList.remove('mini');return 'radio'}
+  if(k&&k.startsWith('radio:')){const u=k.slice(6),r=S.media.radios.find(x=>x.u===u);if(once){toast('Vai tocar a rádio '+(r?r.n:''));return}playRadio(u,r?r.n:'Rádio',r&&r.a);return 'radio'}
   (SOUNDS[k]||SOUNDS.despertador)();}
 function ring(item){ringItem=item;clearInterval(ringT);clearTimeout(ringStopT);
   const mode=playSound(item.sound);if(mode!=='radio')ringT=setInterval(()=>playSound(item.sound),item.sound==='suave'?2200:1500);
@@ -1737,6 +1751,8 @@ function ring(item){ringItem=item;clearInterval(ringT);clearTimeout(ringStopT);
   if(S.wall&&S.wallView==='relogio'&&!overlay.innerHTML)renderWall()}
 function stopRing(snooze){clearInterval(ringT);clearTimeout(ringStopT);
   if(ringItem&&ringItem.sound&&ringItem.sound.startsWith('radio:'))stopMedia('radio');
+  if(ringItem&&ringItem.sound&&ringItem.sound.startsWith('yt:')&&!snooze){/* o vídeo continua a dar; fecha-se no próprio leitor */}
+  if(ringItem&&ringItem.sound&&ringItem.sound.startsWith('yt:')&&snooze)stopMedia('video');
   if(snooze&&ringItem){const sn=lsJSON('fam.ckSnooze',[]);sn.push({at:Date.now()+ringItem.snooze*60000,item:ringItem});lsSet('fam.ckSnooze',JSON.stringify(sn))}
   ringItem=null;const el=document.getElementById('ckRing');if(el)el.remove();if(S.wall&&!overlay.innerHTML)renderWall()}
 function clockTick(){
@@ -1746,7 +1762,7 @@ function clockTick(){
   if(ringItem)return;
   // temporizadores terminados (tocam no aparelho onde foram criados)
   const ts=timers(),done=ts.find(t=>t.endAt&&t.endAt<=Date.now());
-  if(done){saveTimers(ts.map(t=>t.id===done.id?{...t,endAt:null,remain:0}:t));ring({title:(done.label||'Temporizador')+' terminou',sub:fmtDur(done.total),sound:'despertador',snooze:0});return}
+  if(done){saveTimers(ts.map(t=>t.id===done.id?{...t,endAt:null,remain:0}:t));if(done.alarm===false){toast((done.label||'Temporizador')+' terminou');if(S.wall&&!overlay.innerHTML)renderWall();return}ring({title:(done.label||'Temporizador')+' terminou',sub:fmtDur(done.total),sound:'despertador',snooze:0});return}
   // adiados
   const sn=lsJSON('fam.ckSnooze',[]),due=sn.find(x=>x.at<=Date.now());
   if(due){lsSet('fam.ckSnooze',JSON.stringify(sn.filter(x=>x!==due)));ring(due.item);return}
@@ -1769,3 +1785,14 @@ function galleryRadio(){const now=S.radioNow,rs=S.media.radios.slice(0,4);
   if(!now&&!rs.length)return '';
   return `<div class="g-radio">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span class="g-rn"><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="g-rb" data-mstop="radio">Parar</button>`
     :`<span class="g-rn"><small>Rádio</small></span>${rs.map(r=>`<button class="g-rb" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">▶ ${esc(r.n)}</button>`).join('')}`}</div>`}
+
+function finishAlarm(f,a,h,sound){
+  const days=[...f.querySelectorAll('[data-day][aria-pressed="true"]')].map(b=>+b.dataset.day);
+  const na={...a,h,label:val(f,'label'),days,sound,snooze:Math.max(1,Math.min(60,+val(f,'snooze')||10)),on:true};
+  saveClock([...clockCfg().alarms.filter(x=>x.id!==a.id),na]);unlockAudio();closeSheet();toast(untilTxt(nextRing(na))||'Alarme guardado')}
+async function ytResolve(u){const m=/youtube\.com\/(@[\w.\-]+)/i.exec(u)||/^(@[\w.\-]+)$/.exec(u.trim());if(!m)return null;
+  try{const r=await fetch(`https://www.googleapis.com/youtube/v3/channels?part=id&forHandle=${encodeURIComponent(m[1])}&key=${ytKey()}`),j=await r.json();
+    const id=j.items&&j.items[0]&&j.items[0].id;return id?'https://www.youtube.com/channel/'+id:null}catch(e){return null}}
+
+document.addEventListener('input',e=>{if(e.target.id==='tm-name')S.tmName=e.target.value});
+document.addEventListener('change',e=>{if(e.target.id==='tm-alarm')S.tmAlarm=e.target.checked});
