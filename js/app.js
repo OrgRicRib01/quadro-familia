@@ -81,6 +81,7 @@ function handleWriteError(e){
   db.doc('config/shopLists').onSnapshot(s=>{const l=s.exists&&s.data().lists;S.shopLists=Array.isArray(l)?l:[];render()},()=>{});
   db.doc('config/media').onSnapshot(s=>{const d=s.exists?s.data():{};S.media={videos:Array.isArray(d.videos)?d.videos:[],radios:Array.isArray(d.radios)?d.radios:[],sites:Array.isArray(d.sites)?d.sites:[],hidden:Array.isArray(d.hidden)?d.hidden:[],order:Array.isArray(d.order)?d.order:[]};if(overlay.querySelector('[data-mediasheet]'))mediaSheet()},()=>{});
   db.doc('config/clock').onSnapshot(s=>{const d=s.exists?s.data():{};S.clock={alarms:Array.isArray(d.alarms)?d.alarms:[]};if(S.wall&&S.wallView==='relogio'&&!overlay.innerHTML)renderWall()},()=>{});
+  db.doc('config/weather').onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&typeof d.lat==='number'){const ch=!S.wxPlace||S.wxPlace.lat!==d.lat||S.wxPlace.lon!==d.lon;S.wxPlace=d;if(ch){WX=null;wxLoad(true)}}},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -339,6 +340,7 @@ function rel(d){if(d===TODAY)return 'Hoje';const t=parse(TODAY);t.setDate(t.getD
 
 /* ---------- render ---------- */
 function render(){
+  try{if(!WX||Date.now()-WX.at>30*60000)wxLoad(false)}catch(e){}
   document.body.classList.toggle('wall-mode',S.wall);
   document.getElementById('wall').hidden=!S.wall;
   if(S.wall){renderWall();return}
@@ -457,6 +459,7 @@ function viewCalendar(seg){
   }
   const ev=eventsOn(S.sel),rm=remindersOn(S.sel),meal=S.meals[S.sel];
   let items='';
+  {const w=wxDay(S.sel);if(w)items+=`<button class="item wx-item" data-wxinfo><span class="time" style="font-size:1.4rem">${wxIc(w.c)}</span><span class="body"><span class="kind">Tempo · ${esc(wxPlace().name)}</span><div class="t">${esc(wxTxt(w.c))} · ${w.mx}° / ${w.mn}°</div><div class="sub">${w.pp!=null?'Chuva '+w.pp+'%'+(w.ps?' ('+w.ps+' mm)':'')+' · ':''}Nascer do sol ${w.sr} · Pôr do sol ${w.ss}</div></span></button>`}
   items+=birthdaysOn(S.sel).map(b=>{const a=ageOn(b,S.sel);return `<button class="item" data-edit-bday="${b.id}"><span class="time">🎂︎</span><span class="body"><span class="kind">Aniversário</span><div class="t">${esc(b.name)}${a!==null&&a>0?' · '+a+' anos':''}</div></span></button>`}).join('');
   if(holidayOn(S.sel))items+=`<div class="item"><span class="time">Dia</span><span class="body"><span class="kind" style="color:var(--danger)">Feriado nacional</span><div class="t">${esc(holidayOn(S.sel))}</div></span></div>`;
   items+=breaksOn(S.sel).filter(b=>matches(b)).map(b=>`<button class="item" data-edit-break="${b.id}"><span class="time">Dia</span><span class="body"><span class="kind">Sem aulas</span><div class="t">${esc(b.title)}</div><div class="people">${peopleTags(b.who)}</div></span></button>`).join('');
@@ -918,7 +921,7 @@ function wallHead(){
   const nav=!['rotinas','compras','avisos','inicio','relogio'].includes(S.wallView);
   const n=new Date();
   return `<div class="fd-top"><div class="fd-clock" id="wClock">${nowHM()}</div>
-    <div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
+    ${wxNow()}<div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
     ${whoBar()}
     <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
       ${clockChip()}<button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn fd-gear" data-wset aria-label="Configuração">${GEAR}</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
@@ -988,6 +991,7 @@ function wallDay(d){
   const band=[
     ...D.bd.map(b=>{const a=ageOn(b,d);return `<button class="w-pill" data-edit-bday="${b.id}">🎂︎ <b>${esc(b.name)}</b>${a>0?' faz '+a+' anos':''}</button>`}),
     ...D.vac.filter(isAll).map(v=>`<button class="w-pill" data-edit-vac="${v.id}">Férias · <b>${esc(v.title)}</b></button>`),
+    ...(wxDay(d)?[`<button class="w-pill" data-wxinfo>${wxLine(d,true)}</button>`]:[]),
     ...(holidayOn(d)?[`<span class="w-pill" style="background:color-mix(in srgb,var(--danger) 16%,var(--surface))">Feriado · <b>${esc(holidayOn(d))}</b></span>`]:[]),
     ...breaksOn(d).map(b=>`<button class="w-pill" data-edit-break="${b.id}">Sem aulas · <b>${esc(b.title)}</b></button>`),
     ...D.ev.filter(isAll).map(e=>`<button class="w-pill" data-edit-event="${e.id}"><b>${e.time?esc(e.time):'Dia'}</b> ${esc(e.title)}</button>`)
@@ -1023,7 +1027,7 @@ function wallWeek(){
     Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`}));
     D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid),a:g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:''}));
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
-    cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b></button>
+    cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b>${wxLine(d)}</button>
       ${its.map(z=>{const tag=z.a?'button':'div';return `<${tag} class="w-wi" style="--c:${z.c}" ${z.a||''}>${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
       ${D.meal?`<button class="w-wi meal" data-open-meal="${d}" style="--c:var(--line)"><span class="ss">Almoço</span><span class="tt">${esc(D.meal.title)}</span></button>`:''}</div>`;
   }
@@ -1078,7 +1082,7 @@ function wallMonth(){
   const start=new Date(first);start.setDate(1-dowMon(first));let cells='';
   for(let i=0;i<weeks*7;i++){
     const c=new Date(start);c.setDate(start.getDate()+i);const d=iso(c);const ch=dayChips(d,wallData(d));
-    cells+=`<button class="w-mc${c.getMonth()!==mo?' out':''}${d===TODAY?' today':''}" data-wday="${d}" aria-label="${niceDate(d)}"><span class="n">${c.getDate()}</span>${ch.slice(0,3).map(z=>`<span class="w-chip" style="--c:${z.c}">${esc(z.t)}</span>`).join('')}${ch.length>3?`<span class="w-more">+${ch.length-3}</span>`:''}</button>`;
+    cells+=`<button class="w-mc${c.getMonth()!==mo?' out':''}${d===TODAY?' today':''}" data-wday="${d}" aria-label="${niceDate(d)}"><span class="n">${c.getDate()}</span>${(()=>{const w=wxDay(d);return w?`<span class="w-mwx">${wxIc(w.c)} ${w.mx}°</span>`:''})()}${ch.slice(0,3).map(z=>`<span class="w-chip" style="--c:${z.c}">${esc(z.t)}</span>`).join('')}${ch.length>3?`<span class="w-more">+${ch.length-3}</span>`:''}</button>`;
   }
   const tl=dayChips(TODAY,wallData(TODAY));
   return `<div class="w-mwrap"><div data-swipe="wall"><div class="w-mg">${DOW.map(d=>`<div class="w-mdow">${d}</div>`).join('')}</div>
@@ -1241,6 +1245,7 @@ document.addEventListener('click',e=>{
   if(d.wshift){wallStep(+d.wshift);return}
   if(d.rpart){S.rotPart=d.rpart;renderWall();return}
   if(d.wset!==undefined){configHub();return}
+  if(d.wxinfo!==undefined){wxSheet();return}
   if(d.gev){gEventSheet(d.gev);return}
   if(d.wf){if(d.wf==='all')S.wallSel=[];else toggleSel(d.wf);renderWall();return}
   if(d.wcals!==undefined){calSheet();return}
@@ -1842,13 +1847,14 @@ function configHub(){
     ${it('data-cfg="pessoas"','👪︎','Pessoas','Nomes, adulto/criança, estudante, agenda Quadro/Google')}
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
+    ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
     ${it('data-cfg="escola"','🎒︎','Férias escolares','Períodos sem aulas')}
     ${it('data-cfg="dados"','💾︎','Dados','Exportar ou importar uma cópia')}
     ${u?it('data-cfg="sair"','↩︎','Sair da conta',esc(u.email||'')):''}</div>`);
   f.addEventListener('click',e=>{const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
     if(k==='pessoas')familyForm();else if(k==='google')googleSheet();else if(k==='ecra')wallSettings();
     else if(k==='escola'){closeSheet();if(S.wall)exitWall();S.tab='agenda';render();setTimeout(()=>{const x=document.querySelector('[data-ag="escola"]');if(x)x.click()},60)}
-    else if(k==='dados')dataSheet();else if(k==='sair')window.famBackend.signOut()});
+    else if(k==='dados')dataSheet();else if(k==='tempo')wxSheet();else if(k==='sair')window.famBackend.signOut()});
 }
 function dataSheet(){
   const f=sheet('Dados',`<p class="muted small" style="margin:0">Uma cópia guarda tudo num ficheiro: agenda, lembretes, tarefas, receitas, listas de compras e configuração.</p>
@@ -1914,3 +1920,41 @@ function avatarData(file){return new Promise((ok,ko)=>{const img=new Image(),u=U
   img.onload=()=>{const s=Math.min(img.width,img.height),cv=document.createElement('canvas');cv.width=cv.height=240;
     cv.getContext('2d').drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,240,240);URL.revokeObjectURL(u);ok(cv.toDataURL('image/jpeg',0.82))};
   img.onerror=ko;img.src=u})}
+
+/* ---------- Tempo (Open-Meteo, sem chave) ---------- */
+var WX=null,wxBusy=false;
+var WXC={0:['☀️','Céu limpo'],1:['🌤️','Pouco nublado'],2:['⛅','Parcialmente nublado'],3:['☁️','Nublado'],45:['🌫️','Nevoeiro'],48:['🌫️','Nevoeiro'],
+  51:['🌦️','Chuvisco fraco'],53:['🌦️','Chuvisco'],55:['🌧️','Chuvisco forte'],56:['🌧️','Chuvisco gelado'],57:['🌧️','Chuvisco gelado'],61:['🌦️','Chuva fraca'],63:['🌧️','Chuva'],65:['🌧️','Chuva forte'],
+  66:['🌧️','Chuva gelada'],67:['🌧️','Chuva gelada'],71:['🌨️','Neve fraca'],73:['🌨️','Neve'],75:['❄️','Neve forte'],77:['🌨️','Granizo fino'],80:['🌦️','Aguaceiros'],81:['🌧️','Aguaceiros'],82:['⛈️','Aguaceiros fortes'],
+  85:['🌨️','Aguaceiros de neve'],86:['🌨️','Aguaceiros de neve'],95:['⛈️','Trovoada'],96:['⛈️','Trovoada com granizo'],99:['⛈️','Trovoada com granizo']};
+function wxPlace(){return S.wxPlace||{name:'Lisboa',lat:38.7223,lon:-9.1393}}
+function wxLoad(force){const pl=wxPlace(),key=pl.lat.toFixed(2)+','+pl.lon.toFixed(2);
+  if(!WX){const c=lsJSON('fam.wx',null);if(c&&c.key===key)WX=c}
+  if(wxBusy||(!force&&WX&&WX.key===key&&Date.now()-WX.at<30*60000))return;
+  wxBusy=true;
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pl.lat}&longitude=${pl.lon}&current=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset&timezone=auto&forecast_days=16`)
+    .then(r=>r.json()).then(j=>{if(!j.daily)throw 0;const dd={};j.daily.time.forEach((d,i)=>dd[d]={c:j.daily.weather_code[i],mx:Math.round(j.daily.temperature_2m_max[i]),mn:Math.round(j.daily.temperature_2m_min[i]),pp:j.daily.precipitation_probability_max?j.daily.precipitation_probability_max[i]:null,ps:j.daily.precipitation_sum?j.daily.precipitation_sum[i]:null,sr:(j.daily.sunrise[i]||'').slice(11,16),ss:(j.daily.sunset[i]||'').slice(11,16)});
+      WX={key,at:Date.now(),cur:j.current?{t:Math.round(j.current.temperature_2m),c:j.current.weather_code,day:j.current.is_day}:null,days:dd};lsSet('fam.wx',JSON.stringify(WX));wxBusy=false;render()})
+    .catch(()=>{wxBusy=false})}
+function wxDay(d){return WX&&WX.days&&WX.days[d]||null}
+function wxIc(c,night){if(night&&(c===0||c===1))return '🌙';return (WXC[c]||['🌡️'])[0]}
+function wxTxt(c){return (WXC[c]||['','—'])[1]}
+function wxRain(w){return w&&w.pp!=null&&w.pp>=10?`💧${w.pp}%`:''}
+function wxLine(d,full){const w=wxDay(d);if(!w)return '';
+  return `<span class="wx-line" title="${esc(wxTxt(w.c))}"><span class="wx-ic">${wxIc(w.c)}</span><span class="wx-mx">${w.mx}°</span><span class="wx-mn">${w.mn}°</span>${wxRain(w)?`<span class="wx-r">${wxRain(w)}</span>`:''}${full?`<span class="wx-sun">↑${w.sr} ↓${w.ss}</span>`:''}</span>`}
+function wxNow(){if(!WX||!WX.cur)return '';const w=wxDay(TODAY);
+  return `<button class="fd-wx" data-wxinfo title="${esc(wxTxt(WX.cur.c))}"><span class="wx-ic">${wxIc(WX.cur.c,!WX.cur.day)}</span><b>${WX.cur.t}°</b>${w?`<small>${w.mx}° / ${w.mn}°${wxRain(w)?' · '+wxRain(w):''}<br>↑${w.sr} ↓${w.ss}</small>`:''}</button>`}
+function wxSheet(){const pl=wxPlace();const days=WX?Object.keys(WX.days).slice(0,10):[];
+  const f=sheet('Tempo · '+pl.name,`${days.length?`<div class="wx-list">${days.map(d=>{const w=WX.days[d],dt=parse(d);return `<div class="wx-row"><span class="wx-d">${d===TODAY?'Hoje':DOW[dowMon(dt)]+' '+dt.getDate()}</span><span class="wx-ic">${wxIc(w.c)}</span><span class="wx-t">${esc(wxTxt(w.c))}</span><b>${w.mx}°</b><span class="muted">${w.mn}°</span><span class="wx-r">${w.pp!=null?'💧'+w.pp+'%':''}${w.ps?' · '+w.ps+' mm':''}</span><span class="muted small">↑${w.sr} ↓${w.ss}</span></div>`}).join('')}</div>`:'<p class="muted">A carregar a previsão…</p>'}
+    <div class="field"><span>Localidade</span><div class="row" style="gap:8px"><input id="wx-q" placeholder="Ex.: Lisboa, Porto, Sintra" style="flex:1"><button type="button" class="addbtn" id="wx-go">Procurar</button><button type="button" class="ghost" id="wx-here">📍 Aqui</button></div><div id="wx-res" class="m-list"></div></div>
+    <p class="muted small" style="margin:0">Previsão de <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</p>`);
+  const res=f.querySelector('#wx-res');
+  const setPl=p=>{S.wxPlace=p;if(S.db)S.db.doc('config/weather').set(p).catch(handleWriteError);WX=null;lsSet('fam.wx','');wxLoad(true);closeSheet();toast('Tempo para '+p.name)};
+  f.querySelector('#wx-go').addEventListener('click',async()=>{const q=f.querySelector('#wx-q').value.trim();if(!q)return;res.innerHTML='<p class="muted small">A procurar…</p>';
+    try{const j=await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=pt&format=json`)).json();
+      res.innerHTML=(j.results||[]).map((r,i)=>`<div class="m-st"><button type="button" class="m-play" data-wxi="${i}"><span>${esc(r.name)}${r.admin1?', '+esc(r.admin1):''}${r.country?' · '+esc(r.country):''}</span></button></div>`).join('')||'<p class="muted small">Nada encontrado.</p>';
+      res.querySelectorAll('[data-wxi]').forEach(b=>b.addEventListener('click',()=>{const r=j.results[+b.dataset.wxi];setPl({name:r.name,lat:r.latitude,lon:r.longitude})}))}catch(e){res.innerHTML='<p class="muted small">Não foi possível procurar agora.</p>'}});
+  f.querySelector('#wx-here').addEventListener('click',()=>{if(!navigator.geolocation){toast('Este aparelho não dá a localização.');return}
+    navigator.geolocation.getCurrentPosition(p=>setPl({name:'Aqui',lat:+p.coords.latitude.toFixed(3),lon:+p.coords.longitude.toFixed(3)}),()=>toast('Sem acesso à localização.'),{timeout:10000})});
+}
+setInterval(()=>wxLoad(false),10*60000);
