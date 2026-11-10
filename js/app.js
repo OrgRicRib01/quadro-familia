@@ -1214,6 +1214,7 @@ document.addEventListener('click',e=>{
     t.textContent=ex?'☆':'★';t.setAttribute('aria-pressed',String(!ex));toast(ex?'Tirado dos favoritos':'Guardado nos favoritos');return}
   if(d.tvstart!==undefined){playTV();renderWall();return}
   if(d.tvopen!==undefined){openNosApp();return}
+  if(d.framefree!==undefined){return}
   if(d.siteopen!==undefined){const v=document.querySelector('#mediaLayer .ml-video');if(!v)return;if(v.dataset.kind==='tv')openNosApp();else window.open(v.dataset.u,'_blank','noopener');return}
   if(d.site){stopMedia('radio',true);playSite(d.site,d.sname||'Rádio','site');renderWall();return}
   if(d.sitedel){saveMedia({sites:(S.media.sites||[]).filter(s=>s.u!==d.sitedel)});return}
@@ -1509,7 +1510,7 @@ function playSite(u,title,kind){const L=mediaLayer();L.classList.remove('mini');
   let v=L.querySelector('.ml-video');if(!v){v=document.createElement('div');v.className='ml-video';L.appendChild(v)}
   v.dataset.kind=kind;v.dataset.u=u;
   v.innerHTML=`<div class="ml-bar"><b>${esc(title)}</b><span class="spacer"></span>${kind==='site'?'<button class="fd-btn" data-mstop="video">Rádios</button>':''}<button class="fd-btn" data-siteopen>Abrir fora</button><button class="fd-btn" data-mfull>Ecrã inteiro</button><button class="fd-btn" data-mmin>Minimizar</button><button class="fd-btn" data-mstop="video">Fechar</button></div>
-    <iframe src="${esc(u)}" title="${esc(title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write" allowfullscreen></iframe>`;
+    <iframe src="${esc(u)}" title="${esc(title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write" allowfullscreen ${lsGet('fam.frameFree')==='1'?'':'sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-modals allow-storage-access-by-user-activation"'}></iframe>`;
   stopMedia('radio',true)}
 function openNosApp(){const u=tvUrl();
   if(/Android/i.test(navigator.userAgent)){location.href='intent://'+u.replace(/^https:\/\//,'')+'#Intent;scheme=https;package=pt.nos.iris.online;S.browser_fallback_url='+encodeURIComponent(u)+';end';return}
@@ -1519,6 +1520,7 @@ function frameTV(){const on=!!document.querySelector('#mediaLayer .ml-video[data
   return `<div class="fm-panel"><h3>NOS TV</h3>
     <p class="muted" style="margin:0">Abre o site da NOS TV aqui na moldura. Entra com a tua conta NOS na primeira vez.</p>
     <div class="row" style="gap:8px;flex-wrap:wrap"><button class="addbtn" data-tvstart>Ver NOS TV aqui</button><button class="ghost" data-tvopen>Abrir na app / noutra janela</button><button class="ghost" data-tvurl>Mudar endereço</button></div>
+    <label class="row" style="gap:10px;align-items:center;margin:0"><input type="checkbox" data-framefree ${lsGet('fam.frameFree')==='1'?'checked':''} style="width:22px;height:22px;min-height:0"><span>Deixar o site abrir outras janelas <span class="muted small">(só se a entrada na conta não funcionar)</span></span></label>
     <p class="muted small" style="margin:0">Se a moldura ficar em branco ou com erro, é a NOS a bloquear o site dentro de outras páginas. Nesse caso usa <b>Abrir na app</b>: no tablet Android abre a app NOS TV; fechas a app e voltas ao Quadro.</p></div>`}
 
 function photoSec(){const s=+lsGet('fam.photoSec');return s>=3?s:30}
@@ -1546,3 +1548,5 @@ async function ytLoad(q){
 function decodeHtml(s){const t=document.createElement('textarea');t.innerHTML=s;return t.value}
 document.addEventListener('input',e=>{if(e.target.id==='yt-q')S.ytQ=e.target.value});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-ytsearch]');if(!f)return;e.preventDefault();const q=f.querySelector('#yt-q').value.trim();if(!q)return;S.ytQ=q;S.ytRes=null;ytLoad(q);refreshFrame()});
+
+document.addEventListener('change',e=>{if(e.target.matches('[data-framefree]'))lsSet('fam.frameFree',e.target.checked?'1':'0')});
