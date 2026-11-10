@@ -87,7 +87,7 @@ function handleWriteError(e){
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
-    S.members=Array.isArray(m)&&m.length?m:DEFAULT_MEMBERS;S.famLoaded=s.exists;render();ensureMe();
+    S.members=Array.isArray(m)&&m.length?m.map((x,i)=>({...x,name:x.name||'Pessoa '+(i+1),color:x.color||'p'+((i%8)+1)})):DEFAULT_MEMBERS;S.famLoaded=s.exists;render();ensureMe();
   },()=>{});
   COLS.forEach(col=>{
     db.collection(col).onSnapshot(snap=>{
