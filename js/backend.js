@@ -2,7 +2,7 @@
 // Expõe window.famBackend.use(nome) com as mesmas peças que a app espera:
 //   db      → base de dados partilhada (Firestore)
 //   user    → quem está a usar
-//   mcp     → Google Calendar (list_calendars, list_events, create_event, delete_event)
+//   mcp     → Google Calendar (list_calendars, list_events, create_event, update_event, delete_event)
 //   assets  → fotografias da moldura (guardadas como imagem reduzida no Firestore)
 // Sem config.js preenchido a app corre em modo de demonstração (nada é guardado).
 
@@ -204,7 +204,7 @@ if (configured) {
       if (input.pageToken) q.set('pageToken', input.pageToken);
       const j = await gapi('users/me/calendarList?' + q);
       return {
-        calendars: (j.items || []).map(c => ({ id: c.id, summary: c.summaryOverride || c.summary, timeZone: c.timeZone })),
+        calendars: (j.items || []).map(c => ({ id: c.id, summary: c.summaryOverride || c.summary, timeZone: c.timeZone, accessRole: c.accessRole, primary: !!c.primary })),
         nextPageToken: j.nextPageToken
       };
     },
@@ -226,9 +226,23 @@ if (configured) {
         body.end = { dateTime: input.endTime, timeZone: TZ };
       }
       if (input.recurrenceData) body.recurrence = input.recurrenceData;
-      body.reminders = { useDefault: true };
+      body.reminders = input.noReminders ? { useDefault: false, overrides: [] } : { useDefault: true };
+      if (input.props) body.extendedProperties = { private: input.props };
       const j = await gapi('calendars/' + enc(input.calendarId || 'primary') + '/events', { method: 'POST', body: JSON.stringify(body) });
       return { id: j.id, htmlLink: j.htmlLink };
+    },
+    async update_event(input = {}) {
+      const body = {};
+      if (input.summary != null) body.summary = input.summary;
+      if (input.location != null) body.location = input.location;
+      if (input.description != null) body.description = input.description;
+      if (input.startTime) {
+        if (input.allDay) { body.start = { date: input.startTime.slice(0, 10) }; body.end = { date: input.endTime.slice(0, 10) }; }
+        else { body.start = { dateTime: input.startTime, timeZone: TZ }; body.end = { dateTime: input.endTime, timeZone: TZ }; }
+      }
+      if (input.props) body.extendedProperties = { private: input.props };
+      const j = await gapi('calendars/' + enc(input.calendarId || 'primary') + '/events/' + enc(input.eventId), { method: 'PATCH', body: JSON.stringify(body) });
+      return { id: j.id };
     },
     async delete_event(input = {}) {
       await gapi('calendars/' + enc(input.calendarId || 'primary') + '/events/' + enc(input.eventId), { method: 'DELETE' });

@@ -83,6 +83,7 @@ function handleWriteError(e){
   db.doc('config/media').onSnapshot(s=>{const d=s.exists?s.data():{};S.media={videos:Array.isArray(d.videos)?d.videos:[],radios:Array.isArray(d.radios)?d.radios:[],sites:Array.isArray(d.sites)?d.sites:[],hidden:Array.isArray(d.hidden)?d.hidden:[],order:Array.isArray(d.order)?d.order:[]};if(overlay.querySelector('[data-mediasheet]'))mediaSheet()},()=>{});
   db.doc('config/clock').onSnapshot(s=>{const d=s.exists?s.data():{};S.clock={alarms:Array.isArray(d.alarms)?d.alarms:[]};if(S.wall&&S.wallView==='relogio'&&!overlay.innerHTML)renderWall()},()=>{});
   db.doc('config/weather').onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&typeof d.lat==='number'){const ch=!S.wxPlace||S.wxPlace.lat!==d.lat||S.wxPlace.lon!==d.lon;S.wxPlace=d;if(ch){WX=null;wxLoad(true)}}},()=>{});
+  db.doc('config/gonly').onSnapshot(s=>{const d=s.exists?s.data():{};S.gOnly=!!d.on;S.famCal=d.famCal||'';render()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -127,7 +128,8 @@ function toEv(e,mode,cname){
   else return null;
   if(ed<d)ed=d;
   const busy=mode==='busy';
-  return {i:String(e.id||''),r:e.recurringEventId?String(e.recurringEventId):'',t:busy?'Ocupado':String(e.summary||'(sem título)').slice(0,120),d,e:ed,h,he:busy?'':he,p:busy?'':String(e.location||'').slice(0,80),c:busy?'':String(cname||'').slice(0,40)};
+  const xp=e.extendedProperties&&e.extendedProperties.private||{};
+  return {q:String(xp.quadro||''),i:String(e.id||''),r:e.recurringEventId?String(e.recurringEventId):'',t:busy?'Ocupado':String(e.summary||'(sem título)').slice(0,120),d,e:ed,h,he:busy?'':he,p:busy?'':String(e.location||'').slice(0,80),c:busy?'':String(cname||'').slice(0,40)};
 }
 function syncWindow(){const n=new Date();const a=new Date(n.getFullYear(),n.getMonth()-1,1);const b=new Date(n.getFullYear(),n.getMonth()+4,1);return [iso(a)+'T00:00:00',iso(b)+'T00:00:00']}
 async function syncGoogle(prof,manual){
@@ -191,6 +193,7 @@ function gcalOn(d){
       const m=x.m||mid;if(m!=='all'&&!member(m))return;
       if(!gOK(m,x.c))return;
       if(m!=='all'&&srcOf(m)==='quadro')return;
+      if(gOnly()&&m!=='all'&&isSchoolG(x,m)&&schoolOff(m,d))return;
       if(d<x.d||d>x.e)return;
       if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
@@ -293,6 +296,7 @@ function peopleTags(who){
 }
 function dotsFor(who){const w=whoList(who);return w.includes('all')?['var(--accent)']:w.map(colorOf)}
 function eventsOn(d){
+  if(gOnly())return [];
   const dd=parse(d);
   return S.events.filter(e=>{
     if(!e.date||!matches(e))return false;
@@ -326,10 +330,11 @@ function holidayOn(d){return holidaysOf(+d.slice(0,4))[d]||''}
 function schoolOff(m,d){return breaksOn(d).some(b=>{const w=whoList(b.who);return w.includes('all')||w.includes(m)})||!!holidayOn(d)}
 const remindersOn=d=>S.reminders.filter(r=>r.date===d&&matches(r));
 function birthdaysOn(d){
+  if(gOnly())return [];
   const md=d.slice(5);const leap=new Date(+d.slice(0,4),1,29).getMonth()===1;
   return S.birthdays.filter(b=>b.md===md||(!leap&&b.md==='02-29'&&md==='02-28'));
 }
-const vacationsOn=d=>S.vacations.filter(v=>v.start&&d>=v.start&&d<=(v.end||v.start)&&matches(v));
+const vacationsOn=d=>gOnly()?[]:S.vacations.filter(v=>v.start&&d>=v.start&&d<=(v.end||v.start)&&matches(v));
 function ageOn(b,d){return b.year?(+d.slice(0,4))-(+b.year):null}
 function daysUntil(md){
   const t=parse(TODAY);let x=new Date(t.getFullYear(),+md.slice(0,2)-1,+md.slice(3));
@@ -836,7 +841,7 @@ const isAll=x=>whoList(x.who).includes('all');
 const forM=(x,m)=>!isAll(x)&&whoList(x.who).includes(m);
 function wallData(d){
   const f=S.filter;S.filter=wFilter();
-  const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:gcalOn(d),bd:birthdaysOn(d),meal:S.meals[d]};
+  const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:groupSchoolG(gcalOn(d),d),bd:birthdaysOn(d),meal:S.meals[d]};
   S.filter=f;return r;
 }
 function colItems(m,D,d){
@@ -1263,6 +1268,8 @@ document.addEventListener('click',e=>{
   if(d.wposreset!==undefined){lsSet('fam.wpos','{}');toast('Widgets repostos');if(S.wall)renderWall();return}
   if(d.wxinfo!==undefined){wxSheet();return}
   if(d.gev){gEventSheet(d.gev);return}
+  if(d.gedit){gEditForm(d.gedit);return}
+  if(d.migrate!==undefined){migrateSheet();return}
   if(d.wf){if(d.wf==='all')S.wallSel=[];else toggleSel(d.wf);renderWall();return}
   if(d.wcals!==undefined){calSheet();return}
   if(d.selk){toggleSel(d.selk);calSheet();renderWall();return}
@@ -1343,6 +1350,7 @@ document.addEventListener('click',e=>{
   if(d.tlist){S.taskList=d.tlist;render();return}
   if(t.id==='btnFamily'){configHub();return}
   if(S.readOnly&&(d.new||d.toggleRem||d.toggleTask||d.clear)){toast('Estás em modo de leitura.');return}
+  if(d.new&&gOnly()&&['event','birthday','vacation'].includes(d.new)){closeSheet();gEventForm({kind:{event:'evento',birthday:'aniv',vacation:'ferias'}[d.new]});return}
   if(d.new){({event:eventForm,reminder:reminderForm,task:taskForm,recipe:recipeForm,birthday:birthdayForm,vacation:vacationForm,break:breakForm,test:testForm})[d.new]();return}
   if(d.editEvent){if(d.editEvent.startsWith('test:')){testForm(S.tests.find(x=>x.id===d.editEvent.slice(5)));return}if(d.editEvent.startsWith('edu:')){const x=S.edu.find(y=>y.id===d.editEvent.slice(4));if(x)eduForm(x.type,x);return}eventForm(S.events.find(x=>x.id===d.editEvent));return}
   if(d.editTest){testForm(S.tests.find(x=>x.id===d.editTest));return}
@@ -1844,7 +1852,7 @@ function gEventSheet(key){const f0=findGev(key);if(!f0){toast('Evento não encon
   const when=(x.d===x.e?niceDate(x.d):niceDate(x.d)+' – '+niceDate(x.e))+(x.h?' · '+x.h+(x.he?'–'+x.he:''):'');
   const f=sheet('Evento do Google',`<div class="item" style="cursor:default"><span class="body"><span class="kind">Google${x.c?' · '+esc(x.c):''}</span><div class="t">${esc(x.t)}</div><div class="sub">${esc(when)}${x.p?' · '+esc(x.p):''}</div>
       <div class="people"><span class="ptag" style="--c:${colorOf(m)}">${esc(gName(m))}</span></div></span></div>
-    ${x.i&&x.ci?(mine?`<div class="field"><span>Apagar no Google Calendar</span><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="del" data-gdel="one">Apagar este evento</button>${x.r?'<button type="button" class="del" data-gdel="all">Apagar toda a série</button>':''}</div>
+    ${x.i&&x.ci?(mine?`<button type="button" class="ghost" data-gedit="${esc(key)}">Editar</button><div class="field"><span>Apagar no Google Calendar</span><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="del" data-gdel="one">Apagar este evento</button>${x.r?'<button type="button" class="del" data-gdel="all">Apagar toda a série</button>':''}</div>
       <p class="muted small" style="margin:4px 0 0">Apaga mesmo no Google, também no telemóvel. Não dá para desfazer.</p></div>`
       :`<p class="muted small" style="margin:0">Este evento vem do Google de ${esc(member(src)?member(src).name:'outra pessoa')}. Só quem sincronizou este calendário o pode apagar a partir do Quadro.</p>`):'<p class="muted small" style="margin:0">Sincroniza o Google de novo para poder apagar este evento a partir do Quadro.</p>'}`);
   f.addEventListener('click',async ev=>{const b=ev.target.closest('[data-gdel]');if(!b)return;
@@ -1866,6 +1874,7 @@ function configHub(){
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
     ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
     ${it('data-cfg="escola"','🎒︎','Férias escolares','Períodos sem aulas')}
+    ${it('data-migrate','🔄','Só calendários do Google',gOnly()?'Ativo · calendário Família e de cada pessoa':'Passar tudo do Quadro para o Google')}
     ${it('data-cfg="dados"','💾︎','Dados','Exportar ou importar uma cópia')}
     ${u?it('data-cfg="sair"','↩︎','Sair da conta',esc(u.email||'')):''}</div>`);
   f.addEventListener('click',e=>{const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
@@ -1920,8 +1929,8 @@ function testForm(t){
     const study=[...f.querySelectorAll('[data-sd][aria-pressed="true"]')].map(b=>+b.dataset.sd);
     const id=t.id||uid();
     const nt={kind:val(f,'kind')||'teste',who:[val(f,'who')],subject,date,time:val(f,'time'),note:val(f,'note'),study,studyTime:val(f,'studyTime')||'18:00',eve:!!f.elements.eve.checked,eveTime:val(f,'eveTime')||'20:00',alarm:!!f.elements.alarm.checked};
-    save('tests',id,nt);syncTestReminders(id,nt);toast(tkind(nt)[1]+' de '+subject+' marcado')},
-   onDelete:isNew||S.readOnly?null:()=>{remove('tests',t.id);syncTestReminders(t.id,null)}});
+    const prevT=(S.tests||[]).find(x=>x.id===id)||{};const nt2={...nt,gId:prevT.gId||'',gCal:prevT.gCal||''};save('tests',id,nt2);syncTestReminders(id,nt);mirrorG('tests',id,nt2,testEv(nt2));toast(tkind(nt)[1]+' de '+subject+' marcado')},
+   onDelete:isNew||S.readOnly?null:()=>{unmirrorG(t);remove('tests',t.id);syncTestReminders(t.id,null)}});
   f.addEventListener('click',e=>{const b=e.target.closest('[data-sd]');if(b)b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'))});
   f.querySelector('#t-who').addEventListener('change',e=>{f.querySelector('#t-subjects').innerHTML=subjectsOf(e.target.value).map(s=>`<option value="${esc(s)}">`).join('')});
 }
@@ -2090,9 +2099,9 @@ function acceptProposal(p){
   else addStudy({who:[p.who],subject:p.subject,date:p.date,time:p.time,dur:p.dur,note:p.why});
   dismissProposal(p.key)}
 function dismissProposal(k){const d=lsJSON('fam.eduDis',[]);d.push(k);lsSet('fam.eduDis',JSON.stringify(d.slice(-500)))}
-function addStudy(o){const id=uid();save('edu',id,{type:'estudo',done:false,...o});
+function addStudy(o){const id=uid();const rec={type:'estudo',done:false,...o};save('edu',id,rec);mirrorG('edu',id,rec,eduEv(rec));
   if(o.time&&o.date>=TODAY)save('reminders',id+'-r',{text:(member(o.who[0])?member(o.who[0]).name+': ':'')+'estudar '+o.subject+(o.dur?' ('+o.dur+' min)':'')+(o.note?' · '+o.note:''),date:o.date,time:o.time,who:o.who,alarm:true,eduId:id,done:false})}
-function removeEdu(id){remove('edu',id);S.reminders.filter(r=>r.eduId===id).forEach(r=>remove('reminders',r.id))}
+function removeEdu(id){unmirrorG((S.edu||[]).find(x=>x.id===id));remove('edu',id);S.reminders.filter(r=>r.eduId===id).forEach(r=>remove('reminders',r.id))}
 function viewEdu(seg,wall){
   const st=students(),w=eduStudent();
   const chips=`<div class="who" style="flex-wrap:wrap">${st.length>1?`<button class="chip" data-eduwho="all" aria-pressed="${w==='all'}">Todos</button>`:''}${st.map(m=>`<button class="chip" data-eduwho="${m.id}" aria-pressed="${w===m.id||st.length===1}"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div>`;
@@ -2141,8 +2150,8 @@ function eduForm(type,x){
     if(type==='estudo'){o.subject=val(f,'subject');if(!o.subject){toast('Escreve a disciplina');return false}Object.assign(o,{date:val(f,'date')||TODAY,time:val(f,'time'),dur:+val(f,'dur')||45,note:val(f,'note'),done:!!x.done})}
     if(type==='livro'){o.title=val(f,'title');if(!o.title){toast('Escreve o título');return false}Object.assign(o,{author:val(f,'author'),due:val(f,'due'),pages:+val(f,'pages')||0,read:+val(f,'read')||0,finished:!!f.elements.finished.checked})}
     if(type==='evento'){o.title=val(f,'title');if(!o.title){toast('Escreve o evento');return false}Object.assign(o,{date:val(f,'date')||TODAY,time:val(f,'time'),place:val(f,'place'),note:val(f,'note'),eve:!!f.elements.eve.checked})}
-    if(x.id){save('edu',x.id,o);S.reminders.filter(r=>r.eduId===x.id).forEach(r=>remove('reminders',r.id))}
-    const id=x.id||uid();if(!x.id)save('edu',id,o);
+    if(x.id){o.gId=x.gId||'';o.gCal=x.gCal||'';save('edu',x.id,o);S.reminders.filter(r=>r.eduId===x.id).forEach(r=>remove('reminders',r.id))}
+    const id=x.id||uid();if(!x.id)save('edu',id,o);if(eduEv(o))mirrorG('edu',id,o,eduEv(o));
     const nm=member(o.who[0])?member(o.who[0]).name+': ':'';
     if(type==='estudo'&&o.time&&o.date>=TODAY)save('reminders',id+'-r',{text:nm+'estudar '+o.subject+' ('+o.dur+' min)'+(o.note?' · '+o.note:''),date:o.date,time:o.time,who:o.who,alarm:true,eduId:id,done:false});
     if(type==='evento'&&o.eve){const v=parse(o.date);v.setDate(v.getDate()-1);if(iso(v)>=TODAY)save('reminders',id+'-eve',{text:nm+'amanhã: '+o.title+(o.place?' ('+o.place+')':'')+(o.note?' · levar: '+o.note:''),date:iso(v),time:'20:00',who:o.who,alarm:true,eduId:id,done:false})}
@@ -2159,3 +2168,135 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-eduwho],[d
   if(d.propno){const p=(S._props||[])[+d.propno];if(p){dismissProposal(p.key);rr()}return}
   if(d.propall!==undefined){(S._props||[]).forEach(acceptProposal);toast('Propostas postas no calendário');setTimeout(rr,300);return}
 });
+
+/* ---------- Só calendários do Google ---------- */
+function gOnly(){return !!S.gOnly}
+function famCal(){return S.famCal||''}
+function memCal(id){const m=member(id);return m?(m.gcal||m.email||''):''}
+function calFor(who){const w=whoList(who).filter(x=>x!=='all'&&member(x));if(whoList(who).includes('all')||w.length!==1)return famCal()||'primary';return memCal(w[0])||famCal()||'primary'}
+function addMinutes(hm,n){const[h,m]=hm.split(':').map(Number);const t=h*60+m+n;return pad(Math.floor(t/60)%24)+':'+pad(t%60)}
+function gInput(o){const allDay=!o.time;const inp={summary:o.title,calendarId:o.cal||'primary',allDay,description:o.desc||''};
+  if(allDay){const e=parse(o.endDate||o.date);e.setDate(e.getDate()+1);inp.startTime=o.date+'T00:00:00';inp.endTime=iso(e)+'T00:00:00'}
+  else{const end=o.end&&o.end>o.time?o.end:addMinutes(o.time,o.dur||60);inp.startTime=o.date+'T'+o.time+':00';inp.endTime=(o.endDate||o.date)+'T'+end+':00'}
+  if(o.place)inp.location=o.place;if(o.rrule)inp.recurrenceData=[o.rrule];if(o.noRem)inp.noReminders=true;if(o.props)inp.props=o.props;return inp}
+async function gCreate(o){const r=await S.mcp.callTool(GSERVER,'create_event',gInput(o));const p=r.payload||{};return p.id||''}
+async function gCreateSafe(o,who){ // tenta no calendário da pessoa; se não tiver acesso, usa o calendário Família
+  try{return {id:await gCreate(o),cal:o.cal}}catch(e){const fc=famCal();if(!fc||fc===o.cal)throw e;
+    const names=whoList(who).filter(x=>member(x)).map(x=>member(x).name).join(', ');
+    const id=await gCreate({...o,cal:fc,title:o.title+(names?' ('+names+')':'')});return {id,cal:fc,fallback:true}}}
+async function gUpdate(cal,id,o){const inp=gInput({...o,cal});inp.eventId=id;delete inp.recurrenceData;delete inp.noReminders;return S.mcp.callTool(GSERVER,'update_event',inp)}
+async function gDelete(cal,id){return S.mcp.callTool(GSERVER,'delete_event',{calendarId:cal,eventId:id})}
+async function ensureSynced(cal,who){if(!cal||cal==='primary'||!S.me||!S.me.memberId)return;const me=S.me;if((me.cals||{})[cal]&&me.cals[cal]!=='off')return;
+  const w=whoList(who).filter(x=>member(x));const owner=whoList(who).includes('all')||w.length!==1||cal===famCal()?'all':w[0];
+  await saveMyProfile({...me,cals:{...(me.cals||{}),[cal]:'show'},calMember:{...(me.calMember||{}),[cal]:owner===me.memberId?'':owner},calNames:{...(me.calNames||{}),[cal]:cal===famCal()?'Família':(member(owner)?member(owner).name:cal)},extra:[...(me.extra||[]).filter(x=>x.id!==cal),{id:cal,name:cal===famCal()?'Família':(member(owner)?member(owner).name:cal)}]})}
+function resyncSoon(){setTimeout(()=>{S.gbusy=0;syncGoogle(S.me,false)},1500)}
+function needGoogle(){if(!S.mcp){toast('O Google Calendar não está ligado neste Quadro.');return true}allowGooglePrompt();return false}
+function isSchoolG(x,m){if(x.q==='school')return true;const mm=member(m);return !!(mm&&mm.student&&x.r&&x.h&&x.h>='07:00'&&x.h<='19:00'&&x.ci&&(x.ci===mm.email||x.ci===mm.gcal))}
+
+/* formulário de evento (vai direto para o Google) */
+function gEventForm(pre){
+  pre=pre||{};const t=pre.kind||'evento';
+  const e={title:'',date:S.sel||TODAY,time:'',end:'',endDate:'',place:'',note:'',repeat:'none',who:S.filter==='all'||typeof S.filter!=='string'?['all']:[S.filter],...pre};
+  const titles={evento:'Novo evento',aniv:'Novo aniversário',ferias:'Novas férias'};
+  sheet(titles[t]||'Novo evento',`
+    <label class="field"><span>${t==='aniv'?'De quem é o aniversário':'O quê'}</span><input id="g-title" name="title" value="${esc(e.title)}" placeholder="${t==='aniv'?'Ex.: Avó Rosa':t==='ferias'?'Ex.: Férias no Algarve':'Ex.: Consulta no dentista'}"></label>
+    <div class="two"><label class="field"><span>${t==='ferias'?'Início':'Dia'}</span><input type="date" name="date" value="${esc(e.date)}"></label>
+    ${t==='ferias'?`<label class="field"><span>Fim</span><input type="date" name="endDate" value="${esc(e.endDate||e.date)}"></label>`:t==='aniv'?`<label class="field"><span>Ano de nascimento (opcional)</span><input type="number" name="year" min="1900" max="2100"></label>`:`<label class="field"><span>Hora (vazio = dia todo)</span><input type="time" name="time" value="${esc(e.time)}"></label>`}</div>
+    ${t==='evento'?`<div class="two"><label class="field"><span>Até às</span><input type="time" name="end" value="${esc(e.end)}"></label>
+      <label class="field"><span>Repete</span><select name="repeat">${[['none','Não'],['weekly','Todas as semanas'],['monthly','Todos os meses'],['yearly','Todos os anos']].map(([v,l])=>`<option value="${v}" ${e.repeat===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
+      <label class="field"><span>Onde</span><input name="place" value="${esc(e.place)}"></label>`:''}
+    ${whoField(e.who)}
+    <label class="field"><span>Notas</span><input name="note" value="${esc(e.note)}"></label>
+    <p class="muted small" style="margin:0">Fica no Google Calendar ${'da pessoa escolhida'}; se for para várias pessoas ou para todos, fica no calendário Família.</p>`,
+  {saveLabel:'Guardar no Google',onSave:f=>{const title=val(f,'title');if(!title){toast('Escreve o nome.');return false}if(needGoogle())return false;
+    const who=readWho(f),date=val(f,'date')||TODAY;let o={title,date,place:val(f,'place'),desc:val(f,'note'),cal:calFor(who)};
+    if(t==='evento'){o.time=val(f,'time');o.end=val(f,'end');const rr={weekly:'RRULE:FREQ=WEEKLY',monthly:'RRULE:FREQ=MONTHLY',yearly:'RRULE:FREQ=YEARLY'}[val(f,'repeat')];if(rr)o.rrule=rr}
+    if(t==='ferias'){o.endDate=val(f,'endDate')||date;o.title='✈ '+title;o.props={quadro:'ferias'}}
+    if(t==='aniv'){const y=val(f,'year');o.title='🎂 '+title+(y?' ('+y+')':'');o.rrule='RRULE:FREQ=YEARLY';o.props={quadro:'aniv'};o.cal=famCal()||o.cal}
+    (async()=>{try{const r=await gCreateSafe(o,who);await ensureSynced(r.cal,who);toast(r.fallback?'Guardado no calendário Família (sem acesso ao calendário da pessoa)':'Guardado no Google Calendar');resyncSoon()}catch(err){toast(gErr(err))}})();
+    S.sel=date;S.month=date.slice(0,7)}});
+}
+/* editar evento do Google */
+function gEditForm(key){const f0=findGev(key);if(!f0)return;const {src,x}=f0;
+  sheet('Editar no Google',`<label class="field"><span>O quê</span><input name="title" value="${esc(x.t)}"></label>
+    <div class="two"><label class="field"><span>Dia</span><input type="date" name="date" value="${esc(x.d)}"></label><label class="field"><span>Hora (vazio = dia todo)</span><input type="time" name="time" value="${esc(x.h||'')}"></label></div>
+    <div class="two"><label class="field"><span>Até às</span><input type="time" name="end" value="${esc(x.he||'')}"></label><label class="field"><span>Onde</span><input name="place" value="${esc(x.p||'')}"></label></div>
+    ${x.r?'<p class="muted small" style="margin:0">É um evento que se repete: a alteração vale só para este dia.</p>':''}`,
+  {saveLabel:'Guardar no Google',onSave:f=>{if(needGoogle())return false;const o={title:val(f,'title')||x.t,date:val(f,'date')||x.d,time:val(f,'time'),end:val(f,'end'),place:val(f,'place')};
+    if(!o.time&&x.e&&x.e!==x.d)o.endDate=x.e;
+    (async()=>{try{await gUpdate(x.ci,x.i,o);toast('Alterado no Google Calendar');resyncSoon()}catch(err){toast(gErr(err))}})()}});
+}
+/* espelhar testes e Educação no Google */
+async function mirrorG(col,id,o,ev){if(!gOnly()||!S.mcp)return;
+  try{const cal=o.gCal||calFor(o.who);
+    if(o.gId){await gUpdate(cal,o.gId,ev);}
+    else{const r=await gCreateSafe({...ev,cal,noRem:true},o.who);await save(col,id,{...o,gId:r.id,gCal:r.cal});await ensureSynced(r.cal,o.who)}
+    resyncSoon()}catch(e){console.warn('Google',e);toast('Não foi possível pôr no Google: '+gErr(e))}}
+async function unmirrorG(o){if(o&&o.gId&&S.mcp){try{await gDelete(o.gCal||calFor(o.who),o.gId);resyncSoon()}catch(e){}}}
+function testEv(t){return {title:tkind(t)[0]+' '+tkind(t)[1]+' de '+t.subject,date:t.date,time:t.time||'',dur:60,desc:t.note||'',props:{quadro:'teste'}}}
+function eduEv(x){if(x.type==='estudo')return {title:'✏️ Estudar '+(x.subject||''),date:x.date,time:x.time||'',dur:x.dur||45,desc:x.note||'',props:{quadro:'estudo'}};
+  if(x.type==='evento')return {title:'⭐ '+x.title,date:x.date,time:x.time||'',place:x.place||'',desc:x.note||'',props:{quadro:'evento'}};
+  if(x.type==='livro'&&x.due)return {title:'📚 Acabar o livro '+x.title,date:x.due,time:'',props:{quadro:'livro'}};return null}
+
+/* migração: passar tudo do Quadro para o Google */
+async function migrateSheet(){
+  if(!S.mcp){toast('Liga primeiro o Google Calendar.');return}
+  allowGooglePrompt();
+  let cals=[];try{cals=(await fetchCals()).filter(c=>c.accessRole==='owner'||c.accessRole==='writer')}catch(e){toast(gErr(e));return}
+  const fams=cals.filter(c=>/fam[ií]lia/i.test(c.summary||''));
+  const fc=famCal()||(fams[0]&&fams[0].id)||'';
+  const opt=(sel,extra)=>`${extra||''}${cals.map(c=>`<option value="${esc(c.id)}" ${sel===c.id?'selected':''}>${esc(c.summary||c.id)}${c.primary?' (principal)':''}</option>`).join('')}`;
+  const plan=migPlan();
+  const f=sheet('Passar tudo para o Google',`
+    <p class="muted small" style="margin:0">Os eventos, aniversários, férias, testes e a Educação passam a ser eventos no Google Calendar. Lembretes, tarefas, compras e rotinas ficam no Quadro. No fim, o Quadro mostra só os calendários do Google.</p>
+    <div class="field"><span>A passar</span><p style="margin:0"><b>${plan.events.length}</b> eventos (${plan.dups} já existem no Google e não se repetem) · <b>${plan.bdays.length}</b> aniversários · <b>${plan.vacs.length}</b> férias · <b>${plan.tests.length}</b> testes · <b>${plan.edu.length}</b> de Educação</p></div>
+    <label class="field"><span>Calendário Família (eventos de todos, aniversários e férias)</span><select name="fam">${opt(fc,'<option value="">Escolher…</option>')}</select></label>
+    <div class="field"><span>Calendário de cada pessoa</span>${S.members.map(m=>{const cur=m.gcal||(cals.find(c=>c.id===m.email)?m.email:'');return `<label class="row" style="gap:8px;align-items:center;margin:4px 0"><span style="width:110px;font-weight:600">${esc(m.name)}</span><select name="mc_${m.id}" style="flex:1">${opt(cur,'<option value="">Calendário Família</option>')}</select></label>`}).join('')}
+      <p class="muted small" style="margin:4px 0 0">Só aparecem calendários onde podes escrever. Para usar o calendário de outra pessoa, ela tem de o partilhar contigo com "Fazer alterações a eventos".</p></div>
+    <div id="mig-log" class="small muted"></div>`,{saveLabel:'Passar agora',onSave:f=>{const famId=val(f,'fam');if(!famId){toast('Escolhe o calendário Família');return false}
+      const mc={};S.members.forEach(m=>mc[m.id]=val(f,'mc_'+m.id));runMigration(famId,mc);}});
+}
+function migPlan(){
+  const g=Object.values(S.gcal||{}).flatMap(d=>(d.events||[]).map(x=>({...x})));
+  const wd=d=>dowMon(parse(d));
+  const dup=e=>{const w=whoList(e.who).filter(x=>member(x));if(!e.time)return false;
+    return g.some(x=>x.h===e.time&&(w.includes(x.m)||!w.length)&&(e.repeat==='weekly'?wd(x.d)===wd(e.date)&&x.d>=e.date:x.d===e.date))};
+  const evs=S.events.filter(e=>e.date),dupL=evs.filter(dup);
+  return {events:evs.filter(e=>!dup(e)),dupList:dupL,dups:dupL.length,bdays:S.birthdays,vacs:S.vacations,tests:(S.tests||[]).filter(t=>!t.gId&&t.date>=TODAY),edu:(S.edu||[]).filter(x=>!x.gId&&eduEv(x)&&(x.date||x.due||'')>=TODAY)}
+}
+async function runMigration(famId,mc){
+  S.famCal=famId;const fam=S.members.map(m=>({...m,gcal:mc[m.id]||''}));await saveMembers(fam);S.members=fam;
+  try{await S.db.doc('config/gonly').set({famCal:famId,on:false,at:new Date().toISOString()})}catch(e){}
+  const plan=migPlan();let ok=0,fail=[],n=0;const total=plan.events.length+plan.bdays.length+plan.vacs.length+plan.tests.length+plan.edu.length;
+  const prog=()=>toast(`A passar para o Google… ${n} de ${total}`);
+  const yEnd=d=>{const y=+d.slice(0,4)+(+d.slice(5,7)>=7?1:0);return y+'0630T235959Z'};
+  // ver o que já existe nos calendários de destino, para não duplicar (ex.: o horário do Tiago)
+  const exist=new Set(),[from,to]=syncWindow();toast('A verificar o que já está no Google…');
+  for(const cal of new Set([famId,...Object.values(mc).filter(Boolean)])){try{let tok,k=0;do{const r=await S.mcp.callTool(GSERVER,'list_events',{calendarId:cal,startTime:from,endTime:to,pageSize:250,...(tok?{pageToken:tok}:{})},{cache:false});const p=r.payload||{};
+    (p.events||[]).forEach(ev=>{const x=toEv(ev,'show','');if(x&&x.h){exist.add(cal+'|w'+dowMon(parse(x.d))+'|'+x.h);exist.add(cal+'|'+x.d+'|'+x.h)}});tok=p.nextPageToken;k++}while(tok&&k<6)}catch(e){}}
+  let dupG=0;
+  for(const e of plan.events){n++;if(n%5===0)prog();
+    {const cal=calFor(e.who);if(e.time&&(e.repeat==='weekly'?exist.has(cal+'|w'+dowMon(parse(e.date))+'|'+e.time):exist.has(cal+'|'+e.date+'|'+e.time))){await remove('events',e.id);dupG++;continue}}
+    const school=!!e.school,end=schoolEnd(e);
+    const rr={weekly:'RRULE:FREQ=WEEKLY'+(school?';UNTIL='+yEnd(e.date):''),monthly:'RRULE:FREQ=MONTHLY',yearly:'RRULE:FREQ=YEARLY'}[e.repeat];
+    const o={title:e.title,date:e.date,time:e.time||'',end:end||'',place:e.place||'',desc:school?'':(e.note||''),rrule:rr,noRem:school,props:school?{quadro:'school'}:{quadro:'evento'},cal:calFor(e.who)};
+    try{await gCreateSafe(o,e.who);await remove('events',e.id);ok++}catch(err){fail.push(e.title+': '+gErr(err))}}
+  for(const e of plan.dupList)await remove('events',e.id);
+  for(const b of plan.bdays){n++;const y=new Date().getFullYear();let d=y+'-'+b.md;if(d<TODAY)d=(y+1)+'-'+b.md;
+    try{await gCreate({title:'🎂 '+b.name+(b.year?' ('+b.year+')':''),date:d,time:'',rrule:'RRULE:FREQ=YEARLY',props:{quadro:'aniv'},cal:famId});await remove('birthdays',b.id);ok++}catch(err){fail.push(b.name+': '+gErr(err))}}
+  for(const v of plan.vacs){n++;
+    try{await gCreateSafe({title:'✈ '+v.title,date:v.start,endDate:v.end||v.start,time:'',place:v.place||'',props:{quadro:'ferias'},cal:calFor(v.who)},v.who);await remove('vacations',v.id);ok++}catch(err){fail.push(v.title+': '+gErr(err))}}
+  for(const t of plan.tests){n++;try{const r=await gCreateSafe({...testEv(t),cal:calFor(t.who),noRem:true},t.who);await save('tests',t.id,{...t,gId:r.id,gCal:r.cal});ok++}catch(err){fail.push(t.subject+': '+gErr(err))}}
+  for(const x of plan.edu){n++;try{const r=await gCreateSafe({...eduEv(x),cal:calFor(x.who),noRem:true},x.who);await save('edu',x.id,{...x,gId:r.id,gCal:r.cal});ok++}catch(err){fail.push((x.title||x.subject)+': '+gErr(err))}}
+  // garantir que os calendários usados sincronizam
+  const used=new Set([famId,...Object.values(mc).filter(Boolean)]);
+  for(const c of used){const mid=Object.keys(mc).find(k=>mc[k]===c);await ensureSynced(c,mid?[mid]:['all'])}
+  const done=!fail.length;
+  try{await S.db.doc('config/gonly').set({famCal:famId,on:done||ok>0,at:new Date().toISOString()})}catch(e){}
+  S.gOnly=done||ok>0;resyncSoon();render();
+  sheet('Resultado',`<p><b>${ok}</b> de ${total} passaram para o Google${plan.dups+dupG?` · ${plan.dups+dupG} já existiam no Google e foram só apagados do Quadro`:''}.</p>${fail.length?`<p class="muted small">Não passaram (ficam no Quadro; podes tentar outra vez):</p><ul class="small">${fail.slice(0,30).map(x=>'<li>'+esc(x)+'</li>').join('')}</ul>`:'<p>O Quadro mostra agora só os calendários do Google.</p>'}`);
+}
+
+function groupSchoolG(gs,d){if(!gOnly())return gs;const sc={},rest=[];
+  gs.forEach(g=>{if(g.mid!=='all'&&g.h&&g.d===d&&isSchoolG(g,g.mid)){const s=sc[g.mid]||(sc[g.mid]={h:g.h,he:g.he||g.h});if(g.h<s.h)s.h=g.h;if((g.he||'')>s.he)s.he=g.he}else rest.push(g)});
+  return [...Object.entries(sc).map(([m,s])=>({t:'Escola',d,e:d,h:s.h,he:s.he,mid:m,src:m,i:'',c:'Escola',p:''})),...rest]}
