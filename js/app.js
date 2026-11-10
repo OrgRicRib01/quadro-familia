@@ -1060,11 +1060,14 @@ function wallAlerts(){
     <button class="edit" data-edit-rem="${r.id}">Editar</button></div>`;
   const card=(title,list,empty,cls)=>`<div class="w-card${cls||''}"><h4>${title}</h4>${list.map(row).join('')||`<div class="empty">${empty}</div>`}</div>`;
   const canNotify='Notification' in window&&Notification.permission!=='granted'&&Notification.permission!=='denied';
-  return `<div class="row" style="flex-wrap:wrap;margin-bottom:12px">${S.readOnly?'':'<button class="addbtn" data-new="reminder">+ Novo aviso</button>'}
+  return `<div class="row" style="flex-wrap:wrap;margin-bottom:12px">${S.readOnly?'':'<button class="addbtn" data-new="reminder">+ Novo aviso</button><button class="addbtn" data-new="test">📝 + Teste</button>'}
       <button class="ghost" data-alarmtest>Testar som</button>${canNotify?'<button class="ghost" data-notif>Ativar notificações</button>':''}
       <span class="small muted">O alarme toca à hora marcada neste aparelho enquanto o Quadro estiver aberto.</span></div>
-    <div class="w-grid3">${card('Agora e em atraso',late,'Nada em atraso',' w-late')}${card('Mais logo',today,'Nada mais para hoje')}${card('Próximos 7 dias',next,'Sem avisos marcados')}</div>`;
+    <div class="w-grid3">${card('Agora e em atraso',late,'Nada em atraso',' w-late')}${card('Mais logo',today,'Nada mais para hoje')}${card('Próximos 7 dias',next,'Sem avisos marcados')}</div>${wallTests()}`;
 }
+function wallTests(){const ts=(S.tests||[]).filter(t=>t.date>=TODAY&&wMatch(t)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  return `<div class="w-card" style="margin-top:14px"><div class="row" style="align-items:center"><h3 style="margin:0;flex:1">📝 Próximos testes</h3>${S.readOnly?'':'<button class="ghost" data-new="test">+ Marcar teste</button>'}</div>
+    ${ts.length?ts.map(t=>{const n=daysTo(t.date);return `<button class="w-it" data-edit-test="${t.id}" style="width:100%;text-align:left;border:0;background:transparent"><span class="tm">${n===0?'Hoje':n===1?'Amanhã':n+' dias'}</span><span style="flex:1;min-width:0"><div class="tt">${esc(t.subject)}${t.note?' · '+esc(t.note):''}</div><div class="small muted">${niceDate(t.date)}${t.time?' · '+esc(t.time):''}</div></span>${avatar(whoList(t.who)[0],true)}</button>`}).join(''):'<p class="muted">Sem testes marcados.</p>'}</div>`}
 function dayChips(d,D){
   const ch=[],school={};
   D.bd.forEach(b=>ch.push({k:'',c:'var(--accent)',t:'🎂︎ '+b.name}));
@@ -1134,13 +1137,13 @@ function wallFrame(){
   if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
       ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${galleryRadio()}
-      <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
+      <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>${frameWx(true)}
       ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div>
       </div>
     ${frameSide(today,tomorrow,row,up,pend)}</div>`;
 }
 function frameSide(today,tomorrow,row,up,pend){
-  return `<div class="w-side"><h4 class="w-sh">Hoje</h4>${today.map(x=>row(x,true)).join('')||'<div class="muted">Nada marcado</div>'}
+  return `<div class="w-side">${S.frameMode&&S.frameMode!=='galeria'?frameWx(false):''}<h4 class="w-sh">Hoje</h4>${today.map(x=>row(x,true)).join('')||'<div class="muted">Nada marcado</div>'}
       <h4 class="w-sh" style="color:var(--muted)">Amanhã</h4>${tomorrow.map(x=>row(x,false)).join('')||'<div class="muted">Nada marcado</div>'}
       <div class="row" style="gap:10px;margin-top:auto;align-items:stretch;padding-top:12px">
         ${up?`<div class="w-mini"><small>Aniversário</small><b>${esc(up.name)}</b><span class="small muted">${up.n===0?'Hoje!':up.n===1?'Amanhã':'daqui a '+up.n+' dias'}</span></div>`:''}
@@ -1958,3 +1961,7 @@ function wxSheet(){const pl=wxPlace();const days=WX?Object.keys(WX.days).slice(0
     navigator.geolocation.getCurrentPosition(p=>setPl({name:'Aqui',lat:+p.coords.latitude.toFixed(3),lon:+p.coords.longitude.toFixed(3)}),()=>toast('Sem acesso à localização.'),{timeout:10000})});
 }
 setInterval(()=>wxLoad(false),10*60000);
+
+function frameWx(big){const w=wxDay(TODAY),cur=WX&&WX.cur;if(!w&&!cur)return '';
+  const ic=cur?wxIc(cur.c,!cur.day):wxIc(w.c),t=cur?cur.t:w.mx;
+  return `<button class="fr-wx${big?' fr-big':''}" data-wxinfo><span class="wx-ic">${ic}</span><span class="fr-wt">${t}°</span><span class="fr-wd"><b>${esc(wxTxt(cur?cur.c:w.c))}</b>${w?`<span>${w.mx}° / ${w.mn}°${w.pp!=null?' · 💧'+w.pp+'%':''}</span><span>☀︎ ↑${w.sr} · ↓${w.ss}</span>`:''}</span></button>`}
