@@ -993,13 +993,13 @@ function renderWall(){
   S.lastHM=nowHM();const v=S.wallView;document.body.dataset.v=v;
   const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
-  const ytFocus=document.activeElement&&document.activeElement.id==='yt-q';
+  const ytFocus=document.activeElement&&['yt-q','r-q'].includes(document.activeElement.id)&&document.activeElement.id;
   let html;
   try{html=(v==='moldura'?wallFrame():wallHead()+body()+fab)+navBar()}
   catch(e){console.error('Ecrã de parede',e);S.frameMode='galeria';lsSet('fam.frameMode','galeria');if(v!=='inicio'){S.wallView='inicio';lsSet('fam.wallView','inicio')}
     try{html=(S.wallView==='moldura'?wallFrame():wallHead()+wallHome()+fab)+navBar()}catch(e2){html=`<div style="padding:40px"><h2>Houve um problema a mostrar este ecrã.</h2><button class="addbtn" data-wexit>Voltar ao Quadro</button></div>`}}
   document.getElementById('wall').innerHTML=html;
-  refocus();dockVideo();initSort();if(ytFocus){const q=document.getElementById('yt-q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
+  refocus();dockVideo();initSort();if(ytFocus){const q=document.getElementById(ytFocus);if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
 }
 function wallShopping(){return shopBody(true)}
 function toMin(hm){const[h,m]=String(hm).split(':').map(Number);return h*60+(m||0)}
@@ -1507,14 +1507,16 @@ function frameRadio(){if(document.querySelector('#mediaLayer .ml-video[data-kind
   const tile=(r,fav)=>`<div class="fm-tw${fav?'':' fm-sug'}" data-key="${esc(r.u)}"><button class="fm-tile${now&&now.k===r.u?' on':''}" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">${r.i?`<img src="${esc(r.i)}" alt="" loading="lazy" onerror="this.remove()">`:'<span class="fm-ti">📻︎</span>'}<b>${esc(r.n)}</b></button>${x(fav?'data-rdel':'data-rhide',r.u,(fav?'Eliminar ':'Esconder ')+r.n)}${fav?'':`<button class="fm-plus" data-raddst="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}" aria-label="Adicionar ${esc(r.n)} às minhas rádios">＋ Minhas</button>`}</div>`;
   const stile=s=>`<div class="fm-tw" data-key="${esc(s.u)}"><button class="fm-tile" data-site="${esc(s.u)}" data-sname="${esc(s.n)}"><span class="fm-ti">🌐︎</span><b>${esc(s.n)}</b></button>${x('data-sitedel',s.u,'Eliminar '+s.n)}</div>`;
   const ord=S.media.order||[],pos=u=>{const i=ord.indexOf(u);return i<0?1e6:i},byOrd=a=>a.map((x,i)=>[x,i]).sort((p,q)=>pos(p[0].u)-pos(q[0].u)||p[1]-q[1]).map(x=>x[0]);
-  const more=(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)&&!hid.has(s.u)).slice(0,12);
+  const rq=(S.radioQ||'').trim().toLowerCase(),norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const more=rq?(stations||[]).filter(s=>!favU.has(s.u)&&norm(s.n).includes(norm(rq))).slice(0,30):(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)&&!hid.has(s.u)).slice(0,12);
   const ours=byOrd(S.media.radios);
   const add='<button class="fm-tile fm-addt" data-radd><span class="fm-ti">＋</span><b>Adicionar rádio</b></button>';
   return `<div class="fm-panel"><div class="fm-now">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="ghost" data-mstop="radio">Parar</button>`:'<span class="muted">Toca numa rádio para ouvir</span>'}<button class="addbtn" data-radd style="margin-left:auto">+ Adicionar rádio</button></div>
     <h4 class="fm-h">As minhas rádios</h4>
     <div class="fm-tiles" data-sortable="ours">${ours.map(r=>tile(r,true)).join('')}${add}</div>
     ${ours.length>1?'<p class="muted small" style="margin:0">Para mudar a ordem, carrega numa rádio sem largar e arrasta-a.</p>':ours.length?'':'<p class="muted small" style="margin:0">Ainda não há rádios tuas. Usa <b>＋ Minhas</b> numa sugestão ou <b>Adicionar rádio</b>.</p>'}
-    ${more.length?`<h4 class="fm-h">Sugestões</h4><div class="fm-tiles">${more.map(r=>tile(r,false)).join('')}</div>`:stations===null?'<p class="muted">A carregar sugestões…</p>':''}
+    <div class="row fm-sh" style="gap:10px;align-items:center;margin-top:6px"><h4 class="fm-h" style="margin:0;flex:1">Sugestões</h4><input id="r-q" type="search" placeholder="Procurar rádio por nome" value="${esc(S.radioQ||'')}" enterkeyhint="search" style="max-width:280px;flex:1"></div>
+    ${more.length?`<div class="fm-tiles">${more.map(r=>tile(r,false)).join('')}</div>`:stations===null?'<p class="muted">A carregar sugestões…</p>':rq?`<p class="muted">Nenhuma rádio com “${esc(S.radioQ)}”.</p>`:''}
     ${hid.size?`<p class="muted small" style="margin:0">${hid.size} ${hid.size===1?'sugestão escondida':'sugestões escondidas'} · <button class="edit" data-runhide>Mostrar de novo</button></p>`:''}</div>`}
 function radioAddSheet(){
   const favU=new Set(S.media.radios.map(r=>r.u));
@@ -1577,7 +1579,7 @@ async function ytLoad(q){
       :'Não foi possível falar com o YouTube agora. <button class="ghost" data-yttab="'+(S.ytTab||'top')+'">Tentar de novo</button>'}
   S.ytBusy=false;refreshFrame()}
 function decodeHtml(s){const t=document.createElement('textarea');t.innerHTML=s;return t.value}
-document.addEventListener('input',e=>{if(e.target.id==='yt-q')S.ytQ=e.target.value});
+document.addEventListener('input',e=>{if(e.target.id==='yt-q')S.ytQ=e.target.value;if(e.target.id==='r-q'){S.radioQ=e.target.value;clearTimeout(S.rqT);S.rqT=setTimeout(()=>{if(S.wall&&S.wallView==='moldura')renderWall()},200)}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-ytsearch]');if(!f)return;e.preventDefault();const q=f.querySelector('#yt-q').value.trim();if(!q)return;S.ytQ=q;S.ytRes=null;ytLoad(q);refreshFrame()});
 
 document.addEventListener('change',e=>{if(e.target.matches('[data-framefree]'))lsSet('fam.frameFree',e.target.checked?'1':'0')});
