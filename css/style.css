@@ -682,3 +682,7 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .cfg-tog input::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgb(0 0 0 / .3);transition:transform .15s}
 .cfg-tog input:checked{background:var(--accent)}
 .cfg-tog input:checked::after{transform:translateX(22px)}
+
+.login-alt{margin-top:14px;text-align:left}
+.login-alt summary{cursor:pointer;color:var(--muted);font-size:.9rem;min-height:40px}
+.relay-ok h1{color:var(--accent)}

@@ -8,7 +8,8 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
-  getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut
+  getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut,
+  sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -66,6 +67,51 @@ if (configured) {
           ? 'Este endereço não está autorizado no Firebase. Vê o passo 3 do README.'
           : 'Não foi possível entrar. Tenta de novo.');
     } finally { loginBtn.disabled = false; }
+  });
+
+  // ---------- Entrar com link por email (para TV e browsers onde o Google não deixa entrar) ----------
+  // A TV pede um link para o email; abre-se o email no telemóvel; o telemóvel passa o link à TV
+  // através de um documento secreto (tvlinks/<id aleatório>) e a TV entra com esse link.
+  const HOME = location.origin + location.pathname.replace(/index\.html$/, '');
+  const qs = new URLSearchParams(location.search);
+  const rnd = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), x => x.toString(16).padStart(2, '0')).join('');
+  const relayMsg = (t, ok) => { showLogin(''); if (loginMsg) loginMsg.innerHTML = t; const c = document.querySelector('#login .login-card'); if (c && ok) c.classList.add('relay-ok'); };
+  if (isSignInWithEmailLink(auth, location.href)) {
+    const tvl = qs.get('tvl');
+    if (tvl) {
+      // Este aparelho só serve de ponte: entrega o link à TV e não entra.
+      setDoc(doc(fs, 'tvlinks/' + tvl), { link: location.href, at: Date.now() }, { merge: true })
+        .then(() => relayMsg('✅ <b>Pronto!</b> A TV vai entrar no Quadro dentro de segundos. Podes fechar esta página.', true))
+        .catch(() => relayMsg('Não foi possível ligar a TV. Pede um link novo na TV.'));
+      history.replaceState(null, '', HOME);
+    } else {
+      let em = lsGet('fam.linkEmail') || prompt('Confirma o teu email para entrar:') || '';
+      signInWithEmailLink(auth, em.trim(), location.href).then(() => history.replaceState(null, '', HOME))
+        .catch(() => showLogin('Este link já não é válido. Pede um novo.'));
+    }
+  }
+  const linkForm = document.getElementById('linkForm');
+  if (linkForm) linkForm.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const em = (document.getElementById('linkEmail').value || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { showLogin('Escreve o teu email.'); return; }
+    const id = rnd();
+    try {
+      await setDoc(doc(fs, 'tvlinks/' + id), { email: em, at: Date.now() });
+      await sendSignInLinkToEmail(auth, em, { url: HOME + '?tvl=' + id, handleCodeInApp: true });
+      lsSet('fam.linkEmail', em);
+      showLogin('');
+      if (loginMsg) loginMsg.innerHTML = `📧 Enviámos um email para <b>${em}</b>.<br>Abre-o no <b>telemóvel</b> e toca no link <b>“Sign in to …”</b>. Esta TV entra sozinha. O link vale 1 hora.`;
+      const stop = onSnapshot(doc(fs, 'tvlinks/' + id), s => {
+        const d = s.exists() ? s.data() : null;
+        if (d && d.link) { stop(); if (loginMsg) loginMsg.textContent = 'A entrar…';
+          signInWithEmailLink(auth, em, d.link).then(() => deleteDoc(doc(fs, 'tvlinks/' + id)).catch(() => {}))
+            .catch(e => showLogin('O link expirou ou já foi usado. Pede um novo.')); }
+      }, () => showLogin('Ainda não consigo esperar pelo link (falta ativar esta opção no Firebase).'));
+    } catch (e) {
+      showLogin(e && e.code === 'auth/operation-not-allowed' ? 'A entrada por email ainda não está ativada no Firebase.'
+        : e && e.code === 'permission-denied' ? 'As regras do Firebase ainda não permitem esta entrada.' : 'Não foi possível enviar o email. Tenta de novo.');
+    }
   });
 
   onAuthStateChanged(auth, (u) => {

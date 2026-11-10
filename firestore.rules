@@ -20,6 +20,14 @@ service cloud.firestore {
         ];
     }
 
+    // Entrada por link no email (TV): documento temporário com id aleatório, só com estes campos.
+    match /tvlinks/{id} {
+      allow get, delete: if id.size() >= 32;
+      allow create, update: if id.size() >= 32
+        && request.resource.data.keys().hasOnly(['email', 'link', 'at'])
+        && (!('link' in request.resource.data) || (request.resource.data.link is string && request.resource.data.link.size() < 2500));
+    }
+
     // Escolhas pessoais de cada um (que calendários Google mostrar): só o próprio vê.
     match /data/users/{uid}/{rest=**} {
       allow read, write: if family() && request.auth.uid == uid;
