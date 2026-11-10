@@ -1513,7 +1513,7 @@ function frameRadio(){if(document.querySelector('#mediaLayer .ml-video[data-kind
   const more=rq?(stations||[]).filter(s=>!favU.has(s.u)&&norm(s.n).includes(norm(rq))).slice(0,30):(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)&&!hid.has(s.u)).slice(0,12);
   const ours=byOrd(S.media.radios);
   const add='<button class="fm-tile fm-addt" data-radd><span class="fm-ti">＋</span><b>Adicionar rádio</b></button>';
-  return `<div class="fm-panel"><div class="fm-now">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="ghost" data-mstop="radio">Parar</button>`:'<span class="muted">Toca numa rádio para ouvir</span>'}<button class="addbtn" data-radd style="margin-left:auto">+ Adicionar rádio</button></div>
+  return `<div class="fm-panel">${now?`<div class="fm-now"><span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="ghost" data-mstop="radio" style="margin-left:auto">Parar</button></div>`:''}
     <h4 class="fm-h">As minhas rádios</h4>
     <div class="fm-tiles" data-sortable="ours">${ours.map(r=>tile(r,true)).join('')}${add}</div>
     ${ours.length>1?'<p class="muted small" style="margin:0">Para mudar a ordem, carrega numa rádio sem largar e arrasta-a.</p>':ours.length?'':'<p class="muted small" style="margin:0">Ainda não há rádios tuas. Usa <b>＋ Minhas</b> numa sugestão ou <b>Adicionar rádio</b>.</p>'}
