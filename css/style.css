@@ -510,3 +510,6 @@ body.wall-mode[data-v="moldura"]:has(.fm-tabs [data-fmode="galeria"][aria-presse
 .fm-star{top:8px;right:8px;background:rgb(0 0 0 / .6);color:#FBBF24}
 .fm-err{background:#2A1F1F;border-radius:14px;padding:14px 16px;line-height:1.5}
 .fm-err a{color:#5EEAD4}
+
+.fm-addt{background:transparent;border:2px dashed #44454B;align-items:center;justify-content:center;text-align:center}
+.fm-addt .fm-ti{background:transparent;font-size:1.6rem}
