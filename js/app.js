@@ -73,7 +73,7 @@ function handleWriteError(e){
     if(user){if(user.can&&(await user.can('data.write'))===false)S.readOnly=true;S.uid=await user.id()}}catch(e){}
   renderBanner();
   if(S.uid){
-    db.doc('data/users/'+S.uid+'/profile').onSnapshot(s=>{S.me=s.exists?s.data():null;S.meLoaded=true;maybeAutoSync();render()},()=>{});
+    db.doc('data/users/'+S.uid+'/profile').onSnapshot(s=>{S.me=s.exists?s.data():null;S.meLoaded=true;maybeAutoSync();render();ensureMe()},()=>{});
   }
   db.collection('gcal').onSnapshot(snap=>{S.gcal={};snap.docs.forEach(d=>S.gcal[d.id]=d.data());render()},()=>{});
   famBackend.use('mcp').then(m=>{S.mcp=m;maybeAutoSync()}).catch(()=>{});
@@ -85,7 +85,7 @@ function handleWriteError(e){
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
-    S.members=Array.isArray(m)&&m.length?m:DEFAULT_MEMBERS;render();
+    S.members=Array.isArray(m)&&m.length?m:DEFAULT_MEMBERS;S.famLoaded=s.exists;render();ensureMe();
   },()=>{});
   COLS.forEach(col=>{
     db.collection(col).onSnapshot(snap=>{
@@ -773,21 +773,24 @@ function familyForm(){
   const u=window.famBackend&&window.famBackend.user;
   const f=sheet('A família',`<p class="muted small" style="margin:0">O perfil de cada pessoa. A cor acompanha-a em toda a app.</p>
     ${S.members.map((m,i)=>`<div class="prof"><div class="mem"><label class="prof-ph" title="Mudar fotografia" data-phm="${m.id}" style="--c:var(--${m.color})${m.photo?`;background-image:url('${m.photo}')`:''}">${m.photo?'':esc((m.name||'?').trim().charAt(0).toUpperCase())}<input type="file" accept="image/*" hidden data-phin="${m.id}"><span class="prof-cam" aria-hidden="true">📷︎</span></label><span class="field" style="flex:1"><input id="mem-${i}" name="m${i}" value="${esc(m.name)}" aria-label="Nome ${i+1}"></span></div>
+      <div class="prof-row"><input type="email" name="em${i}" value="${esc(m.email||'')}" placeholder="Email da conta Google de ${esc(m.name)}" inputmode="email" style="flex:2;min-width:220px" aria-label="Email de ${esc(m.name)}">
+        <label class="prof-chk" title="Conta principal: gere a família e os dados"><input type="radio" name="admin" value="${m.id}" ${adminId()===m.id?'checked':''}> Conta principal</label></div>
       <div class="prof-row"><select name="k${i}" aria-label="Adulto ou criança">${[['adulto','Adulto'],['crianca','Criança']].map(([k,l])=>`<option value="${k}" ${(m.kind||'adulto')===k?'selected':''}>${l}</option>`).join('')}</select>
         <label class="prof-chk"><input type="checkbox" name="st${i}" ${m.student?'checked':''}> Estudante</label>
-        <button type="button" class="edit" data-memdel="${m.id}">Remover</button>
+        ${isAdmin()&&adminId()!==m.id?`<button type="button" class="edit" data-memdel="${m.id}">Remover</button>`:''}
         <select name="src${i}" aria-label="O que mostrar na agenda">${[['ambos','Agenda: Quadro + Google'],['quadro','Agenda: só Quadro'],['google','Agenda: só Google']].map(([k,l])=>`<option value="${k}" ${(m.src||'ambos')===k?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="prof-row prof-cal"><span class="small muted" style="flex-basis:100%">Calendários Google: ${memberCals(m.id).map(x=>`<span class="ptag" style="--c:var(--${m.color})">${esc(x.n)} <button type="button" class="edit" data-calunlink="${esc(x.id)}" aria-label="Desligar ${esc(x.n)}">×</button></span>`).join(' ')||'nenhum'}</span>
         <input data-calin="${m.id}" placeholder="Email do Google Calendar de ${esc(m.name)}" inputmode="email" style="flex:1;min-width:200px"><button type="button" class="ghost" data-callink="${m.id}">Ligar calendário</button></div></div>`).join('')}
     <button type="button" class="addbtn" data-memadd>+ Adicionar pessoa</button>
     <p class="muted small" style="margin:0">Toca no círculo de cada pessoa para pôr uma <b>fotografia</b>. ${S.members.some(m=>m.photo)?'<button type="button" class="edit" data-phclear>Tirar fotografias</button>':''}</p>
+    <p class="muted small" style="margin:0"><b>Email:</b> cada pessoa entra no Quadro com esta conta Google e o Quadro sabe logo quem é. <b>Conta principal:</b> pode remover pessoas e importar dados.</p>
     <p class="muted small" style="margin:0"><b>Estudante:</b> recebe as férias escolares. <b>Criança:</b> entra no quadro das estrelas. <b>Agenda:</b> mostrar os eventos do Quadro, do Google ou ambos.</p>
     <div class="field"><span>Dados</span><div class="row" style="flex-wrap:wrap">
       <button type="button" class="ghost" id="btnExport">Exportar cópia</button>
       ${S.readOnly||!S.db?'':'<label class="ghost" style="cursor:pointer">Importar cópia<input id="impFile" type="file" accept="application/json,.json" hidden></label>'}
       ${u?`<button type="button" class="ghost" id="btnOut">Sair (${esc(u.email||'')})</button>`:''}
     </div></div>`,
-  {onSave:f=>{saveMembers(S.members.map((m,i)=>({...m,photo:f._ph&&m.id in f._ph?f._ph[m.id]:(m.photo||''),name:val(f,'m'+i)||m.name,kind:val(f,'k'+i)||'adulto',student:!!(f.elements['st'+i]&&f.elements['st'+i].checked),src:val(f,'src'+i)||'ambos'})))}});
+  {onSave:f=>{saveMembers(S.members.map((m,i)=>({...m,photo:f._ph&&m.id in f._ph?f._ph[m.id]:(m.photo||''),email:(val(f,'em'+i)||'').toLowerCase(),admin:(f.querySelector('input[name=admin]:checked')||{}).value===m.id,name:val(f,'m'+i)||m.name,kind:val(f,'k'+i)||'adulto',student:!!(f.elements['st'+i]&&f.elements['st'+i].checked),src:val(f,'src'+i)||'ambos'})))}});
   f._ph={};
   f.addEventListener('change',async e=>{const inp=e.target.closest('[data-phin]');if(!inp||!inp.files[0])return;
     try{const url=await avatarData(inp.files[0]);f._ph[inp.dataset.phin]=url;const l=inp.closest('.prof-ph');l.style.backgroundImage=`url('${url}')`;l.firstChild.nodeType===3&&(l.firstChild.textContent='');toast('Fotografia pronta. Carrega em Guardar.')}catch(err){toast('Não foi possível usar essa imagem.')}});
@@ -928,7 +931,7 @@ function wallHead(){
     ${wxNow()}<div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
     ${whoBar()}
     <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
-      ${clockChip()}<button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn fd-gear" data-wset aria-label="Configuração">${GEAR}</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
+      ${clockChip()}<button class="fd-btn urg-top" data-urgent aria-label="Mensagem urgente">⚠</button><button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn fd-gear" data-wset aria-label="Configuração">${GEAR}</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
 }
 function familyName(){const last=S.members.map(m=>(m.name||'').trim().split(/\s+/).slice(-1)[0]).filter(x=>x&&x.length>2);return S.familyName||'Ribeiro'}
 function homeItems(d){
@@ -1064,7 +1067,7 @@ function wallAlerts(){
     <button class="edit" data-edit-rem="${r.id}">Editar</button></div>`;
   const card=(title,list,empty,cls)=>`<div class="w-card${cls||''}"><h4>${title}</h4>${list.map(row).join('')||`<div class="empty">${empty}</div>`}</div>`;
   const canNotify='Notification' in window&&Notification.permission!=='granted'&&Notification.permission!=='denied';
-  return `<div class="row" style="flex-wrap:wrap;margin-bottom:12px">${S.readOnly?'':'<button class="addbtn" data-new="reminder">+ Novo aviso</button><button class="addbtn" data-new="test">📝 + Teste</button>'}
+  return `<div class="row" style="flex-wrap:wrap;margin-bottom:12px">${S.readOnly?'':'<button class="addbtn" data-new="reminder">+ Novo aviso</button><button class="addbtn" data-new="test">📝 + Teste</button><button class="addbtn urg-btn" data-urgent>⚠ Mensagem urgente</button>'}
       <button class="ghost" data-alarmtest>Testar som</button>${canNotify?'<button class="ghost" data-notif>Ativar notificações</button>':''}
       <span class="small muted">O alarme toca à hora marcada neste aparelho enquanto o Quadro estiver aberto.</span></div>
     <div class="w-grid3">${card('Agora e em atraso',late,'Nada em atraso',' w-late')}${card('Mais logo',today,'Nada mais para hoje')}${card('Próximos 7 dias',next,'Sem avisos marcados')}</div>${wallTests()}`;
@@ -1223,6 +1226,7 @@ function quickAdd(){
     <button type="button" data-new="vacation">Férias<small>período</small></button>
     <button type="button" data-new="birthday">Aniversário<small>todos os anos</small></button>
     <button type="button" data-new="test">Teste<small>estudantes</small></button>
+    <button type="button" data-urgent class="qa-urg">⚠ Urgente<small>email à família</small></button>
     <button type="button" data-wv="compras">Compras<small>lista partilhada</small></button></div>`);
 }
 let wl=null,idleT=null;
@@ -1253,6 +1257,7 @@ document.addEventListener('click',e=>{
   if(d.wshift){wallStep(+d.wshift);return}
   if(d.rpart){S.rotPart=d.rpart;renderWall();return}
   if(d.wset!==undefined){configHub();return}
+  if(d.urgent!==undefined){urgentSheet();return}
   if(d.wposreset!==undefined){lsSet('fam.wpos','{}');toast('Widgets repostos');if(S.wall)renderWall();return}
   if(d.wxinfo!==undefined){wxSheet();return}
   if(d.gev){gEventSheet(d.gev);return}
@@ -1852,7 +1857,8 @@ function gEventSheet(key){const f0=findGev(key);if(!f0){toast('Evento não encon
 function configHub(){
   const u=window.famBackend&&window.famBackend.user;
   const it=(attr,ic,t,s)=>`<button type="button" class="cfg-it" ${attr}><span class="cfg-ic">${ic}</span><span style="flex:1;min-width:0"><b>${t}</b><small>${s}</small></span><span class="fd-chev">›</span></button>`;
-  const f=sheet('Configuração',`<div class="cfg">
+  const mm=S.me&&member(S.me.memberId);
+  const f=sheet('Configuração',`${u?`<p class="muted small" style="margin:0 0 6px">Entraste como <b>${esc(mm?mm.name:'?')}</b> · ${esc(u.email||'')}${isAdmin()?' · conta principal':''} <button type="button" class="edit" data-whoami>Mudar</button></p>`:''}<div class="cfg">
     ${it('data-cfg="pessoas"','👪︎','A família','Pessoas, fotografias, adulto/criança, estudante, calendários Google')}
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
@@ -1863,7 +1869,7 @@ function configHub(){
   f.addEventListener('click',e=>{const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
     if(k==='pessoas')familyForm();else if(k==='google')googleSheet();else if(k==='ecra')wallSettings();
     else if(k==='escola'){closeSheet();if(S.wall)exitWall();S.tab='agenda';render();setTimeout(()=>{const x=document.querySelector('[data-ag="escola"]');if(x)x.click()},60)}
-    else if(k==='dados')dataSheet();else if(k==='tempo')wxSheet();else if(k==='sair')window.famBackend.signOut()});
+    else if(k==='dados'){if(!isAdmin()){toast('Só a conta principal pode importar ou exportar os dados.');return}dataSheet()}else if(k==='tempo')wxSheet();else if(k==='sair')window.famBackend.signOut()});
 }
 function dataSheet(){
   const f=sheet('Dados',`<p class="muted small" style="margin:0">Uma cópia guarda tudo num ficheiro: agenda, lembretes, tarefas, receitas, listas de compras e configuração.</p>
@@ -2005,3 +2011,55 @@ function dragBox(k,html){if(!html)return '';const p=wPos()[k];
   const end=()=>{if(!dr)return;const {box,pr}=dr;const p=wPos();p[box.dataset.dragbox]={x:box.offsetLeft/pr.width,y:box.offsetTop/pr.height};lsSet('fam.wpos',JSON.stringify(p));
     box.classList.remove('moving');dr=null;S.dragging=false};
   document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);})();
+
+/* ---------- cada pessoa entra com a sua conta Google ---------- */
+function normMail(e){return String(e||'').trim().toLowerCase().replace('@googlemail.com','@gmail.com')}
+function myEmail(){const u=window.famBackend&&window.famBackend.user;return normMail(u&&u.email)}
+function adminId(){const a=S.members.find(m=>m.admin);return a?a.id:(S.members[0]&&S.members[0].id)}
+function isAdmin(){const me=myEmail(),a=S.members.find(m=>m.id===adminId());if(!S.live)return true;return !!me&&(!a||!a.email||normMail(a.email)===me)}
+function meMember(){const e=myEmail();return S.members.find(m=>m.email&&normMail(m.email)===e)}
+let askedWho=false;
+async function ensureMe(){
+  if(!S.live||!S.db||!S.uid||!S.meLoaded||!S.famLoaded)return;
+  if(S.me&&S.me.memberId&&member(S.me.memberId)){const m=member(S.me.memberId),e=myEmail();
+    if(e&&!m.email&&!S.members.some(x=>normMail(x.email)===e))saveMembers(S.members.map(x=>x.id===m.id?{...x,email:e}:x));return}
+  const m=meMember();
+  if(m){await saveMyProfile({...(S.me||{}),memberId:m.id});return}
+  if(askedWho||overlay.innerHTML)return;askedWho=true;
+  const f=sheet('Quem és tu?',`<p class="muted" style="margin:0">Entraste com <b>${esc(myEmail())}</b>. Escolhe quem és na família; o Quadro lembra-se nas próximas vezes.</p>
+    <div class="who-pick">${S.members.map(x=>`<button type="button" class="who-btn" data-iam="${x.id}">${avatar(x.id)}<b>${esc(x.name)}</b>${x.email?`<small>${esc(x.email)}</small>`:''}</button>`).join('')}</div>`);
+  f.addEventListener('click',async e=>{const b=e.target.closest('[data-iam]');if(!b)return;const id=b.dataset.iam,em=myEmail();
+    await saveMyProfile({...(S.me||{}),memberId:id});
+    if(em&&!member(id).email)await saveMembers(S.members.map(x=>x.id===id?{...x,email:em}:x));
+    closeSheet();toast('Olá, '+member(id).name+'!')});
+}
+
+document.addEventListener('click',e=>{if(e.target.closest('[data-whoami]')){askedWho=false;const p={...(S.me||{})};delete p.memberId;S.me=p;closeSheet();ensureMe()}});
+
+/* ---------- Mensagem urgente por email ---------- */
+function urgentSheet(){
+  const withMail=S.members.filter(m=>m.email),me=S.me&&S.me.memberId;
+  const f=sheet('Mensagem urgente',`
+    <div class="field"><span>Para quem</span><div class="who" style="flex-wrap:wrap" data-urgto>${S.members.map(m=>`<button type="button" class="chip" data-to="${m.id}" aria-pressed="${!!m.email&&m.id!==me}" ${m.email?'':'disabled title="Sem email em Configuração → A família"'}><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}
+      <button type="button" class="edit" data-toall>Todos</button></div>
+      ${withMail.length<S.members.length?`<p class="muted small" style="margin:4px 0 0">Para enviar a quem está a cinzento, põe o email dessa pessoa em Configuração → A família.</p>`:''}</div>
+    <label class="field"><span>Assunto</span><input name="subj" value="URGENTE — Família"></label>
+    <label class="field"><span>Mensagem</span><textarea name="msg" rows="5" placeholder="Escreve aqui a mensagem…" style="min-height:120px"></textarea></label>
+    <label class="prof-chk"><input type="checkbox" name="board" checked> Mostrar também no Quadro como alarme para essas pessoas</label>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="addbtn urg-btn" data-urgsend="gmail">✉ Enviar pelo Gmail</button><button type="button" class="ghost" data-urgsend="mail">Abrir na app de email</button></div>
+    <p class="muted small" style="margin:0">O email abre já preenchido; só tens de carregar em Enviar.</p>`);
+  f.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    if(b.dataset.to){b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));return}
+    if(b.dataset.toall!==undefined){f.querySelectorAll('[data-to]:not([disabled])').forEach(x=>x.setAttribute('aria-pressed','true'));return}
+    if(b.dataset.urgsend){const ids=[...f.querySelectorAll('[data-to][aria-pressed="true"]')].map(x=>x.dataset.to);
+      const to=ids.map(id=>member(id)).filter(m=>m&&m.email).map(m=>m.email);
+      const subj=val(f,'subj')||'URGENTE — Família',msg=(f.elements.msg.value||'').trim();
+      if(!to.length){toast('Escolhe pelo menos uma pessoa com email');return}if(!msg){toast('Escreve a mensagem');return}
+      const sender=S.me&&member(S.me.memberId)?member(S.me.memberId).name:'';
+      const body=msg+(sender?'\n\n— '+sender:'')+'\n\n(enviado pelo Quadro da Família)';
+      if(f.elements.board.checked){const n=new Date();save('reminders',null,{text:'⚠ URGENTE'+(sender?' ('+sender+')':'')+': '+msg.slice(0,200),date:TODAY,time:pad(n.getHours())+':'+pad(n.getMinutes()),who:ids,alarm:true,done:false,urgent:true})}
+      const url=b.dataset.urgsend==='gmail'?`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to.join(','))}&su=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`
+        :`mailto:${to.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+      if(b.dataset.urgsend==='gmail')window.open(url,'_blank','noopener');else location.href=url;
+      closeSheet();toast('Email preparado para '+ids.map(id=>member(id).name).join(', '))}});
+}
