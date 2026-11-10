@@ -1063,9 +1063,11 @@ function renderWall(){
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
   const ytFocus=document.activeElement&&['yt-q','r-q','tm-name'].includes(document.activeElement.id)&&document.activeElement.id;
   let html;
-  try{html=(v==='moldura'?wallFrame():wallHead()+body()+fab)+navBar()}
-  catch(e){console.error('Ecrã de parede',e);S.frameMode='galeria';lsSet('fam.frameMode','galeria');if(v!=='inicio'){S.wallView='inicio';lsSet('fam.wallView','inicio')}
-    try{html=(S.wallView==='moldura'?wallFrame():wallHead()+wallHome()+fab)+navBar()}catch(e2){html=`<div style="padding:40px"><h2>Houve um problema a mostrar este ecrã.</h2><button class="addbtn" data-wexit>Voltar ao Quadro</button></div>`}}
+  // cada parte é desenhada à parte: se uma falhar, o resto do ecrã continua a funcionar e o erro fica visível
+  const safe=(f,name)=>{try{return f()}catch(e){console.error('Ecrã de parede · '+name,e);const msg=(e&&(e.message||e.code))||String(e);
+    return `<div class="w-card w-err" style="margin:12px 0;padding:14px 16px"><b>Não foi possível mostrar ${esc(name)}.</b><div class="small muted" style="overflow-wrap:anywhere">${esc(msg)} · ${esc(((e&&e.stack)||'').split('\n').slice(0,2).join(' | ').slice(0,220))}</div><div class="row" style="gap:8px;margin-top:8px"><button class="ghost" data-wv="inicio">Início</button><button class="ghost" data-wexit>Sair do ecrã de parede</button></div></div>`}};
+  const navSafe=()=>safe(navBar,'o menu');
+  html=(v==='moldura'?safe(wallFrame,'a Moldura'):safe(wallHead,'o topo')+safe(body,'esta vista')+fab)+navSafe();
   document.getElementById('wall').innerHTML=html;
   refocus();dockVideo();initSort();if(ytFocus){const q=document.getElementById(ytFocus);if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
 }
