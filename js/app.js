@@ -79,6 +79,7 @@ function handleWriteError(e){
   famBackend.use('assets').then(a=>{S.assets=a}).catch(()=>{});
   db.doc('config/shopLists').onSnapshot(s=>{const l=s.exists&&s.data().lists;S.shopLists=Array.isArray(l)?l:[];render()},()=>{});
   db.doc('config/media').onSnapshot(s=>{const d=s.exists?s.data():{};S.media={videos:Array.isArray(d.videos)?d.videos:[],radios:Array.isArray(d.radios)?d.radios:[],sites:Array.isArray(d.sites)?d.sites:[],hidden:Array.isArray(d.hidden)?d.hidden:[],order:Array.isArray(d.order)?d.order:[]};if(overlay.querySelector('[data-mediasheet]'))mediaSheet()},()=>{});
+  db.doc('config/clock').onSnapshot(s=>{const d=s.exists?s.data():{};S.clock={alarms:Array.isArray(d.alarms)?d.alarms:[]};if(S.wall&&S.wallView==='relogio'&&!overlay.innerHTML)renderWall()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -842,13 +843,14 @@ const NAV_ICONS={
   rotinas:['#A855F7','<path d="M5 7l2 2 3-3M5 14l2 2 3-3M13 8h6M13 15h6"/>'],
   compras:['#F97316','<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'],
   avisos:['#EF4444','<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'],
+  relogio:['#F43F5E','<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M5 4 2.5 6.5M19 4l2.5 2.5"/>'],
   moldura:['#10B981','<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="9" r="1.5"/>']};
 function navBar(){
   return `<nav class="fd-nav" aria-label="Vistas"><div class="fd-nav-in">${LAYOUTS.map(([k,l])=>{const ic=NAV_ICONS[k]||['#888',''];
     return `<button data-wv="${k}" aria-pressed="${S.wallView===k}"><span class="ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span><span class="lb">${l}</span></button>`}).join('')}
     <button data-wset><span class="ic" style="--ic:#A3A3A3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></span><span class="lb">Ajustes</span></button>
     <button data-wexit><span class="ic" style="--ic:#78716C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg></span><span class="lb">Sair</span></button></div></nav>`}
-const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['moldura','Moldura']];
+const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['relogio','Alarmes'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
 function curPart(){const h=new Date().getHours();return h<12?'manha':h<19?'tarde':'noite'}
 function addMin(hm,n){const[h,m]=hm.split(':').map(Number);const t=Math.min(23*60+59,h*60+m+n);return pad(Math.floor(t/60))+':'+pad(t%60)}
@@ -875,13 +877,13 @@ function wallLabel(){
   return `${rel(d)}<small>${d===TODAY?niceDate(d):'Toca em Hoje para voltar'}</small>`;
 }
 function wallHead(){
-  const nav=!['rotinas','compras','avisos','inicio'].includes(S.wallView);
+  const nav=!['rotinas','compras','avisos','inicio','relogio'].includes(S.wallView);
   const n=new Date();
   return `<div class="fd-top"><div class="fd-clock" id="wClock">${nowHM()}</div>
     <div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
     ${whoBar()}
     <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
-      <button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
+      ${clockChip()}<button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
 }
 function familyName(){const last=S.members.map(m=>(m.name||'').trim().split(/\s+/).slice(-1)[0]).filter(x=>x&&x.length>2);return S.familyName||'Ribeiro'}
 function homeItems(d){
@@ -991,7 +993,7 @@ function wallWeek(){
 }
 function renderWall(){
   S.lastHM=nowHM();const v=S.wallView;document.body.dataset.v=v;
-  const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts}[v]||(()=>wallDay(S.wallDate));
+  const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts,relogio:wallClock}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
   const ytFocus=document.activeElement&&['yt-q','r-q'].includes(document.activeElement.id)&&document.activeElement.id;
   let html;
@@ -1216,6 +1218,7 @@ document.addEventListener('click',e=>{
   if(d.tvstart!==undefined){playTV();renderWall();return}
   if(d.tvopen!==undefined){openNosApp();return}
   if(d.framefree!==undefined){return}
+  if(d.ck!==undefined||d.ckTab||d.ckNew!==undefined||d.ckEdit||d.ckToggle||d.tmAdd||d.tmGo||d.tmPause||d.tmReset||d.tmDel||d.swGo!==undefined||d.swLap!==undefined||d.swReset!==undefined||d.ringStop!==undefined||d.ringSnooze!==undefined||d.tmStep||d.tmNew!==undefined){clockClick(t,d);return}
   if(d.rfold!==undefined){lsSet('fam.sugMin',lsGet('fam.sugMin')==='1'?'0':'1');renderWall();return}
   if(d.radd!==undefined){radioAddSheet();return}
   if(d.raddst){const st=(stations||[]).find(s=>s.u===d.raddst);saveMedia({radios:[...S.media.radios.filter(r=>r.u!==d.raddst),{n:d.rname||'Rádio',u:d.raddst,...(d.ralt?{a:d.ralt}:{}),...(st&&st.i?{i:st.i}:{})}],hidden:(S.media.hidden||[]).filter(x=>x!==d.raddst)});closeSheet();toast((d.rname||'Rádio')+' adicionada');return}
@@ -1596,3 +1599,142 @@ function initSort(){const els=[...document.querySelectorAll('[data-sortable]')];
       onEnd:()=>{S.dragging=false;S.dragAt=Date.now();
         const keys=[...document.querySelectorAll('[data-sortable] .fm-tw[data-key]')].map(x=>x.dataset.key);
         const rest=(S.media.order||[]).filter(k=>!keys.includes(k));saveMedia({order:[...keys,...rest].slice(0,300)})}})})).catch(()=>{})}
+
+/* ---------- Alarmes, temporizadores e cronómetro ---------- */
+const WD=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+function clockCfg(){return S.clock||{alarms:[]}}
+function saveClock(alarms){S.clock={alarms};if(S.db)S.db.doc('config/clock').set({alarms}).catch(handleWriteError);if(S.wall&&S.wallView==='relogio'&&!overlay.innerHTML)renderWall()}
+function fmtDur(ms,cs){ms=Math.max(0,ms);const t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;
+  const base=(h?h+':'+pad(m):pad(m))+':'+pad(s);return cs?base+'<small>,'+pad(Math.floor(ms%1000/10))+'</small>':base}
+function timers(){return lsJSON('fam.timers',[])}
+function saveTimers(a){lsSet('fam.timers',JSON.stringify(a))}
+function tmLeft(t){return t.endAt?t.endAt-Date.now():t.remain}
+function swState(){return lsJSON('fam.sw',{acc:0,start:0,laps:[]})}
+function swMs(s){return s.acc+(s.start?Date.now()-s.start:0)}
+function nextRing(a){if(!a.on)return null;const n=new Date();for(let i=0;i<8;i++){const d=new Date(n);d.setDate(n.getDate()+i);const[h,m]=a.h.split(':').map(Number);d.setHours(h,m,0,0);
+  if(d<=n)continue;if(a.days&&a.days.length&&!a.days.includes(dowMon(d)))continue;return d}return null}
+function untilTxt(d){if(!d)return '';const m=Math.round((d-Date.now())/60000),h=Math.floor(m/60);return 'Toca daqui a '+(h?h+' h ':'')+(m%60)+' min'}
+function clockChip(){const run=timers().filter(t=>t.endAt);const s=swState();
+  if(!run.length&&!s.start)return '';
+  const t=run.sort((a,b)=>a.endAt-b.endAt)[0];
+  return `<button class="fd-btn fd-tchip" data-wv="relogio">${t?'⏳ <span data-tick="tm" data-id="'+t.id+'">'+fmtDur(tmLeft(t))+'</span>':'⏱ <span data-tick="sw">'+fmtDur(swMs(s))+'</span>'}</button>`}
+function wallClock(){
+  const tab=S.ckTab||'alarmes';
+  const seg=`<div class="seg ck-seg" role="group" aria-label="Relógio">${[['alarmes','Alarmes'],['temporizador','Temporizador'],['cronometro','Cronómetro']].map(([k,l])=>`<button data-ck-tab="${k}" aria-pressed="${tab===k}">${l}</button>`).join('')}</div>`;
+  let body='';
+  if(tab==='alarmes'){
+    const al=[...clockCfg().alarms].sort((a,b)=>a.h.localeCompare(b.h));
+    body=`<div class="ck-grid">${al.map(a=>{const nx=nextRing(a);return `<div class="ck-card${a.on?'':' off'}">
+      <button class="ck-main" data-ck-edit="${a.id}"><span class="ck-time">${esc(a.h)}</span><span class="ck-lbl">${esc(a.label||'Alarme')}</span>
+        <span class="ck-days">${a.days&&a.days.length?(a.days.length===7?'Todos os dias':a.days.length===5&&[0,1,2,3,4].every(x=>a.days.includes(x))?'Dias úteis':a.days.map(x=>WD[x]).join(' · ')):'Uma vez'}${a.on&&nx?' · '+untilTxt(nx):''}</span></button>
+      <button class="ck-sw" role="switch" aria-checked="${!!a.on}" data-ck-toggle="${a.id}" aria-label="Ligar ou desligar"><i></i></button></div>`}).join('')}
+      <button class="ck-card ck-add" data-ck-new><span class="ck-plus">＋</span><b>Novo alarme</b></button></div>
+      <p class="muted small" style="margin:8px 0 0">Os alarmes tocam no ecrã de parede. O som funciona depois de alguém tocar uma vez no ecrã.</p>`}
+  else if(tab==='temporizador'){
+    const ts=timers();
+    body=`<div class="ck-presets">${[1,3,5,10,15,20,30,45,60].map(m=>`<button class="fd-btn" data-tm-add="${m*60}">${m<60?m+' min':'1 h'}</button>`).join('')}<button class="fd-btn" data-tm-new>Outro…</button></div>
+      <div class="ck-grid">${ts.map(t=>{const left=tmLeft(t),pct=t.total?Math.max(0,Math.min(1,left/t.total)):0;
+        return `<div class="ck-card ck-tm${left<=0?' done':''}"><div class="ck-ring" style="--p:${(pct*360).toFixed(1)}deg"><span data-tick="tm" data-id="${t.id}">${fmtDur(left)}</span></div>
+          <div class="ck-tmr"><b>${esc(t.label||'Temporizador')}</b><span class="muted small">${fmtDur(t.total)}</span>
+          <div class="row" style="gap:6px;flex-wrap:wrap">${t.endAt?`<button class="fd-btn" data-tm-pause="${t.id}">Pausa</button>`:left>0?`<button class="addbtn" data-tm-go="${t.id}">${left<t.total?'Continuar':'Começar'}</button>`:''}
+            <button class="fd-btn" data-tm-step="${t.id}|60">+1 min</button><button class="fd-btn" data-tm-reset="${t.id}">Repor</button><button class="fd-btn" data-tm-del="${t.id}" aria-label="Apagar">✕</button></div></div></div>`}).join('')||'<p class="muted">Escolhe um tempo acima para começar uma contagem decrescente.</p>'}</div>`}
+  else{
+    const s=swState();
+    body=`<div class="ck-sw-big"><div class="ck-swt" data-tick="sw" data-cs="1">${fmtDur(swMs(s),true)}</div>
+      <div class="row" style="gap:10px;justify-content:center;flex-wrap:wrap">${s.start?`<button class="fd-btn ck-xl" data-sw-go>Pausa</button><button class="fd-btn ck-xl" data-sw-lap>Volta</button>`:`<button class="addbtn ck-xl" data-sw-go>${swMs(s)?'Continuar':'Começar'}</button>${swMs(s)?'<button class="fd-btn ck-xl" data-sw-reset>Repor</button>':''}`}</div>
+      ${s.laps.length?`<ol class="ck-laps" reversed>${[...s.laps].reverse().map((l,i)=>`<li><span>Volta ${s.laps.length-i}</span><b>${fmtDur(l,true)}</b></li>`).join('')}</ol>`:''}</div>`}
+  return `<section class="ck">${seg}${body}</section>`;
+}
+function alarmSheet(a){
+  const isNew=!a;a=a||{id:uid(),h:'07:30',label:'',days:[0,1,2,3,4],on:true,sound:'despertador',snooze:10};
+  const snd=[['despertador','Despertador'],['bip','Bip'],['suave','Suave'],...S.media.radios.map(r=>['radio:'+r.u,'Rádio · '+r.n])];
+  const f=sheet(isNew?'Novo alarme':'Alarme',`
+    <label class="field"><span>Hora</span><input type="time" name="h" value="${esc(a.h)}" required style="font-size:2rem;font-weight:700"></label>
+    <label class="field"><span>Nome</span><input name="label" value="${esc(a.label||'')}" placeholder="Ex.: Acordar, Escola, Medicamento"></label>
+    <div class="field"><span>Repetir</span><div class="who" style="flex-wrap:wrap" data-ckdays>${WD.map((w,i)=>`<button type="button" class="chip" data-day="${i}" aria-pressed="${(a.days||[]).includes(i)}">${w}</button>`).join('')}</div>
+      <div class="row" style="gap:8px;margin-top:6px"><button type="button" class="edit" data-dayset="0,1,2,3,4">Dias úteis</button><button type="button" class="edit" data-dayset="5,6">Fim de semana</button><button type="button" class="edit" data-dayset="0,1,2,3,4,5,6">Todos</button><button type="button" class="edit" data-dayset="">Só uma vez</button></div></div>
+    <div class="two"><label class="field"><span>Som</span><select name="sound">${snd.map(([k,l])=>`<option value="${esc(k)}" ${a.sound===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
+    <label class="field"><span>Adiar (minutos)</span><input type="number" name="snooze" min="1" max="60" value="${esc(a.snooze||10)}"></label></div>
+    <button type="button" class="ghost" data-sndtest>▶ Ouvir o som</button>`,
+  {onSave:f=>{const h=val(f,'h');if(!/^\d\d:\d\d$/.test(h)){toast('Escolhe a hora');return false}
+    const days=[...f.querySelectorAll('[data-day][aria-pressed="true"]')].map(b=>+b.dataset.day);
+    const na={...a,h,label:val(f,'label'),days,sound:val(f,'sound')||'despertador',snooze:Math.max(1,Math.min(60,+val(f,'snooze')||10)),on:true};
+    saveClock([...clockCfg().alarms.filter(x=>x.id!==a.id),na]);unlockAudio();toast(untilTxt(nextRing(na))||'Alarme guardado')},
+   onDelete:isNew?null:()=>saveClock(clockCfg().alarms.filter(x=>x.id!==a.id)),saveLabel:'Guardar'});
+  f.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    if(b.dataset.day!==undefined){b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));return}
+    if(b.dataset.dayset!==undefined){const s=b.dataset.dayset.split(',').filter(Boolean).map(Number);f.querySelectorAll('[data-day]').forEach(x=>x.setAttribute('aria-pressed',String(s.includes(+x.dataset.day))));return}
+    if(b.dataset.sndtest!==undefined){unlockAudio();playSound(val(f,'sound'),true)}});
+}
+function timerSheet(){
+  const f=sheet('Temporizador',`<div class="two"><label class="field"><span>Horas</span><input type="number" name="th" min="0" max="23" value="0"></label><label class="field"><span>Minutos</span><input type="number" name="tm" min="0" max="59" value="10"></label></div>
+    <label class="field"><span>Segundos</span><input type="number" name="ts" min="0" max="59" value="0"></label>
+    <label class="field"><span>Nome</span><input name="tl" placeholder="Ex.: Massa, TPC, Forno"></label>`,
+  {onSave:f=>{const s=(+val(f,'th')||0)*3600+(+val(f,'tm')||0)*60+(+val(f,'ts')||0);if(s<1){toast('Escolhe um tempo');return false}addTimer(s,val(f,'tl'))},saveLabel:'Começar'});
+}
+function addTimer(sec,label){unlockAudio();const t={id:uid(),label:label||'',total:sec*1000,remain:sec*1000,endAt:Date.now()+sec*1000};saveTimers([...timers(),t]);renderWall()}
+function clockClick(t,d){
+  unlockAudio();
+  if(d.ckTab){S.ckTab=d.ckTab;renderWall();return}
+  if(d.ckNew!==undefined){alarmSheet();return}
+  if(d.ckEdit){alarmSheet(clockCfg().alarms.find(a=>a.id===d.ckEdit));return}
+  if(d.ckToggle){saveClock(clockCfg().alarms.map(a=>a.id===d.ckToggle?{...a,on:!a.on}:a));return}
+  const ts=timers(),upd=(id,fn)=>{saveTimers(ts.map(x=>x.id===id?fn(x):x));renderWall()};
+  if(d.tmAdd){addTimer(+d.tmAdd,'');return}
+  if(d.tmNew!==undefined){timerSheet();return}
+  if(d.tmGo){upd(d.tmGo,x=>({...x,endAt:Date.now()+x.remain}));return}
+  if(d.tmPause){upd(d.tmPause,x=>({...x,remain:x.endAt-Date.now(),endAt:null}));return}
+  if(d.tmReset){upd(d.tmReset,x=>({...x,remain:x.total,endAt:null}));return}
+  if(d.tmStep){const[id,s]=d.tmStep.split('|');upd(id,x=>x.endAt?{...x,endAt:Math.max(Date.now(),x.endAt)+s*1000,total:x.total+s*1000}:{...x,remain:Math.max(0,x.remain)+s*1000,total:x.total+s*1000});return}
+  if(d.tmDel){saveTimers(ts.filter(x=>x.id!==d.tmDel));renderWall();return}
+  const s=swState();
+  if(d.swGo!==undefined){lsSet('fam.sw',JSON.stringify(s.start?{...s,acc:swMs(s),start:0}:{...s,start:Date.now()}));renderWall();return}
+  if(d.swLap!==undefined){lsSet('fam.sw',JSON.stringify({...s,laps:[...s.laps,swMs(s)]}));renderWall();return}
+  if(d.swReset!==undefined){lsSet('fam.sw',JSON.stringify({acc:0,start:0,laps:[]}));renderWall();return}
+  if(d.ringStop!==undefined){stopRing(false);return}
+  if(d.ringSnooze!==undefined){stopRing(true);return}
+}
+/* sons */
+let ringT=null,ringItem=null,ringStopT=null;
+function tone(seq,type){if(!actx)return;try{const t0=actx.currentTime;seq.forEach(([d,f,len,vol])=>{const o=actx.createOscillator(),g=actx.createGain();o.type=type||'sine';o.frequency.value=f;
+  g.gain.setValueAtTime(0.0001,t0+d);g.gain.exponentialRampToValueAtTime(vol||0.5,t0+d+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+d+len);o.connect(g).connect(actx.destination);o.start(t0+d);o.stop(t0+d+len+0.05)})}catch(e){}}
+const SOUNDS={bip:()=>beep(),
+  suave:()=>tone([[0,523,0.9,0.35],[0.35,659,0.9,0.35],[0.7,784,1.2,0.35]]),
+  despertador:()=>tone([0,0.12,0.24,0.36,0.6,0.72,0.84,0.96].map(d=>[d,d<0.5?988:1319,0.09,0.55]),'square')};
+function playSound(k,once){if(k&&k.startsWith('radio:')){const u=k.slice(6),r=S.media.radios.find(x=>x.u===u);if(once){toast('Vai tocar a rádio '+(r?r.n:''));return}playRadio(u,r?r.n:'Rádio',r&&r.a);return 'radio'}
+  (SOUNDS[k]||SOUNDS.despertador)();}
+function ring(item){ringItem=item;clearInterval(ringT);clearTimeout(ringStopT);
+  const mode=playSound(item.sound);if(mode!=='radio')ringT=setInterval(()=>playSound(item.sound),item.sound==='suave'?2200:1500);
+  ringStopT=setTimeout(()=>stopRing(false),10*60000);
+  try{navigator.vibrate&&navigator.vibrate([400,200,400,200,400])}catch(e){}
+  try{if('Notification' in window&&Notification.permission==='granted'&&document.hidden)new Notification('Quadro da Família',{body:item.title,tag:'quadro-relogio'})}catch(e){}
+  let el=document.getElementById('ckRing');if(!el){el=document.createElement('div');el.id='ckRing';el.className='alarm ck-ringing';el.setAttribute('role','alertdialog');document.body.appendChild(el)}
+  el.innerHTML=`<div class="alarm-card"><div class="alarm-clock">${nowHM()}</div><div class="alarm-row"><div class="alarm-txt"><b>${esc(item.title)}</b><span>${esc(item.sub||'')}</span></div>
+    <div class="alarm-btns"><button data-ring-stop>Parar</button>${item.snooze?`<button data-ring-snooze>Adiar ${item.snooze} min</button>`:''}</div></div></div>`;
+  if(S.wall&&S.wallView==='relogio'&&!overlay.innerHTML)renderWall()}
+function stopRing(snooze){clearInterval(ringT);clearTimeout(ringStopT);
+  if(ringItem&&ringItem.sound&&ringItem.sound.startsWith('radio:'))stopMedia('radio');
+  if(snooze&&ringItem){const sn=lsJSON('fam.ckSnooze',[]);sn.push({at:Date.now()+ringItem.snooze*60000,item:ringItem});lsSet('fam.ckSnooze',JSON.stringify(sn))}
+  ringItem=null;const el=document.getElementById('ckRing');if(el)el.remove();if(S.wall&&!overlay.innerHTML)renderWall()}
+function clockTick(){
+  // contadores no ecrã
+  document.querySelectorAll('[data-tick]').forEach(el=>{if(el.dataset.tick==='sw')el.innerHTML=fmtDur(swMs(swState()),!!el.dataset.cs);
+    else{const t=timers().find(x=>x.id===el.dataset.id);if(t){el.textContent=fmtDur(tmLeft(t));const r=el.closest('.ck-ring');if(r&&t.total)r.style.setProperty('--p',(Math.max(0,Math.min(1,tmLeft(t)/t.total))*360).toFixed(1)+'deg')}}});
+  if(ringItem)return;
+  // temporizadores terminados (tocam no aparelho onde foram criados)
+  const ts=timers(),done=ts.find(t=>t.endAt&&t.endAt<=Date.now());
+  if(done){saveTimers(ts.map(t=>t.id===done.id?{...t,endAt:null,remain:0}:t));ring({title:(done.label||'Temporizador')+' terminou',sub:fmtDur(done.total),sound:'despertador',snooze:0});return}
+  // adiados
+  const sn=lsJSON('fam.ckSnooze',[]),due=sn.find(x=>x.at<=Date.now());
+  if(due){lsSet('fam.ckSnooze',JSON.stringify(sn.filter(x=>x!==due)));ring(due.item);return}
+  // alarmes (só no ecrã de parede)
+  if(!S.wall)return;
+  const n=new Date(),hm=nowHM(),fired=lsJSON('fam.ckFired',{});
+  for(const a of clockCfg().alarms){
+    if(!a.on||a.h!==hm)continue;if(a.days&&a.days.length&&!a.days.includes(dowMon(n)))continue;
+    const k=a.id+'|'+TODAY+'|'+a.h;if(fired[k])continue;
+    fired[k]=1;const keep={};Object.keys(fired).filter(x=>x.includes('|'+TODAY+'|')).forEach(x=>keep[x]=1);lsSet('fam.ckFired',JSON.stringify(keep));
+    if(!a.days||!a.days.length)saveClock(clockCfg().alarms.map(x=>x.id===a.id?{...x,on:false}:x));
+    ring({title:a.label||'Alarme',sub:a.h,sound:a.sound,snooze:a.snooze||10});return}
+}
+setInterval(clockTick,250);

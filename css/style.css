@@ -523,3 +523,37 @@ body.wall-mode[data-v="moldura"]:has(.fm-tabs [data-fmode="galeria"][aria-presse
 
 .fm-fold{border:0;background:transparent;color:#A0A0A6;font-weight:700;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;padding:0;min-height:44px;display:flex;gap:6px;align-items:center}
 .fm-fold span{font-size:1rem}
+/* ===== Alarmes / temporizador / cronómetro ===== */
+.ck{display:flex;flex-direction:column;gap:16px}
+.ck-seg{max-width:560px}
+.ck-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.ck-card{background:var(--surface);border-radius:var(--r);box-shadow:0 1px 2px rgb(0 0 0 / .04),0 4px 18px rgb(0 0 0 / .05);display:flex;align-items:center;gap:12px;padding:16px 18px;border:0;color:var(--fg)}
+.ck-card.off{opacity:.55}
+.ck-main{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:0;background:transparent;text-align:left;color:var(--fg);padding:0}
+.ck-time{font-family:var(--display);font-weight:800;font-size:3rem;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ck-lbl{font-weight:700;font-size:1.05rem}
+.ck-days{color:var(--muted);font-size:.85rem}
+.ck-sw{width:64px;height:38px;border-radius:999px;border:0;background:var(--sunk);position:relative;flex:none}
+.ck-sw i{position:absolute;top:4px;left:4px;width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgb(0 0 0 / .25);transition:transform .18s}
+.ck-sw[aria-checked="true"]{background:var(--accent)}
+.ck-sw[aria-checked="true"] i{transform:translateX(26px)}
+.ck-add{justify-content:center;flex-direction:column;min-height:120px;border:2px dashed var(--line);box-shadow:none;background:transparent}
+.ck-plus{font-size:2rem;line-height:1}
+.ck-presets{display:flex;gap:8px;flex-wrap:wrap}
+.ck-presets .fd-btn{min-height:52px;padding:0 20px;font-size:1.05rem}
+.ck-tm{align-items:center}
+.ck-tm.done{box-shadow:inset 0 0 0 3px var(--danger)}
+.ck-ring{--p:360deg;width:120px;height:120px;border-radius:50%;flex:none;display:grid;place-items:center;background:conic-gradient(var(--accent) var(--p),var(--sunk) 0)}
+.ck-ring span{width:100px;height:100px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:1.45rem;font-variant-numeric:tabular-nums}
+.ck-tmr{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.ck-tmr .fd-btn,.ck-tmr .addbtn{min-height:44px;padding:0 14px}
+.ck-sw-big{background:var(--surface);border-radius:var(--r);padding:28px;display:flex;flex-direction:column;gap:20px;align-items:center;box-shadow:0 1px 2px rgb(0 0 0 / .04),0 4px 18px rgb(0 0 0 / .05)}
+.ck-swt{font-family:var(--display);font-weight:800;font-size:clamp(4rem,12vw,8rem);line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ck-swt small{font-size:.45em;color:var(--muted)}
+.ck-xl{min-height:64px !important;min-width:160px;font-size:1.2rem !important;border-radius:999px !important}
+.ck-laps{list-style:none;margin:0;padding:0;width:100%;max-width:520px;display:flex;flex-direction:column}
+.ck-laps li{display:flex;justify-content:space-between;padding:10px 4px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.ck-laps small{color:var(--muted)}
+.fd-tchip{background:var(--accent-soft);color:var(--fg);font-variant-numeric:tabular-nums}
+.ck-ringing{background:rgb(15 23 42 / .96)}
+.ck-ringing .alarm-btns button:first-child{color:#0F172A}
