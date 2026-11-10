@@ -1,3 +1,4 @@
+var GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 // Estado do leitor de vídeo/rádio (declarado no início para estar pronto no primeiro desenho do ecrã).
 var stations=null,stationsBusy=false,audioEl=null,hls=null,radioTry=0;
 var NOS_URL='https://nostv.pt/inicio/L3YxL215dHYvcm9vdD9jb250ZXh0PW90dF9tb2JpbGVfd2ViX3Yx';
@@ -34,8 +35,8 @@ const S={
 const GSERVER='Google Calendar';
 
 /* ---------- store layer: shared db when available, in-memory otherwise ---------- */
-const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory','schoolBreaks'];
-S.schoolBreaks=[];S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
+const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory','schoolBreaks','tests'];
+S.schoolBreaks=[];S.tests=[];S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 async function save(col,id,data){
   id=id||uid();
@@ -301,8 +302,9 @@ function eventsOn(d){
     if(e.repeat==='weekly')return dowMon(parse(e.date))===dowMon(dd);
     if(e.repeat==='monthly')return e.date.slice(8)===d.slice(8);
     return false;
-  }).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  }).concat(testsOn(d)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
+function testsOn(d){return (S.tests||[]).filter(t=>t.date===d&&matches(t)).map(t=>({id:'test:'+t.id,title:'📝 Teste de '+t.subject,date:d,time:t.time||'',who:t.who,place:'',note:t.note||'',test:true}))}
 function breaksOn(d){return S.schoolBreaks.filter(b=>b.start&&d>=b.start&&d<=(b.end||b.start))}
 // Feriados nacionais de Portugal (fixos + móveis calculados a partir da Páscoa).
 function easterOf(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
@@ -368,9 +370,10 @@ function renderMain(){
 }
 
 function viewAgenda(){
-  const seg=`<div class="seg" role="group" aria-label="Agenda"><button data-ag="cal" aria-pressed="${S.agView==='cal'}">Calendário</button><button data-ag="aniv" aria-pressed="${S.agView==='aniv'}">Aniversários</button><button data-ag="ferias" aria-pressed="${S.agView==='ferias'}">Férias</button><button data-ag="escola" aria-pressed="${S.agView==='escola'}">Férias escolares</button></div>`;
+  const seg=`<div class="seg" role="group" aria-label="Agenda"><button data-ag="cal" aria-pressed="${S.agView==='cal'}">Calendário</button><button data-ag="aniv" aria-pressed="${S.agView==='aniv'}">Aniversários</button><button data-ag="ferias" aria-pressed="${S.agView==='ferias'}">Férias</button><button data-ag="escola" aria-pressed="${S.agView==='escola'}">Férias escolares</button><button data-ag="testes" aria-pressed="${S.agView==='testes'}">Testes</button></div>`;
   if(S.agView==='aniv')return viewBirthdays(seg);
   if(S.agView==='escola')return viewSchoolBreaks(seg);
+  if(S.agView==='testes')return viewTests(seg);
   if(S.agView==='ferias')return viewVacations(seg);
   return viewCalendar(seg);
 }
@@ -766,17 +769,22 @@ function mealForm(d){
 function familyForm(){
   const u=window.famBackend&&window.famBackend.user;
   const f=sheet('A família',`<p class="muted small" style="margin:0">O perfil de cada pessoa. A cor acompanha-a em toda a app.</p>
-    ${S.members.map((m,i)=>`<div class="prof"><div class="mem"><span class="dot" style="--c:var(--${m.color})"></span><span class="field" style="flex:1"><input id="mem-${i}" name="m${i}" value="${esc(m.name)}" aria-label="Nome ${i+1}"></span></div>
+    ${S.members.map((m,i)=>`<div class="prof"><div class="mem"><label class="prof-ph" title="Mudar fotografia" data-phm="${m.id}" style="--c:var(--${m.color})${m.photo?`;background-image:url('${m.photo}')`:''}">${m.photo?'':esc((m.name||'?').trim().charAt(0).toUpperCase())}<input type="file" accept="image/*" hidden data-phin="${m.id}"><span class="prof-cam" aria-hidden="true">📷︎</span></label><span class="field" style="flex:1"><input id="mem-${i}" name="m${i}" value="${esc(m.name)}" aria-label="Nome ${i+1}"></span></div>
       <div class="prof-row"><select name="k${i}" aria-label="Adulto ou criança">${[['adulto','Adulto'],['crianca','Criança']].map(([k,l])=>`<option value="${k}" ${(m.kind||'adulto')===k?'selected':''}>${l}</option>`).join('')}</select>
         <label class="prof-chk"><input type="checkbox" name="st${i}" ${m.student?'checked':''}> Estudante</label>
         <select name="src${i}" aria-label="O que mostrar na agenda">${[['ambos','Agenda: Quadro + Google'],['quadro','Agenda: só Quadro'],['google','Agenda: só Google']].map(([k,l])=>`<option value="${k}" ${(m.src||'ambos')===k?'selected':''}>${l}</option>`).join('')}</select></div></div>`).join('')}
+    <p class="muted small" style="margin:0">Toca no círculo de cada pessoa para pôr uma <b>fotografia</b>. ${S.members.some(m=>m.photo)?'<button type="button" class="edit" data-phclear>Tirar fotografias</button>':''}</p>
     <p class="muted small" style="margin:0"><b>Estudante:</b> recebe as férias escolares. <b>Criança:</b> entra no quadro das estrelas. <b>Agenda:</b> mostrar os eventos do Quadro, do Google ou ambos.</p>
     <div class="field"><span>Dados</span><div class="row" style="flex-wrap:wrap">
       <button type="button" class="ghost" id="btnExport">Exportar cópia</button>
       ${S.readOnly||!S.db?'':'<label class="ghost" style="cursor:pointer">Importar cópia<input id="impFile" type="file" accept="application/json,.json" hidden></label>'}
       ${u?`<button type="button" class="ghost" id="btnOut">Sair (${esc(u.email||'')})</button>`:''}
     </div></div>`,
-  {onSave:f=>{saveMembers(S.members.map((m,i)=>({...m,name:val(f,'m'+i)||m.name,kind:val(f,'k'+i)||'adulto',student:!!(f.elements['st'+i]&&f.elements['st'+i].checked),src:val(f,'src'+i)||'ambos'})))}});
+  {onSave:f=>{saveMembers(S.members.map((m,i)=>({...m,photo:f._ph&&m.id in f._ph?f._ph[m.id]:(m.photo||''),name:val(f,'m'+i)||m.name,kind:val(f,'k'+i)||'adulto',student:!!(f.elements['st'+i]&&f.elements['st'+i].checked),src:val(f,'src'+i)||'ambos'})))}});
+  f._ph={};
+  f.addEventListener('change',async e=>{const inp=e.target.closest('[data-phin]');if(!inp||!inp.files[0])return;
+    try{const url=await avatarData(inp.files[0]);f._ph[inp.dataset.phin]=url;const l=inp.closest('.prof-ph');l.style.backgroundImage=`url('${url}')`;l.firstChild.nodeType===3&&(l.firstChild.textContent='');toast('Fotografia pronta. Carrega em Guardar.')}catch(err){toast('Não foi possível usar essa imagem.')}});
+  f.addEventListener('click',e=>{if(e.target.closest('[data-phclear]')){S.members.forEach(m=>f._ph[m.id]='');f.querySelectorAll('.prof-ph').forEach(l=>l.style.backgroundImage='');toast('Carrega em Guardar para tirar as fotografias.')}});
   f.querySelector('#btnExport').addEventListener('click',exportData);
   const imp=f.querySelector('#impFile');
   if(imp)imp.addEventListener('change',async()=>{const file=imp.files[0];if(!file)return;
@@ -786,7 +794,7 @@ function familyForm(){
 }
 function exportData(){
   const out={app:'quadro-familia',version:1,exportedAt:new Date().toISOString(),config:{family:{members:S.members},prize:S.prize||null},profile:S.me||null};
-  ['events','reminders','tasks','recipes','birthdays','vacations','shopHistory','schoolBreaks'].forEach(c=>{out[c]=S[c]});out.config.shopLists=S.shopLists||[];
+  ['events','reminders','tasks','recipes','birthdays','vacations','shopHistory','schoolBreaks','tests'].forEach(c=>{out[c]=S[c]});out.config.shopLists=S.shopLists||[];
   out.meals=Object.values(S.meals);
   const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='quadro-familia-'+TODAY+'.json';
@@ -797,7 +805,7 @@ async function importData(j){
   if(!S.db){toast('Configura o Firebase antes de importar.');return}
   toast('A importar…');let n=0,fail=0;
   const put=async(path,data)=>{try{await S.db.doc(path).set(data);n++}catch(e){fail++}};
-  for(const c of ['events','reminders','tasks','recipes','birthdays','vacations','meals','shopHistory','schoolBreaks']){
+  for(const c of ['events','reminders','tasks','recipes','birthdays','vacations','meals','shopHistory','schoolBreaks','tests']){
     for(const row of (Array.isArray(j[c])?j[c]:[])){
       if(!row||!row.id)continue;const {id,...data}=row;
       await put(c+'/'+String(id).replace(/\//g,'_'),data);
@@ -862,6 +870,7 @@ function calSheet(){
   overlay.querySelector('form').dataset.calsheet='1';
 }
 function avatar(id,small){const m=member(id);if(!m)return `<span class="av av-all${small?' sm':''}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17.5" cy="9" r="2.4"/></svg></span>`;
+  if(m.photo)return `<span class="av ph${small?' sm':''}" style="--c:var(--${m.color});background-image:url('${m.photo}')" aria-hidden="true"></span>`;
   return `<span class="av${small?' sm':''}" style="--c:var(--${m.color})" aria-hidden="true">${esc((m.name||'?').trim().charAt(0).toUpperCase())}</span>`}
 const NAV_ICONS={
   inicio:['#44403C','<path d="M4 11.5 12 5l8 6.5V20H4z"/><path d="M10 20v-5h4v5"/>'],
@@ -877,7 +886,7 @@ const NAV_ICONS={
 function navBar(){
   return `<nav class="fd-nav" aria-label="Vistas"><div class="fd-nav-in">${LAYOUTS.map(([k,l])=>{const ic=NAV_ICONS[k]||['#888',''];
     return `<button data-wv="${k}" aria-pressed="${S.wallView===k}"><span class="ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span><span class="lb">${l}</span></button>`}).join('')}
-    <button data-wset><span class="ic" style="--ic:#A3A3A3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></span><span class="lb">Configuração</span></button>
+    <button data-wset><span class="ic" style="--ic:#64748B">${GEAR}</span><span class="lb">Configuração</span></button>
     <button data-wexit><span class="ic" style="--ic:#78716C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg></span><span class="lb">Sair</span></button></div></nav>`}
 const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['relogio','Alarmes'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
@@ -912,7 +921,7 @@ function wallHead(){
     <div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
     ${whoBar()}
     <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
-      ${clockChip()}<button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn" data-wset aria-label="Configuração">⚙︎</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
+      ${clockChip()}<button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn fd-gear" data-wset aria-label="Configuração">${GEAR}</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
 }
 function familyName(){const last=S.members.map(m=>(m.name||'').trim().split(/\s+/).slice(-1)[0]).filter(x=>x&&x.length>2);return S.familyName||'Ribeiro'}
 function homeItems(d){
@@ -1201,6 +1210,7 @@ function quickAdd(){
     <button type="button" data-open-meal="${S.sel}">Almoço<small>${S.sel===TODAY?'de hoje':niceDate(S.sel)}</small></button>
     <button type="button" data-new="vacation">Férias<small>período</small></button>
     <button type="button" data-new="birthday">Aniversário<small>todos os anos</small></button>
+    <button type="button" data-new="test">Teste<small>estudantes</small></button>
     <button type="button" data-wv="compras">Compras<small>lista partilhada</small></button></div>`);
 }
 let wl=null,idleT=null;
@@ -1312,8 +1322,9 @@ document.addEventListener('click',e=>{
   if(d.tlist){S.taskList=d.tlist;render();return}
   if(t.id==='btnFamily'){configHub();return}
   if(S.readOnly&&(d.new||d.toggleRem||d.toggleTask||d.clear)){toast('Estás em modo de leitura.');return}
-  if(d.new){({event:eventForm,reminder:reminderForm,task:taskForm,recipe:recipeForm,birthday:birthdayForm,vacation:vacationForm,break:breakForm})[d.new]();return}
-  if(d.editEvent){eventForm(S.events.find(x=>x.id===d.editEvent));return}
+  if(d.new){({event:eventForm,reminder:reminderForm,task:taskForm,recipe:recipeForm,birthday:birthdayForm,vacation:vacationForm,break:breakForm,test:testForm})[d.new]();return}
+  if(d.editEvent){if(d.editEvent.startsWith('test:')){testForm(S.tests.find(x=>x.id===d.editEvent.slice(5)));return}eventForm(S.events.find(x=>x.id===d.editEvent));return}
+  if(d.editTest){testForm(S.tests.find(x=>x.id===d.editTest));return}
   if(d.editRem){reminderForm(S.reminders.find(x=>x.id===d.editRem));return}
   if(d.editTask){taskForm(S.tasks.find(x=>x.id===d.editTask));return}
   if(d.viewRecipe){recipeView(S.recipes.find(x=>x.id===d.viewRecipe));return}
@@ -1849,3 +1860,57 @@ function dataSheet(){
 }
 
 function myRadios(){const ord=S.media.order||[],pos=u=>{const i=ord.indexOf(u);return i<0?1e6:i};return S.media.radios.map((x,i)=>[x,i]).sort((p,q)=>pos(p[0].u)-pos(q[0].u)||p[1]-q[1]).map(x=>x[0])}
+
+/* ---------- Testes (estudantes) ---------- */
+function students(){const st=S.members.filter(m=>m.student);return st.length?st:S.members.filter(m=>schoolMembers().includes(m.id))}
+function subjectsOf(m){const set=new Set();S.events.filter(e=>e.school&&whoList(e.who).includes(m)).forEach(e=>set.add(String(e.title||'').replace(/^Escola\s*·\s*/,'').trim()));
+  (S.tests||[]).filter(t=>whoList(t.who).includes(m)).forEach(t=>set.add(t.subject));return [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt'))}
+function daysTo(d){return Math.round((parse(d)-parse(TODAY))/864e5)}
+function viewTests(seg){
+  const all=[...(S.tests||[])].filter(t=>matches(t)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const up=all.filter(t=>t.date>=TODAY),past=all.filter(t=>t.date<TODAY).reverse();
+  const line=t=>{const n=daysTo(t.date);return `<button class="item" data-edit-test="${t.id}"><span class="time">${n===0?'Hoje':n===1?'Amanhã':n>0?n+' dias':''}</span><span class="body">
+    <span class="kind">Teste · ${niceDate(t.date)}${t.time?' · '+esc(t.time):''}</span><div class="t">${esc(t.subject)}</div>${t.note?`<div class="sub">${esc(t.note)}</div>`:''}
+    <div class="people">${peopleTags(t.who)}</div></span></button>`};
+  return `<section class="panel">${seg}
+    <div class="row"><h2>Testes</h2><span class="spacer"></span>${S.readOnly?'':'<button class="addbtn" data-new="test">+ Teste</button>'}</div>
+    <p class="muted small" style="margin:0">Cada teste cria avisos para estudar nos dias antes e um aviso na véspera. Os avisos aparecem em Avisos e tocam como alarme.</p>
+    <div class="list">${up.map(line).join('')||'<div class="empty">Sem testes marcados.</div>'}</div>
+    ${past.length?`<span class="kind">Já feitos</span><div class="list">${past.slice(0,15).map(line).join('')}</div>`:''}</section>`}
+function testForm(t){
+  const st=students(),def=st[0]?st[0].id:(S.members[0]&&S.members[0].id);
+  const isNew=!t;t=t||{who:[S.filter!=='all'&&typeof S.filter==='string'&&member(S.filter)?S.filter:def],subject:'',date:(()=>{if(S.sel&&S.sel>TODAY)return S.sel;const x=parse(TODAY);x.setDate(x.getDate()+7);return iso(x)})(),time:'',note:'',study:[3,1],studyTime:'18:00',eve:true,eveTime:'20:00',alarm:true};
+  const who=whoList(t.who)[0]||def;
+  const f=sheet(isNew?'Novo teste':'Teste',`
+    <label class="field"><span>Aluno</span><select name="who" id="t-who">${(st.length?st:S.members).map(m=>`<option value="${m.id}" ${who===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>
+    <label class="field"><span>Disciplina</span><input name="subject" id="t-subj" list="t-subjects" value="${esc(t.subject)}" placeholder="Ex.: Matemática" required><datalist id="t-subjects">${subjectsOf(who).map(s=>`<option value="${esc(s)}">`).join('')}</datalist></label>
+    <div class="two"><label class="field"><span>Dia do teste</span><input type="date" name="date" value="${esc(t.date)}"></label>
+    <label class="field"><span>Hora (opcional)</span><input type="time" name="time" value="${esc(t.time||'')}"></label></div>
+    <label class="field"><span>Matéria</span><input name="note" value="${esc(t.note||'')}" placeholder="Ex.: Frações e percentagens, págs. 40–62"></label>
+    <div class="field"><span>Avisos para estudar</span><div class="who" style="flex-wrap:wrap" data-studydays>${[7,5,4,3,2,1].map(n=>`<button type="button" class="chip" data-sd="${n}" aria-pressed="${(t.study||[]).includes(n)}">${n===1?'1 dia antes':n+' dias antes'}</button>`).join('')}</div></div>
+    <div class="two"><label class="field"><span>Hora do aviso de estudo</span><input type="time" name="studyTime" value="${esc(t.studyTime||'18:00')}"></label>
+    <label class="field"><span>Aviso na véspera</span><span class="row" style="gap:8px;align-items:center"><input type="checkbox" name="eve" ${t.eve!==false?'checked':''} style="width:22px;height:22px;min-height:0"><input type="time" name="eveTime" value="${esc(t.eveTime||'20:00')}" style="flex:1"></span></label></div>
+    <label class="prof-chk"><input type="checkbox" name="alarm" ${t.alarm!==false?'checked':''}> Os avisos tocam como alarme</label>`,
+  {saveLabel:'Guardar',onSave:f=>{const subject=val(f,'subject');if(!subject){toast('Escreve a disciplina');return false}
+    const date=val(f,'date');if(!date){toast('Escolhe o dia do teste');return false}
+    const study=[...f.querySelectorAll('[data-sd][aria-pressed="true"]')].map(b=>+b.dataset.sd);
+    const id=t.id||uid();
+    const nt={who:[val(f,'who')],subject,date,time:val(f,'time'),note:val(f,'note'),study,studyTime:val(f,'studyTime')||'18:00',eve:!!f.elements.eve.checked,eveTime:val(f,'eveTime')||'20:00',alarm:!!f.elements.alarm.checked};
+    save('tests',id,nt);syncTestReminders(id,nt);toast('Teste de '+subject+' marcado')},
+   onDelete:isNew||S.readOnly?null:()=>{remove('tests',t.id);syncTestReminders(t.id,null)}});
+  f.addEventListener('click',e=>{const b=e.target.closest('[data-sd]');if(b)b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'))});
+  f.querySelector('#t-who').addEventListener('change',e=>{f.querySelector('#t-subjects').innerHTML=subjectsOf(e.target.value).map(s=>`<option value="${esc(s)}">`).join('')});
+}
+function syncTestReminders(id,t){
+  S.reminders.filter(r=>r.testId===id).forEach(r=>remove('reminders',r.id));
+  if(!t)return;
+  const nm=member(t.who[0])?member(t.who[0]).name:'',dd=parse(t.date),when=`${DOW[dowMon(dd)].toLowerCase()}, ${dd.getDate()}/${dd.getMonth()+1}`;
+  const add=(rid,date,time,text)=>{if(date<TODAY)return;save('reminders',rid,{text,date,time,who:t.who,alarm:t.alarm!==false,testId:id,done:false})};
+  [...new Set(t.study||[])].filter(n=>n>1||!t.eve).forEach(n=>{const x=parse(t.date);x.setDate(x.getDate()-n);add(id+'-s'+n,iso(x),t.studyTime,`${nm}: estudar ${t.subject} — teste ${n===1?'amanhã':'daqui a '+n+' dias'} (${when})${t.note?' · '+t.note:''}`)});
+  if(t.eve){const x=parse(t.date);x.setDate(x.getDate()-1);add(id+'-eve',iso(x),t.eveTime,`${nm}: amanhã há teste de ${t.subject}${t.time?' às '+t.time:''} — rever a matéria e preparar a mochila${t.note?' · '+t.note:''}`)}
+}
+
+function avatarData(file){return new Promise((ok,ko)=>{const img=new Image(),u=URL.createObjectURL(file);
+  img.onload=()=>{const s=Math.min(img.width,img.height),cv=document.createElement('canvas');cv.width=cv.height=240;
+    cv.getContext('2d').drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,240,240);URL.revokeObjectURL(u);ok(cv.toDataURL('image/jpeg',0.82))};
+  img.onerror=ko;img.src=u})}

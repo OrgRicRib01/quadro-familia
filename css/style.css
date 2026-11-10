@@ -583,3 +583,8 @@ body.wall-mode .sheet{max-width:min(500px,100vw);width:100%;height:100%;max-heig
 .cfg-it b{display:block;font-weight:700}
 .cfg-it small{color:var(--muted);font-size:.85rem}
 .cfg-ic{width:40px;height:40px;border-radius:12px;background:var(--sunk);display:grid;place-items:center;font-size:1.2rem;flex:none}
+
+.av.ph{background-size:cover;background-position:center;color:transparent}
+.prof-ph{position:relative;width:52px;height:52px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--c) center/cover no-repeat;color:#fff;font-weight:800;font-size:1.2rem;cursor:pointer;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--c)}
+.prof-cam{position:absolute;right:-4px;bottom:-4px;width:22px;height:22px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-size:.7rem;box-shadow:0 1px 3px rgb(0 0 0 / .3)}
+.fd-gear svg{width:22px;height:22px}
