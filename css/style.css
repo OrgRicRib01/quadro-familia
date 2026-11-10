@@ -513,3 +513,10 @@ body.wall-mode[data-v="moldura"]:has(.fm-tabs [data-fmode="galeria"][aria-presse
 
 .fm-addt{background:transparent;border:2px dashed #44454B;align-items:center;justify-content:center;text-align:center}
 .fm-addt .fm-ti{background:transparent;font-size:1.6rem}
+
+.fm-ghost{opacity:.35}
+.fm-chosen .fm-tile{box-shadow:0 0 0 2px #2DD4BF,0 12px 30px rgb(0 0 0 / .4);transform:scale(1.03)}
+[data-sortable] .fm-tw{touch-action:manipulation;user-select:none;-webkit-user-select:none}
+
+.fm-tw.fm-sug .fm-tile{padding-bottom:56px;width:100%}
+.fm-plus{position:absolute;left:10px;bottom:10px;border:0;border-radius:999px;background:#2DD4BF;color:#06201C;font-weight:700;font-size:.85rem;padding:0 12px;min-height:36px}

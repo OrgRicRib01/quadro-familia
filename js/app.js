@@ -78,7 +78,7 @@ function handleWriteError(e){
   famBackend.use('mcp').then(m=>{S.mcp=m;maybeAutoSync()}).catch(()=>{});
   famBackend.use('assets').then(a=>{S.assets=a}).catch(()=>{});
   db.doc('config/shopLists').onSnapshot(s=>{const l=s.exists&&s.data().lists;S.shopLists=Array.isArray(l)?l:[];render()},()=>{});
-  db.doc('config/media').onSnapshot(s=>{const d=s.exists?s.data():{};S.media={videos:Array.isArray(d.videos)?d.videos:[],radios:Array.isArray(d.radios)?d.radios:[],sites:Array.isArray(d.sites)?d.sites:[],hidden:Array.isArray(d.hidden)?d.hidden:[]};if(overlay.querySelector('[data-mediasheet]'))mediaSheet()},()=>{});
+  db.doc('config/media').onSnapshot(s=>{const d=s.exists?s.data():{};S.media={videos:Array.isArray(d.videos)?d.videos:[],radios:Array.isArray(d.radios)?d.radios:[],sites:Array.isArray(d.sites)?d.sites:[],hidden:Array.isArray(d.hidden)?d.hidden:[],order:Array.isArray(d.order)?d.order:[]};if(overlay.querySelector('[data-mediasheet]'))mediaSheet()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -999,7 +999,7 @@ function renderWall(){
   catch(e){console.error('Ecrã de parede',e);S.frameMode='galeria';lsSet('fam.frameMode','galeria');if(v!=='inicio'){S.wallView='inicio';lsSet('fam.wallView','inicio')}
     try{html=(S.wallView==='moldura'?wallFrame():wallHead()+wallHome()+fab)+navBar()}catch(e2){html=`<div style="padding:40px"><h2>Houve um problema a mostrar este ecrã.</h2><button class="addbtn" data-wexit>Voltar ao Quadro</button></div>`}}
   document.getElementById('wall').innerHTML=html;
-  refocus();dockVideo();if(ytFocus){const q=document.getElementById('yt-q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
+  refocus();dockVideo();initSort();if(ytFocus){const q=document.getElementById('yt-q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
 }
 function wallShopping(){return shopBody(true)}
 function toMin(hm){const[h,m]=String(hm).split(':').map(Number);return h*60+(m||0)}
@@ -1189,6 +1189,7 @@ function toggleFS(){
 
 /* ---------- events ---------- */
 document.addEventListener('click',e=>{
+  if(S.dragAt&&Date.now()-S.dragAt<350&&e.target.closest('[data-sortable]'))return;
   const t=e.target.closest('button,[data-scrim]');if(!t)return;
   const d=t.dataset;
   if(t.matches('[data-scrim]')){if(e.target===t)closeSheet();return}
@@ -1217,8 +1218,8 @@ document.addEventListener('click',e=>{
   if(d.framefree!==undefined){return}
   if(d.radd!==undefined){radioAddSheet();return}
   if(d.raddst){const st=(stations||[]).find(s=>s.u===d.raddst);saveMedia({radios:[...S.media.radios.filter(r=>r.u!==d.raddst),{n:d.rname||'Rádio',u:d.raddst,...(d.ralt?{a:d.ralt}:{}),...(st&&st.i?{i:st.i}:{})}],hidden:(S.media.hidden||[]).filter(x=>x!==d.raddst)});closeSheet();toast((d.rname||'Rádio')+' adicionada');return}
-  if(d.rdel){if(S.radioNow&&S.radioNow.k===d.rdel)stopMedia('radio',true);saveMedia({radios:S.media.radios.filter(r=>r.u!==d.rdel),hidden:[...new Set([...(S.media.hidden||[]),d.rdel])]});toast('Rádio eliminada');return}
-  if(d.rhide){if(S.radioNow&&S.radioNow.k===d.rhide)stopMedia('radio',true);saveMedia({hidden:[...new Set([...(S.media.hidden||[]),d.rhide])]});toast('Rádio eliminada da lista');return}
+  if(d.rdel){if(S.radioNow&&S.radioNow.k===d.rdel)stopMedia('radio',true);saveMedia({radios:S.media.radios.filter(r=>r.u!==d.rdel)});toast('Rádio eliminada das tuas');return}
+  if(d.rhide){if(S.radioNow&&S.radioNow.k===d.rhide)stopMedia('radio',true);saveMedia({hidden:[...new Set([...(S.media.hidden||[]),d.rhide])]});toast('Sugestão escondida');return}
   if(d.runhide!==undefined){saveMedia({hidden:[]});return}
   if(d.siteopen!==undefined){const v=document.querySelector('#mediaLayer .ml-video');if(!v)return;if(v.dataset.kind==='tv')openNosApp();else window.open(v.dataset.u,'_blank','noopener');return}
   if(d.site){stopMedia('radio',true);window.open(d.site,'_blank','noopener');return}
@@ -1326,7 +1327,7 @@ setInterval(()=>{
   const t=iso(new Date());
   if(t!==TODAY){const old=TODAY;TODAY=t;if(S.sel===old){S.sel=t;S.month=t.slice(0,7)}if(S.wallDate===old)S.wallDate=t;
     document.getElementById('todayLabel').textContent=niceDate(t);render();return}
-  if(S.wall&&nowHM()!==S.lastHM){if(!overlay.innerHTML)renderWall();else{S.lastHM=nowHM();const c=document.getElementById('wClock');if(c)c.textContent=S.lastHM}}
+  if(S.wall&&nowHM()!==S.lastHM&&!S.dragging){if(!overlay.innerHTML)renderWall();else{S.lastHM=nowHM();const c=document.getElementById('wClock');if(c)c.textContent=S.lastHM}}
 },15000);
 setInterval(()=>{if(!S.needTap){S.autoSynced=false;maybeAutoSync()}},15*60*1000);
 
@@ -1471,7 +1472,7 @@ function mediaSheet(){
   loadStations(false);
 }
 
-function refreshFrame(){if(S.wall&&S.wallView==='moldura'&&S.frameMode!=='galeria'&&!overlay.innerHTML)renderWall()}
+function refreshFrame(){if(S.dragging)return;if(S.wall&&S.wallView==='moldura'&&S.frameMode!=='galeria'&&!overlay.innerHTML)renderWall()}
 function dockVideo(){const v=document.querySelector('#mediaLayer .ml-video');if(!v)return;
   const want={tv:'tv',site:'radio'}[v.dataset.kind]||'video';
   const slot=S.wall&&S.wallView==='moldura'&&S.frameMode===want&&!v.classList.contains('full')&&document.querySelector('.fm-'+want);
@@ -1503,28 +1504,31 @@ function frameRadio(){if(document.querySelector('#mediaLayer .ml-video[data-kind
   const now=S.radioNow,favU=new Set(S.media.radios.map(r=>r.u)),hid=new Set(S.media.hidden||[]),bad=brokenSet();
   const sites=S.media.sites||[];
   const x=(attr,v,lbl)=>`<button class="fm-x" ${attr}="${esc(v)}" aria-label="${lbl}">×</button>`;
-  const tile=(r,fav)=>`<div class="fm-tw"><button class="fm-tile${now&&now.k===r.u?' on':''}" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">${r.i?`<img src="${esc(r.i)}" alt="" loading="lazy" onerror="this.remove()">`:'<span class="fm-ti">📻︎</span>'}<b>${esc(r.n)}</b></button>${x(fav?'data-rdel':'data-rhide',r.u,'Eliminar '+r.n)}</div>`;
-  const stile=s=>`<div class="fm-tw"><button class="fm-tile" data-site="${esc(s.u)}" data-sname="${esc(s.n)}"><span class="fm-ti">🌐︎</span><b>${esc(s.n)}</b></button>${x('data-sitedel',s.u,'Eliminar '+s.n)}</div>`;
-  const more=(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)&&!hid.has(s.u)).slice(0,Math.max(0,18-S.media.radios.length-sites.length));
+  const tile=(r,fav)=>`<div class="fm-tw${fav?'':' fm-sug'}" data-key="${esc(r.u)}"><button class="fm-tile${now&&now.k===r.u?' on':''}" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">${r.i?`<img src="${esc(r.i)}" alt="" loading="lazy" onerror="this.remove()">`:'<span class="fm-ti">📻︎</span>'}<b>${esc(r.n)}</b></button>${x(fav?'data-rdel':'data-rhide',r.u,(fav?'Eliminar ':'Esconder ')+r.n)}${fav?'':`<button class="fm-plus" data-raddst="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}" aria-label="Adicionar ${esc(r.n)} às minhas rádios">＋ Minhas</button>`}</div>`;
+  const stile=s=>`<div class="fm-tw" data-key="${esc(s.u)}"><button class="fm-tile" data-site="${esc(s.u)}" data-sname="${esc(s.n)}"><span class="fm-ti">🌐︎</span><b>${esc(s.n)}</b></button>${x('data-sitedel',s.u,'Eliminar '+s.n)}</div>`;
+  const ord=S.media.order||[],pos=u=>{const i=ord.indexOf(u);return i<0?1e6:i},byOrd=a=>a.map((x,i)=>[x,i]).sort((p,q)=>pos(p[0].u)-pos(q[0].u)||p[1]-q[1]).map(x=>x[0]);
+  const more=(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)&&!hid.has(s.u)).slice(0,12);
+  const ours=byOrd(S.media.radios);
   const add='<button class="fm-tile fm-addt" data-radd><span class="fm-ti">＋</span><b>Adicionar rádio</b></button>';
   return `<div class="fm-panel"><div class="fm-now">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="ghost" data-mstop="radio">Parar</button>`:'<span class="muted">Toca numa rádio para ouvir</span>'}<button class="addbtn" data-radd style="margin-left:auto">+ Adicionar rádio</button></div>
-    ${S.media.radios.length||sites.length?`<h4 class="fm-h">As nossas rádios</h4><div class="fm-tiles">${S.media.radios.map(r=>tile(r,true)).join('')}${sites.map(stile).join('')}</div>`:''}
-    ${more.length?`<h4 class="fm-h">Sugestões</h4><div class="fm-tiles">${more.map(r=>tile(r,false)).join('')}${add}</div>`:`<div class="fm-tiles">${add}</div>${stations===null?'<p class="muted">A carregar sugestões…</p>':''}`}
-    ${hid.size?`<p class="muted small" style="margin:0">${hid.size} ${hid.size===1?'rádio escondida':'rádios escondidas'} · <button class="edit" data-runhide>Mostrar de novo</button></p>`:''}</div>`}
+    <h4 class="fm-h">As minhas rádios</h4>
+    <div class="fm-tiles" data-sortable="ours">${ours.map(r=>tile(r,true)).join('')}${add}</div>
+    ${ours.length>1?'<p class="muted small" style="margin:0">Para mudar a ordem, carrega numa rádio sem largar e arrasta-a.</p>':ours.length?'':'<p class="muted small" style="margin:0">Ainda não há rádios tuas. Usa <b>＋ Minhas</b> numa sugestão ou <b>Adicionar rádio</b>.</p>'}
+    ${more.length?`<h4 class="fm-h">Sugestões</h4><div class="fm-tiles">${more.map(r=>tile(r,false)).join('')}</div>`:stations===null?'<p class="muted">A carregar sugestões…</p>':''}
+    ${hid.size?`<p class="muted small" style="margin:0">${hid.size} ${hid.size===1?'sugestão escondida':'sugestões escondidas'} · <button class="edit" data-runhide>Mostrar de novo</button></p>`:''}</div>`}
 function radioAddSheet(){
   const favU=new Set(S.media.radios.map(r=>r.u));
   const f=sheet('Adicionar rádio',`
-    <label class="field"><span>Nome</span><input id="ra-n" placeholder="Ex.: Rádio Comercial"></label>
-    <label class="field"><span>Endereço</span><input id="ra-u" placeholder="Site (https://rayo.pt/radio-comercial) ou stream (https://…mp3)" inputmode="url"></label>
-    <p class="muted small" style="margin:0">Se for o endereço do <b>site</b> da rádio, abre numa janela à parte. Se for o endereço direto do <b>stream</b> (.mp3, .aac, .m3u8…), toca no leitor do Quadro.</p>
-    <div class="field"><span>Ou escolhe uma rádio portuguesa</span><input id="ra-q" type="search" placeholder="Procurar (ex.: Antena, RFM, Renascença)">
-      <div class="m-list m-scroll" id="ra-list"></div></div>`,{onSave:f=>{
+        <div class="field"><span>Escolhe uma rádio portuguesa</span><input id="ra-q" type="search" placeholder="Procurar (ex.: Antena, RFM, Renascença)">
+      <div class="m-list m-scroll" id="ra-list"></div></div>
+    <details class="m-more"><summary>Outra rádio (endereço direto do stream)</summary>
+      <label class="field"><span>Nome</span><input id="ra-n" placeholder="Ex.: Rádio Comercial"></label>
+      <label class="field"><span>Endereço do stream</span><input id="ra-u" placeholder="https://…mp3 / .aac / .m3u8" inputmode="url"></label></details>`,{onSave:f=>{
     const n=val(f,'ra-n')||f.querySelector('#ra-n').value.trim(),u0=f.querySelector('#ra-u').value.trim();
     const u=/^https?:\/\//.test(u0)?u0:(u0?'https://'+u0:'');
-    if(!/^https:\/\/\S+\.\S+/.test(u)){toast('Escreve o endereço (https://…)');return false}
+    if(!/^https:\/\/\S+\.\S+/.test(u)){toast('Escolhe uma rádio da lista ou escreve o endereço do stream (https://…)');return false}
     let nm=n;if(!nm){try{nm=new URL(u).pathname.split('/').filter(Boolean).pop()||new URL(u).hostname}catch(e){nm='Rádio'}nm=nm.replace(/[-_]/g,' ').replace(/\.\w+$/,'').replace(/^./,x=>x.toUpperCase())}
-    const stream=/\.(mp3|aac|m3u8|ogg|opus|pls|m3u)(\?|$)|icecast|shoutcast|stream|live\./i.test(u);
-    if(stream)saveMedia({radios:[...S.media.radios.filter(r=>r.u!==u),{n:nm,u}]});else saveMedia({sites:[...(S.media.sites||[]).filter(s=>s.u!==u),{n:nm,u}]});
+    saveMedia({radios:[...S.media.radios.filter(r=>r.u!==u),{n:nm,u}]});
     toast(nm+' adicionada');},saveLabel:'Adicionar'});
   const box=f.querySelector('#ra-list'),q=f.querySelector('#ra-q');
   const draw=()=>{const t=q.value.trim().toLowerCase();const l=(stations||[]).filter(s=>!favU.has(s.u)&&(!t||s.n.toLowerCase().includes(t))).slice(0,40);
@@ -1577,3 +1581,14 @@ document.addEventListener('input',e=>{if(e.target.id==='yt-q')S.ytQ=e.target.val
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-ytsearch]');if(!f)return;e.preventDefault();const q=f.querySelector('#yt-q').value.trim();if(!q)return;S.ytQ=q;S.ytRes=null;ytLoad(q);refreshFrame()});
 
 document.addEventListener('change',e=>{if(e.target.matches('[data-framefree]'))lsSet('fam.frameFree',e.target.checked?'1':'0')});
+
+var sortLib=null;
+function loadSortable(){if(window.Sortable)return Promise.resolve(window.Sortable);if(sortLib)return sortLib;
+  sortLib=new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';s.onload=()=>ok(window.Sortable);s.onerror=e=>{sortLib=null;ko(e)};document.head.appendChild(s)});return sortLib}
+function initSort(){const els=[...document.querySelectorAll('[data-sortable]')];if(!els.length)return;
+  loadSortable().then(Sortable=>els.forEach(el=>{if(!el.isConnected||el._sort)return;
+    el._sort=Sortable.create(el,{animation:180,delay:250,delayOnTouchOnly:false,touchStartThreshold:6,draggable:'.fm-tw',filter:'.fm-x,.fm-addt',preventOnFilter:false,ghostClass:'fm-ghost',chosenClass:'fm-chosen',
+      onStart:()=>{S.dragging=true},
+      onEnd:()=>{S.dragging=false;S.dragAt=Date.now();
+        const keys=[...document.querySelectorAll('[data-sortable] .fm-tw[data-key]')].map(x=>x.dataset.key);
+        const rest=(S.media.order||[]).filter(k=>!keys.includes(k));saveMedia({order:[...keys,...rest].slice(0,300)})}})})).catch(()=>{})}
