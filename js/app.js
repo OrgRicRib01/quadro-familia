@@ -1,3 +1,6 @@
+// Estado do leitor de vídeo/rádio (declarado no início para estar pronto no primeiro desenho do ecrã).
+var stations=null,stationsBusy=false,audioEl=null,hls=null,radioTry=0;
+var NOS_URL='https://nostv.pt/inicio/L3YxL215dHYvcm9vdD9jb250ZXh0PW90dF9tb2JpbGVfd2ViX3Yx';
 const TABS=[
  {id:'agenda',label:'Agenda',icon:'<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'},
  {id:'lembretes',label:'Lembretes',icon:'<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'},
@@ -991,7 +994,11 @@ function renderWall(){
   const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
   const ytFocus=document.activeElement&&document.activeElement.id==='yt-q';
-  document.getElementById('wall').innerHTML=(v==='moldura'?wallFrame():wallHead()+body()+fab)+navBar();
+  let html;
+  try{html=(v==='moldura'?wallFrame():wallHead()+body()+fab)+navBar()}
+  catch(e){console.error('Ecrã de parede',e);S.frameMode='galeria';lsSet('fam.frameMode','galeria');if(v!=='inicio'){S.wallView='inicio';lsSet('fam.wallView','inicio')}
+    try{html=(S.wallView==='moldura'?wallFrame():wallHead()+wallHome()+fab)+navBar()}catch(e2){html=`<div style="padding:40px"><h2>Houve um problema a mostrar este ecrã.</h2><button class="addbtn" data-wexit>Voltar ao Quadro</button></div>`}}
+  document.getElementById('wall').innerHTML=html;
   refocus();dockVideo();if(ytFocus){const q=document.getElementById('yt-q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
 }
 function wallShopping(){return shopBody(true)}
@@ -1388,8 +1395,6 @@ function playVideo(u,title){const p=ytParse(u);if(!p)return;const L=mediaLayer()
   v.innerHTML=`<div class="ml-bar"><b>${esc(title||'YouTube')}</b><span class="spacer"></span><button class="fd-btn" data-ytfav aria-pressed="${fav}" aria-label="${fav?'Tirar dos favoritos':'Guardar nos favoritos'}">${fav?'★':'☆'}</button><button class="fd-btn" data-ytlist>Favoritos</button><button class="fd-btn" data-ytopen>YouTube</button><button class="fd-btn" data-mfull>Ecrã inteiro</button><button class="fd-btn" data-mmin>Minimizar</button><button class="fd-btn" data-mstop="video">Fechar</button></div>
     <iframe src="${ytEmbed(p)}" title="${esc(title||'Vídeo do YouTube')}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
   stopMedia('radio',true)}
-let audioEl=null;
-let hls=null,radioTry=0;
 function loadHls(){if(window.Hls)return Promise.resolve(window.Hls);
   return new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js';s.onload=()=>ok(window.Hls);s.onerror=ko;document.head.appendChild(s)})}
 function radioBar(name,state){const L=mediaLayer();let r=L.querySelector('.ml-radio');if(!r){r=document.createElement('div');r.className='ml-radio';L.appendChild(r)}
@@ -1423,7 +1428,6 @@ function stopMedia(k,quiet){const L=document.getElementById('mediaLayer');if(!L)
   if(k==='video'||k==='all'){const v=L.querySelector('.ml-video');if(v)v.remove()}
   if(k==='radio'||k==='all'){S.radioNow=null;if(hls){try{hls.destroy()}catch(e){}hls=null}if(audioEl){audioEl.onerror=null;audioEl.pause();audioEl.removeAttribute('src');audioEl.load()}const r=L.querySelector('.ml-radio');if(r)r.remove()}
   if(!quiet&&overlay.querySelector('[data-mediasheet]'))mediaSheet()}
-let stations=null,stationsBusy=false;
 async function loadStations(force){if(stationsBusy||(stations&&!force))return;stationsBusy=true;
   for(const h of ['de1','de2','fi1','all']){
     try{const r=await fetch(`https://${h}.api.radio-browser.info/json/stations/search?countrycode=PT&order=votes&reverse=true&hidebroken=true&limit=120`);if(!r.ok)continue;
@@ -1499,7 +1503,6 @@ function frameRadio(){if(document.querySelector('#mediaLayer .ml-video[data-kind
       <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><input id="s-n" placeholder="Nome (ex.: Rádio Comercial)" style="flex:1;min-width:160px"><input id="s-u" placeholder="https://rayo.pt/radio-comercial" inputmode="url" style="flex:2;min-width:200px"><button class="addbtn" data-siteadd>Adicionar</button></div></details>
     ${list.length?`<h4 class="fm-h">Rádios</h4><div class="fm-tiles">${list.map(tile).join('')}</div>`:`<p class="muted">${stations===null?'A carregar rádios…':'Não foi possível carregar a lista de rádios.'}</p>`}</div>`}
 
-const NOS_URL='https://nostv.pt/inicio/L3YxL215dHYvcm9vdD9jb250ZXh0PW90dF9tb2JpbGVfd2ViX3Yx';
 function tvUrl(){return lsGet('fam.tvUrl')||NOS_URL}
 function playTV(){playSite(tvUrl(),'NOS TV','tv')}
 function playSite(u,title,kind){const L=mediaLayer();L.classList.remove('mini');
