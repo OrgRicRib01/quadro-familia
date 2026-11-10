@@ -198,7 +198,7 @@ function gcalOn(d){
       if(d<x.d||d>x.e)return;
       if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
-      if(x.h&&x.d===d&&localAt(d).some(e=>e.time===x.h&&whoList(e.who).includes(m)))return;
+      if(!gOnly()&&x.h&&x.d===d&&localAt(d).some(e=>e.time===x.h&&whoList(e.who).includes(m)))return;
       out.push({...x,mid:m,src:mid});
     });
   });
@@ -856,7 +856,7 @@ function colItems(m,D,d){
   const its=[];
   D.vac.filter(v=>forM(v,m)).forEach(v=>its.push({k:'',t:'Férias · '+v.title,s:'até '+niceDate(v.end||v.start),a:`data-edit-vac="${v.id}"`}));
   D.ev.filter(e=>forM(e,m)).forEach(e=>its.push({k:e.time||'',end:schoolEnd(e),t:e.title,s:e.place||'',a:`data-edit-event="${e.id}"`}));
-  D.g.filter(g=>g.mid===m||g.mid==='all').forEach(g=>{const st=!!g.h&&g.d===d;its.push({k:st?g.h:'',end:st&&g.d===g.e?g.he:'',t:g.t,s:[g.c,g.p].filter(Boolean).join(' · ')})});
+  D.g.filter(g=>g.mid===m||g.mid==='all').forEach(g=>{const st=!!g.h&&g.d===d;its.push({k:st?g.h:'',end:st&&g.d===g.e?g.he:'',t:g.t,s:[g.c,g.p].filter(Boolean).join(' · '),a:(g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:g.t==='Escola'?`data-wday="${g.d}"`:'')})});
   D.rm.filter(r=>forM(r,m)&&!r.done).forEach(r=>its.push({k:r.time||'',t:r.text,s:'Lembrete',chk:`data-toggle-rem="${r.id}"`}));
   return its.sort((a,b)=>(a.k||'').localeCompare(b.k||''));
 }
@@ -958,7 +958,7 @@ function homeItems(d){
     if(e.school){const en=schoolEnd(e);w.forEach(m=>{const x=sc[m]||(sc[m]={k:e.time,end:en});if(e.time<x.k)x.k=e.time;if(en>x.end)x.end=en})}
     else its.push({k:e.time||'',end:e.time?(schoolEnd(e)||addMin(e.time,60)):'',t:e.title,s:e.place||'',m:w.includes('all')||w.length>1?'all':w[0],a:`data-edit-event="${e.id}"`})});
   Object.entries(sc).forEach(([m,x])=>{if(member(m))its.push({k:x.k,end:x.end,t:'Escola',s:member(m).name,m})});
-  D.g.forEach(g=>{const h=g.h&&g.d===d?g.h:'';its.push({k:h,end:h?(g.he||addMin(h,60)):'',t:g.t,s:g.p||g.c||'',m:g.mid})});
+  D.g.forEach(g=>{const h=g.h&&g.d===d?g.h:'';its.push({k:h,end:h?(g.he||addMin(h,60)):'',t:g.t,s:g.p||g.c||'',m:g.mid,a:(g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:g.t==='Escola'?`data-wday="${g.d}"`:'')})});
   D.rm.filter(r=>!r.done&&r.time).forEach(r=>{const w=whoList(r.who);its.push({k:r.time,end:r.time,t:r.text,s:'Lembrete',m:w.includes('all')||w.length>1?'all':w[0],a:`data-edit-rem="${r.id}"`})});
   return its.sort((a,b)=>(a.k||'').localeCompare(b.k||''));
 }
@@ -1047,7 +1047,7 @@ function wallWeek(){
       else{const w=whoList(e.who);its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title,s:w.includes('all')?'Todos':w.map(id=>member(id)&&member(id).name).filter(Boolean).join(', '),a:`data-edit-event="${e.id}"`})}
     });
     Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`}));
-    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid),a:g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:''}));
+    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid),a:(g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:g.t==='Escola'?`data-wday="${g.d}"`:'')}));
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
     cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b>${wxLine(d)}</button>
       ${its.map(z=>{const tag=z.a?'button':'div';return `<${tag} class="w-wi" style="--c:${z.c}" ${z.a||''}>${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
@@ -1123,7 +1123,7 @@ function wallLine(){
   const lanes=[{id:'all',name:'Família',c:'var(--accent)'},...wallMembers().map(m=>({id:m.id,name:m.name,c:`var(--${m.color})`}))].map(L=>{
     const isF=L.id==='all',bl=[],allDay=[];
     D.ev.filter(e=>isF?isAll(e):forM(e,L.id)).forEach(e=>{if(e.time)bl.push(blk(e.time,schoolEnd(e)||addMin(e.time,60),e.title,L.c,`data-edit-event="${e.id}"`));else allDay.push(e.title)});
-    D.g.filter(g=>isF?g.mid==='all':g.mid===L.id).forEach(g=>{if(g.h&&g.d===d&&g.d===g.e)bl.push(blk(g.h,g.he&&g.he>g.h?g.he:addMin(g.h,60),g.t,L.c));else allDay.push(g.t)});
+    D.g.filter(g=>isF?g.mid==='all':g.mid===L.id).forEach(g=>{if(g.h&&g.d===d&&g.d===g.e)bl.push(blk(g.h,g.he&&g.he>g.h?g.he:addMin(g.h,60),g.t,L.c,g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:''));else allDay.push(g.t)});
     D.vac.filter(v=>isF?isAll(v):forM(v,L.id)).forEach(v=>allDay.push('Férias · '+v.title));
     if(isF)D.bd.forEach(b=>allDay.push('Aniversário · '+b.name));
     return `<div class="w-lane"><div class="lab"><span class="row" style="gap:8px"><span class="dot" style="--c:${L.c}"></span>${esc(L.name)}</span>${allDay.length?`<small>${esc(allDay.join(' · '))}</small>`:''}</div>
@@ -1856,7 +1856,7 @@ document.addEventListener('change',e=>{if(e.target.id==='f-dest'){const b=docume
 /* ---------- eventos do Google: ver e apagar ---------- */
 function findGev(key){const [src,i,d]=key.split('|');const doc=S.gcal[src];if(!doc)return null;const x=(doc.events||[]).find(y=>y.i===i&&y.d===d)||(doc.events||[]).find(y=>y.i===i);return x?{src,x}:null}
 function gEventSheet(key){const f0=findGev(key);if(!f0){toast('Evento não encontrado. Sincroniza de novo.');return}
-  const {src,x}=f0,m=x.m||src,mine=S.me&&S.me.memberId===src;
+  const {src,x}=f0,m=x.m||src,mine=!!(S.mcp&&x.i&&x.ci);
   const when=(x.d===x.e?niceDate(x.d):niceDate(x.d)+' – '+niceDate(x.e))+(x.h?' · '+x.h+(x.he?'–'+x.he:''):'');
   const f=sheet('Evento do Google',`<div class="item" style="cursor:default"><span class="body"><span class="kind">Google${x.c?' · '+esc(x.c):''}</span><div class="t">${esc(x.t)}</div><div class="sub">${esc(when)}${x.p?' · '+esc(x.p):''}</div>
       <div class="people"><span class="ptag" style="--c:${colorOf(m)}">${esc(gName(x.w&&memberByName(x.w)?memberByName(x.w).id:m))}</span></div></span></div>
