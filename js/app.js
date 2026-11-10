@@ -2418,14 +2418,24 @@ function shDiscover(st){const out=[];Object.entries(st||{}).forEach(([id,s])=>{
 });return out}
 async function shSwitch(dev,on){try{await shPost('/device/relay/control',{id:dev.id,channel:String(+dev.channel||0),turn:on?'on':'off'});setTimeout(()=>shRefresh(true),900)}catch(e){toast(e.message)}}
 async function shCover(dev,dir,pos){try{if(pos!=null)await shPost('/device/relay/roller/settings/topos',{id:dev.id,channel:String(+dev.channel||0),pos:String(pos)});else await shPost('/device/relay/roller/control',{id:dev.id,channel:String(+dev.channel||0),direction:dir});setTimeout(()=>shRefresh(true),1500)}catch(e){toast(e.message)}}
+// nomes e divisões tal como estão na app Shelly (melhor esforço: a Shelly Cloud não documenta isto oficialmente)
+async function shNames(st){const out={};
+  try{const d=await shPost('/interface/device/get_all_lists',{});const rooms=(d&&d.rooms)||{};const devs=(d&&d.devices)||{};
+    Object.entries(devs).forEach(([k,v])=>{const id=String(v.id||k).replace(/_\d+$/,'');const ch=+(v.channel||(String(k).match(/_(\d+)$/)||[])[1]||0);const r=rooms[v.room_id];
+      out[id+'|'+ch]={name:v.name||'',room:r&&r.name||''};if(!out[id+'|0'])out[id+'|0']=out[id+'|'+ch]})}catch(e){}
+  try{const d=await shPost('/device/all_status',{show_info:'true'});Object.entries((d&&d.devices_status)||{}).forEach(([id,s])=>{const i=s._dev_info||{};
+    if(i.name&&!(out[id+'|0']&&out[id+'|0'].name))out[id+'|0']={name:i.name,room:i.room_name||''}});if(d&&d.devices_status)Object.assign(st,d.devices_status)}catch(e){}
+  return out}
 function shKey(d){return d.id+'|'+d.type+'|'+(+d.channel||0)}
 function wallCasa(){
   const c=shCfg(),devs=(c.devices||[]).filter(d=>d.on!==false);
   if(!c.key||!shHost())return `<section class="casa"><div class="w-card" style="padding:20px"><h3 style="margin-top:0">🏠 Casa</h3><p>Liga a tua conta Shelly para controlar luzes, tomadas e estores e ver os sensores.</p><button class="addbtn" data-shcfg>Ligar Shelly Cloud</button></div></section>`;
   if(!SH.poll){SH.poll=setInterval(()=>{if((S.wall&&S.wallView==='casa')||(!S.wall&&S.tab==='casa'))shRefresh(false);else{clearInterval(SH.poll);SH.poll=null}},10000)}
   if(!SH.st&&!SH.busy&&!SH.err)shRefresh(true);
-  const rooms={};devs.forEach(d=>{(rooms[d.room||'Casa']=rooms[d.room||'Casa']||[]).push(d)});
-  const tile=d=>{const s=shState(d);const nm=esc(d.name||d.id);const off=s&&s.online===false;
+  if(!SH.namesTried&&devs.some(d=>!d.name||!d.room)){SH.namesTried=true;shNames({}).then(n=>{SH.names=n;if(Object.keys(n).length){if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()}})}
+  const nmOf=d=>(SH.names&&(SH.names[d.id+'|'+(+d.channel||0)]||SH.names[d.id+'|0']))||{};
+  const rooms={};devs.forEach(d=>{const r=d.room||nmOf(d).room||'Casa';(rooms[r]=rooms[r]||[]).push(d)});
+  const tile=d=>{const s=shState(d);const nm=esc(d.name||nmOf(d).name||d.id);const off=s&&s.online===false;
     if(d.type==='switch')return `<button class="sh-tile sh-sw${s&&s.on?' on':''}${off?' offline':''}" data-shsw="${esc(shKey(d))}" aria-pressed="${!!(s&&s.on)}"><span class="sh-ic">${s&&s.on?'💡':'⚪'}</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':(s.on?'Ligado':'Desligado')+(s.w!=null&&s.w>0?' · '+Math.round(s.w)+' W':'')}</small></button>`;
     if(d.type==='cover')return `<div class="sh-tile sh-cv${off?' offline':''}"><span class="sh-ic">🪟</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':(s.state==='open'||s.state==='opening'?'A subir':s.state==='close'||s.state==='closing'?'A descer':'Parado')+(s.pos!=null?' · '+s.pos+'%':'')}</small>
       <div class="sh-cvb"><button data-shcv="${esc(shKey(d))}|open" aria-label="Subir">▲</button><button data-shcv="${esc(shKey(d))}|stop" aria-label="Parar">■</button><button data-shcv="${esc(shKey(d))}|close" aria-label="Descer">▼</button></div>
@@ -2435,7 +2445,7 @@ function wallCasa(){
     ${devs.length?Object.entries(rooms).map(([r,ds])=>`<h3 class="sh-room">${esc(r)}</h3><div class="sh-grid">${ds.map(tile).join('')}</div>`).join(''):'<div class="w-card" style="padding:20px">Ainda não escolheste dispositivos. <button class="addbtn" data-shcfg>Escolher dispositivos</button></div>'}
     <p class="small muted" style="margin-top:14px">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5)+' · ':''}<button class="edit" data-shcfg>Configurar</button></p></section>`}
 function shSheet(){const c=shCfg();let found=null;
-  const devRows=list=>list.map((d,i)=>{const cur=(c.devices||[]).find(x=>shKey(x)===shKey(d))||{};return `<div class="sh-row"><label class="prof-chk"><input type="checkbox" name="on_${i}" ${cur.on!==false&&(cur.id||!c.devices)?'checked':''}></label>
+  let names={};const devRows=list=>list.map((d,i)=>{const nm=names[d.id+'|'+(+d.channel||0)]||names[d.id+'|0']||{};const cur0=(c.devices||[]).find(x=>shKey(x)===shKey(d))||{};const cur={...cur0,name:cur0.name||nm.name||'',room:cur0.room||nm.room||''};return `<div class="sh-row"><label class="prof-chk"><input type="checkbox" name="on_${i}" ${cur.on!==false&&(cur.id||!c.devices)?'checked':''}></label>
     <span class="sh-ty">${d.type==='switch'?'💡':d.type==='cover'?'🪟':'🌡️'}</span><input name="nm_${i}" value="${esc(cur.name||'')}" placeholder="${esc(d.id)}${d.channel?' · canal '+d.channel:''}" style="flex:2;min-width:120px"><input name="rm_${i}" value="${esc(cur.room||'')}" placeholder="Divisão" list="sh-rooms" style="flex:1;min-width:90px"></div>`}).join('');
   const f=sheet('Casa · Shelly Cloud',`
     <p class="muted small" style="margin:0">Na app <b>Shelly Smart Control</b>: <b>Definições do utilizador → Chave de autorização na cloud</b> → <b>Obter chave</b>. Copia o <b>servidor</b> (ex.: shelly-123-eu.shelly.cloud) e a <b>chave</b>.</p>
@@ -2447,9 +2457,9 @@ function shSheet(){const c=shCfg();let found=null;
   {saveLabel:'Guardar',onSave:f=>{const list=found||c.devices||[];const devices=list.map((d,i)=>({id:d.id,channel:+d.channel||0,type:d.type,name:val(f,'nm_'+i),room:val(f,'rm_'+i),on:!!(f.elements['on_'+i]&&f.elements['on_'+i].checked)}));
     const nc={host:val(f,'host').replace(/^https?:\/\//,'').replace(/\/.*$/,''),key:val(f,'key'),devices};S.shelly=nc;SH.st=null;SH.err='';if(S.db)S.db.doc('config/shelly').set(nc).catch(handleWriteError);toast('Casa configurada');if(S.wall){S.wallView='casa';lsSet('fam.wallView','casa');renderWall()}}});
   f.querySelector('[data-shfind]').addEventListener('click',async()=>{const msg=f.querySelector('#sh-msg');const old=S.shelly;S.shelly={...(old||{}),host:val(f,'host'),key:val(f,'key')};msg.textContent='A procurar…';
-    try{const d=await shPost('/device/all_status',{});SH.st=d.devices_status||{};found=shDiscover(SH.st);
+    try{const d=await shPost('/device/all_status',{});SH.st=d.devices_status||{};msg.textContent='A ler os nomes e divisões da app Shelly…';names=await shNames(SH.st);found=shDiscover(SH.st);
       f.querySelector('#sh-list').innerHTML=found.length?devRows(found):'<p class="muted small">Não encontrei dispositivos nesta conta.</p>';
-      msg.textContent=found.length+' encontrados. Dá um nome e uma divisão a cada um e carrega em Guardar.'}
+      msg.textContent=found.length+' encontrados'+(Object.keys(names).length?', com os nomes e divisões da app Shelly. Corrige o que quiseres e carrega em Guardar.':'. A Shelly não enviou os nomes: escreve um nome e uma divisão em cada um e carrega em Guardar.')}
     catch(e){msg.textContent=e.net?'A Shelly Cloud não respondeu ao browser. Confirma o servidor; se estiver certo, ela pode estar a bloquear pedidos de páginas web — diz-me e eu monto um intermediário.':'Erro: '+e.message}
     finally{S.shelly=old}});
 }
