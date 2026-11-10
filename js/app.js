@@ -124,7 +124,7 @@ function toEv(e,mode,cname){
   else return null;
   if(ed<d)ed=d;
   const busy=mode==='busy';
-  return {t:busy?'Ocupado':String(e.summary||'(sem título)').slice(0,120),d,e:ed,h,he:busy?'':he,p:busy?'':String(e.location||'').slice(0,80),c:busy?'':String(cname||'').slice(0,40)};
+  return {i:String(e.id||''),r:e.recurringEventId?String(e.recurringEventId):'',t:busy?'Ocupado':String(e.summary||'(sem título)').slice(0,120),d,e:ed,h,he:busy?'':he,p:busy?'':String(e.location||'').slice(0,80),c:busy?'':String(cname||'').slice(0,40)};
 }
 function syncWindow(){const n=new Date();const a=new Date(n.getFullYear(),n.getMonth()-1,1);const b=new Date(n.getFullYear(),n.getMonth()+4,1);return [iso(a)+'T00:00:00',iso(b)+'T00:00:00']}
 async function syncGoogle(prof,manual){
@@ -145,7 +145,7 @@ async function syncGoogle(prof,manual){
         const r=await S.mcp.callTool(GSERVER,'list_events',{calendarId:cid,startTime:from,endTime:to,pageSize:250,...(token?{pageToken:token}:{})},{cache:false});
         const p=r.payload||{};
         const owner=(prof.calMember||{})[cid]||prof.memberId;
-        (p.events||[]).forEach(e=>{const x=toEv(e,mode,names[cid]||p.summary);if(x){x.m=owner;out.push(x)}});
+        (p.events||[]).forEach(e=>{const x=toEv(e,mode,names[cid]||p.summary);if(x){x.m=owner;x.ci=cid;out.push(x)}});
         token=p.nextPageToken;n++;
       }while(token&&n<4);
       }catch(e){
@@ -192,7 +192,7 @@ function gcalOn(d){
       if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
       if(x.h&&x.d===d&&localAt(d).some(e=>e.time===x.h&&whoList(e.who).includes(m)))return;
-      out.push({...x,mid:m});
+      out.push({...x,mid:m,src:mid});
     });
   });
   return out;
@@ -465,10 +465,10 @@ function viewCalendar(seg){
       <div class="people">${peopleTags(e.who)}</div></span></button>`).join('');
   items+=gcalOn(S.sel).sort((a,b)=>(a.h||'').localeCompare(b.h||'')).map(g=>{
     const multi=g.d!==g.e,showT=g.h&&g.d===S.sel;
-    return `<div class="item"><span class="time">${showT?esc(g.h):'Dia'}</span><span class="body">
+    return `<button class="item" data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"><span class="time">${showT?esc(g.h):'Dia'}</span><span class="body">
       <span class="kind">Google${g.c?' · '+esc(g.c):''}</span><div class="t">${esc(g.t)}</div>
       ${g.p||(showT&&g.he&&!multi)?`<div class="sub">${esc([showT&&g.he&&!multi?'até '+g.he:'',g.p].filter(Boolean).join(' · '))}</div>`:''}
-      <div class="people"><span class="ptag" style="--c:${colorOf(g.mid)}">${esc(gName(g.mid))}</span></div></span></div>`}).join('');
+      <div class="people"><span class="ptag" style="--c:${colorOf(g.mid)}">${esc(gName(g.mid))}</span></div></span></button>`}).join('');
   items+=rm.map(r=>`<div class="item ${r.done?'done':''}"><button class="check" role="checkbox" aria-checked="${!!r.done}" data-toggle-rem="${r.id}" aria-label="Feito"></button>
       <span class="body"><span class="kind">Lembrete${r.time?' · '+esc(r.time):''}</span><div class="t">${esc(r.text)}</div><div class="people">${peopleTags(r.who)}</div></span>
       <button class="edit" data-edit-rem="${r.id}">Editar</button></div>`).join('');
@@ -646,14 +646,20 @@ function eventForm(e){
     <label class="field"><span>Repete</span><select id="f-repeat" name="repeat">${[['none','Não'],['weekly','Todas as semanas'],['monthly','Todos os meses'],['yearly','Todos os anos']].map(([v,l])=>`<option value="${v}" ${e.repeat===v?'selected':''}>${l}</option>`).join('')}</select></label></div>
     ${whoField(e.who)}
     <label class="field"><span>Notas</span><input id="f-note" name="note" value="${esc(e.note)}"></label>
-    ${S.mcp&&!e.gId?`<label class="field"><span>Também no meu Google Calendar</span><select id="f-gcal" name="gcal">
+    ${S.mcp&&!e.gId&&!e.id?`<div class="two"><label class="field"><span>Guardar em</span><select id="f-dest" name="dest">
+      <option value="quadro">Só na agenda do Quadro</option><option value="ambos">Agenda do Quadro + Google</option><option value="google">Só no Google Calendar</option></select></label>
+      <label class="field" data-gcalbox hidden><span>Calendário Google</span><select id="f-gcal" name="gcal"><option value="primary">Principal</option>
+      ${(S.myCals||[]).filter(c=>!/holiday|#/.test(c.id)).map(c=>`<option value="${esc(c.id)}">${esc(c.summary||c.id)}</option>`).join('')}
+    </select></label></div>`:S.mcp&&!e.gId?`<label class="field"><span>Também no meu Google Calendar</span><select id="f-gcal" name="gcal">
       <option value="">Não</option><option value="primary">Sim, no calendário principal</option>
       ${(S.myCals||[]).filter(c=>!/holiday|#/.test(c.id)).map(c=>`<option value="${esc(c.id)}">Sim, em ${esc(c.summary||c.id)}</option>`).join('')}
     </select></label>`:e.gId?`<p class="muted small" style="margin:0">Já enviado para o Google Calendar. Alterações aqui não mudam o evento no Google.</p>`:''}`,
   {onSave:f=>{const title=val(f,'title');if(!title){toast('Escreve o nome do evento.');return false}
-      const id=e.id||uid();const gc=val(f,'gcal');if(gc)allowGooglePrompt();
+      const id=e.id||uid();const dest=f.elements.dest?val(f,'dest'):(val(f,'gcal')?'ambos':'quadro');const gc=dest==='quadro'?'':(val(f,'gcal')||'primary');if(gc)allowGooglePrompt();
       const body={title,date:val(f,'date')||S.sel,time:val(f,'time'),place:val(f,'place'),repeat:val(f,'repeat'),note:val(f,'note'),who:readWho(f),gId:e.gId||''};
-      (async()=>{await save('events',id,body);
+      (async()=>{
+        if(dest==='google'){const gid=await pushToGoogle(body,gc==='primary'?'':gc);if(gid){toast('Criado no Google Calendar');setTimeout(()=>{S.gbusy=0;syncGoogle(S.me,false)},1500)}return}
+        await save('events',id,body);
         if(gc){const gid=await pushToGoogle(body,gc==='primary'?'':gc);if(gid)await save('events',id,{...body,gId:String(gid)})}})();
       S.sel=body.date;S.month=S.sel.slice(0,7)},
    onDelete:e.id&&!S.readOnly?()=>remove('events',e.id):null});
@@ -871,7 +877,7 @@ const NAV_ICONS={
 function navBar(){
   return `<nav class="fd-nav" aria-label="Vistas"><div class="fd-nav-in">${LAYOUTS.map(([k,l])=>{const ic=NAV_ICONS[k]||['#888',''];
     return `<button data-wv="${k}" aria-pressed="${S.wallView===k}"><span class="ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span><span class="lb">${l}</span></button>`}).join('')}
-    <button data-wset><span class="ic" style="--ic:#A3A3A3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></span><span class="lb">Ajustes</span></button>
+    <button data-wset><span class="ic" style="--ic:#A3A3A3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></span><span class="lb">Configuração</span></button>
     <button data-wexit><span class="ic" style="--ic:#78716C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg></span><span class="lb">Sair</span></button></div></nav>`}
 const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['relogio','Alarmes'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
@@ -906,7 +912,7 @@ function wallHead(){
     <div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
     ${whoBar()}
     <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
-      ${clockChip()}<button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
+      ${clockChip()}<button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn" data-wset aria-label="Configuração">⚙︎</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
 }
 function familyName(){const last=S.members.map(m=>(m.name||'').trim().split(/\s+/).slice(-1)[0]).filter(x=>x&&x.length>2);return S.familyName||'Ribeiro'}
 function homeItems(d){
@@ -1006,7 +1012,7 @@ function wallWeek(){
       else{const w=whoList(e.who);its.push({k:e.time||'',c:dotsFor(e.who)[0],t:e.title,s:w.includes('all')?'Todos':w.map(id=>member(id)&&member(id).name).filter(Boolean).join(', '),a:`data-edit-event="${e.id}"`})}
     });
     Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`}));
-    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid)}));
+    D.g.forEach(g=>its.push({k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid),a:g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:''}));
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
     cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b></button>
       ${its.map(z=>{const tag=z.a?'button':'div';return `<${tag} class="w-wi" style="--c:${z.c}" ${z.a||''}>${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
@@ -1128,7 +1134,7 @@ function frameSide(today,tomorrow,row,up,pend){
         <div class="w-mini"><small>Lembretes</small><b>${pend} por fazer</b></div>
         ${S.readOnly?'':'<button class="w-btn" data-quickadd aria-label="Adicionar" style="font-size:1.8rem;background:var(--accent);color:var(--accent-ink);border:0">+</button>'}
       </div>
-      <div class="row" style="gap:8px;justify-content:flex-end"><button class="edit" data-wgoogle>Google</button><button class="edit" data-wset>Ajustes</button><button class="edit" data-wfs>Ecrã inteiro</button><button class="edit" data-wexit>Sair</button></div>
+      <div class="row" style="gap:8px;justify-content:flex-end"><button class="edit" data-wgoogle>Google</button><button class="edit" data-wset>Configuração</button><button class="edit" data-wfs>Ecrã inteiro</button><button class="edit" data-wexit>Sair</button></div>
     </div>`;
 }
 function wallRoutines(){
@@ -1161,7 +1167,7 @@ async function shrink(file){
 }
 function wallSettings(){
   const rest=lsGet('fam.rest')||'';
-  const f=sheet('Ajustes do ecrã',`
+  const f=sheet('Ecrã de parede e moldura',`
     <label class="field"><span>Após 2 minutos sem toques, mostrar</span><select id="w-rest" name="rest"><option value="">A vista atual (só volta a hoje)</option>${LAYOUTS.map(([k,l])=>`<option value="${k}" ${rest===k?'selected':''}>${l}</option>`).join('')}</select></label>
     <div class="field"><span>Fotografias da moldura (${S.photos.length})</span>
       ${S.photos.length?`<div class="ph-grid">${S.photos.map(p=>`<figure style="background-image:url('${photoUrl(p)}')"><button type="button" class="ph-del" data-delphoto="${p.id}" aria-label="Apagar fotografia">×</button></figure>`).join('')}</div>`:''}
@@ -1224,7 +1230,8 @@ document.addEventListener('click',e=>{
   if(d.wv){closeSheet();S.wallView=d.wv;lsSet('fam.wallView',d.wv);S.rotPart=null;renderWall();window.scrollTo(0,0);return}
   if(d.wshift){wallStep(+d.wshift);return}
   if(d.rpart){S.rotPart=d.rpart;renderWall();return}
-  if(d.wset!==undefined){wallSettings();return}
+  if(d.wset!==undefined){configHub();return}
+  if(d.gev){gEventSheet(d.gev);return}
   if(d.wf){if(d.wf==='all')S.wallSel=[];else toggleSel(d.wf);renderWall();return}
   if(d.wcals!==undefined){calSheet();return}
   if(d.selk){toggleSel(d.selk);calSheet();renderWall();return}
@@ -1303,7 +1310,7 @@ document.addEventListener('click',e=>{
     SCHOOL_PRESET_2627.filter(p=>!S.schoolBreaks.some(b=>b.start===p.start)).forEach(p=>save('schoolBreaks',null,{...p,who}));
     toast('Férias escolares 2026/27 adicionadas');return}
   if(d.tlist){S.taskList=d.tlist;render();return}
-  if(t.id==='btnFamily'){familyForm();return}
+  if(t.id==='btnFamily'){configHub();return}
   if(S.readOnly&&(d.new||d.toggleRem||d.toggleTask||d.clear)){toast('Estás em modo de leitura.');return}
   if(d.new){({event:eventForm,reminder:reminderForm,task:taskForm,recipe:recipeForm,birthday:birthdayForm,vacation:vacationForm,break:breakForm})[d.new]();return}
   if(d.editEvent){eventForm(S.events.find(x=>x.id===d.editEvent));return}
@@ -1537,7 +1544,7 @@ function frameRadio(){if(document.querySelector('#mediaLayer .ml-video[data-kind
   const sugMin=lsGet('fam.sugMin')==='1';
   const rq=(S.radioQ||'').trim().toLowerCase(),norm=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const more=rq?(stations||[]).filter(s=>!favU.has(s.u)&&norm(s.n).includes(norm(rq))).slice(0,30):(stations||[]).filter(s=>!favU.has(s.u)&&!bad.has(s.u)&&!hid.has(s.u)).slice(0,12);
-  const ours=byOrd(S.media.radios);
+  const ours=myRadios();
   const add='<button class="fm-tile fm-addt" data-radd><span class="fm-ti">＋</span><b>Adicionar rádio</b></button>';
   return `<div class="fm-panel">${now?`<div class="fm-now"><span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="ghost" data-mstop="radio" style="margin-left:auto">Parar</button></div>`:''}
     <h4 class="fm-h">As minhas rádios</h4>
@@ -1781,7 +1788,7 @@ setInterval(clockTick,250);
 function srcOf(id){const m=member(id);return (m&&m.src)||'ambos'}
 function localShown(e){const w=whoList(e.who);if(w.includes('all'))return true;return !w.length||w.some(id=>srcOf(id)!=='google')}
 
-function galleryRadio(){const now=S.radioNow,rs=S.media.radios.slice(0,4);
+function galleryRadio(){const now=S.radioNow,rs=myRadios().slice(0,4);
   if(!now&&!rs.length)return '';
   return `<div class="g-radio">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span class="g-rn"><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="g-rb" data-mstop="radio">Parar</button>`
     :`<span class="g-rn"><small>Rádio</small></span>${rs.map(r=>`<button class="g-rb" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">▶ ${esc(r.n)}</button>`).join('')}`}</div>`}
@@ -1796,3 +1803,49 @@ async function ytResolve(u){const m=/youtube\.com\/(@[\w.\-]+)/i.exec(u)||/^(@[\
 
 document.addEventListener('input',e=>{if(e.target.id==='tm-name')S.tmName=e.target.value});
 document.addEventListener('change',e=>{if(e.target.id==='tm-alarm')S.tmAlarm=e.target.checked});
+
+document.addEventListener('change',e=>{if(e.target.id==='f-dest'){const b=document.querySelector('[data-gcalbox]');if(b)b.hidden=e.target.value==='quadro'}});
+/* ---------- eventos do Google: ver e apagar ---------- */
+function findGev(key){const [src,i,d]=key.split('|');const doc=S.gcal[src];if(!doc)return null;const x=(doc.events||[]).find(y=>y.i===i&&y.d===d)||(doc.events||[]).find(y=>y.i===i);return x?{src,x}:null}
+function gEventSheet(key){const f0=findGev(key);if(!f0){toast('Evento não encontrado. Sincroniza de novo.');return}
+  const {src,x}=f0,m=x.m||src,mine=S.me&&S.me.memberId===src;
+  const when=(x.d===x.e?niceDate(x.d):niceDate(x.d)+' – '+niceDate(x.e))+(x.h?' · '+x.h+(x.he?'–'+x.he:''):'');
+  const f=sheet('Evento do Google',`<div class="item" style="cursor:default"><span class="body"><span class="kind">Google${x.c?' · '+esc(x.c):''}</span><div class="t">${esc(x.t)}</div><div class="sub">${esc(when)}${x.p?' · '+esc(x.p):''}</div>
+      <div class="people"><span class="ptag" style="--c:${colorOf(m)}">${esc(gName(m))}</span></div></span></div>
+    ${x.i&&x.ci?(mine?`<div class="field"><span>Apagar no Google Calendar</span><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="del" data-gdel="one">Apagar este evento</button>${x.r?'<button type="button" class="del" data-gdel="all">Apagar toda a série</button>':''}</div>
+      <p class="muted small" style="margin:4px 0 0">Apaga mesmo no Google, também no telemóvel. Não dá para desfazer.</p></div>`
+      :`<p class="muted small" style="margin:0">Este evento vem do Google de ${esc(member(src)?member(src).name:'outra pessoa')}. Só quem sincronizou este calendário o pode apagar a partir do Quadro.</p>`):'<p class="muted small" style="margin:0">Sincroniza o Google de novo para poder apagar este evento a partir do Quadro.</p>'}`);
+  f.addEventListener('click',async ev=>{const b=ev.target.closest('[data-gdel]');if(!b)return;
+    if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para apagar';return}
+    allowGooglePrompt();
+    try{await S.mcp.callTool(GSERVER,'delete_event',{calendarId:x.ci,eventId:b.dataset.gdel==='all'&&x.r?x.r:x.i});
+      const doc=S.gcal[src],evs=(doc.events||[]).filter(y=>b.dataset.gdel==='all'&&x.r?y.r!==x.r:!(y.i===x.i));
+      await S.db.doc('gcal/'+src).set({...doc,events:evs});closeSheet();toast('Apagado no Google Calendar')}
+    catch(e){toast(gErr(e))}});
+}
+/* ---------- Configuração ---------- */
+function configHub(){
+  const u=window.famBackend&&window.famBackend.user;
+  const it=(attr,ic,t,s)=>`<button type="button" class="cfg-it" ${attr}><span class="cfg-ic">${ic}</span><span style="flex:1;min-width:0"><b>${t}</b><small>${s}</small></span><span class="fd-chev">›</span></button>`;
+  const f=sheet('Configuração',`<div class="cfg">
+    ${it('data-cfg="pessoas"','👪︎','Pessoas','Nomes, adulto/criança, estudante, agenda Quadro/Google')}
+    ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
+    ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
+    ${it('data-cfg="escola"','🎒︎','Férias escolares','Períodos sem aulas')}
+    ${it('data-cfg="dados"','💾︎','Dados','Exportar ou importar uma cópia')}
+    ${u?it('data-cfg="sair"','↩︎','Sair da conta',esc(u.email||'')):''}</div>`);
+  f.addEventListener('click',e=>{const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
+    if(k==='pessoas')familyForm();else if(k==='google')googleSheet();else if(k==='ecra')wallSettings();
+    else if(k==='escola'){closeSheet();if(S.wall)exitWall();S.tab='agenda';render();setTimeout(()=>{const x=document.querySelector('[data-ag="escola"]');if(x)x.click()},60)}
+    else if(k==='dados')dataSheet();else if(k==='sair')window.famBackend.signOut()});
+}
+function dataSheet(){
+  const f=sheet('Dados',`<p class="muted small" style="margin:0">Uma cópia guarda tudo num ficheiro: agenda, lembretes, tarefas, receitas, listas de compras e configuração.</p>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><button type="button" class="ghost" id="btnExport">Exportar cópia</button>
+    ${S.readOnly||!S.db?'':'<label class="ghost" style="cursor:pointer">Importar cópia<input id="impFile2" type="file" accept="application/json,.json" hidden></label>'}</div>`);
+  f.querySelector('#btnExport').addEventListener('click',exportData);
+  const imp=f.querySelector('#impFile2');
+  if(imp)imp.addEventListener('change',async()=>{const file=imp.files[0];if(!file)return;let j;try{j=JSON.parse(await file.text())}catch(e){toast('Esse ficheiro não é uma cópia do Quadro.');return}closeSheet();importData(j)});
+}
+
+function myRadios(){const ord=S.media.order||[],pos=u=>{const i=ord.indexOf(u);return i<0?1e6:i};return S.media.radios.map((x,i)=>[x,i]).sort((p,q)=>pos(p[0].u)-pos(q[0].u)||p[1]-q[1]).map(x=>x[0])}

@@ -2,7 +2,7 @@
 // Expõe window.famBackend.use(nome) com as mesmas peças que a app espera:
 //   db      → base de dados partilhada (Firestore)
 //   user    → quem está a usar
-//   mcp     → Google Calendar (list_calendars, list_events, create_event)
+//   mcp     → Google Calendar (list_calendars, list_events, create_event, delete_event)
 //   assets  → fotografias da moldura (guardadas como imagem reduzida no Firestore)
 // Sem config.js preenchido a app corre em modo de demonstração (nada é guardado).
 
@@ -229,6 +229,10 @@ if (configured) {
       body.reminders = { useDefault: true };
       const j = await gapi('calendars/' + enc(input.calendarId || 'primary') + '/events', { method: 'POST', body: JSON.stringify(body) });
       return { id: j.id, htmlLink: j.htmlLink };
+    },
+    async delete_event(input = {}) {
+      await gapi('calendars/' + enc(input.calendarId || 'primary') + '/events/' + enc(input.eventId), { method: 'DELETE' });
+      return { ok: true };
     }
   };
   const mcpNs = {
