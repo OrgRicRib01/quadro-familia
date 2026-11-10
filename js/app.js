@@ -1,3 +1,4 @@
+var TKIND={teste:['📝','Teste'],exame:['🎓','Exame'],trabalho:['📂','Trabalho'],apresentacao:['🎤','Apresentação']};
 var GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 // Estado do leitor de vídeo/rádio (declarado no início para estar pronto no primeiro desenho do ecrã).
 var stations=null,stationsBusy=false,audioEl=null,hls=null,radioTry=0;
@@ -35,8 +36,8 @@ const S={
 const GSERVER='Google Calendar';
 
 /* ---------- store layer: shared db when available, in-memory otherwise ---------- */
-const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory','schoolBreaks','tests'];
-S.schoolBreaks=[];S.tests=[];S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
+const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory','schoolBreaks','tests','edu'];
+S.schoolBreaks=[];S.tests=[];S.edu=[];S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 async function save(col,id,data){
   id=id||uid();
@@ -303,9 +304,9 @@ function eventsOn(d){
     if(e.repeat==='weekly')return dowMon(parse(e.date))===dowMon(dd);
     if(e.repeat==='monthly')return e.date.slice(8)===d.slice(8);
     return false;
-  }).concat(testsOn(d)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  }).concat(testsOn(d),eduOn(d)).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 }
-function testsOn(d){return (S.tests||[]).filter(t=>t.date===d&&matches(t)).map(t=>({id:'test:'+t.id,title:'📝 Teste de '+t.subject,date:d,time:t.time||'',who:t.who,place:'',note:t.note||'',test:true}))}
+function testsOn(d){return (S.tests||[]).filter(t=>t.date===d&&matches(t)).map(t=>({id:'test:'+t.id,title:tkind(t)[0]+' '+tkind(t)[1]+' de '+t.subject,date:d,time:t.time||'',who:t.who,place:'',note:t.note||'',test:true}))}
 function breaksOn(d){return S.schoolBreaks.filter(b=>b.start&&d>=b.start&&d<=(b.end||b.start))}
 // Feriados nacionais de Portugal (fixos + móveis calculados a partir da Páscoa).
 function easterOf(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
@@ -372,10 +373,10 @@ function renderMain(){
 }
 
 function viewAgenda(){
-  const seg=`<div class="seg" role="group" aria-label="Agenda"><button data-ag="cal" aria-pressed="${S.agView==='cal'}">Calendário</button><button data-ag="aniv" aria-pressed="${S.agView==='aniv'}">Aniversários</button><button data-ag="ferias" aria-pressed="${S.agView==='ferias'}">Férias</button><button data-ag="escola" aria-pressed="${S.agView==='escola'}">Férias escolares</button><button data-ag="testes" aria-pressed="${S.agView==='testes'}">Testes</button></div>`;
+  const seg=`<div class="seg" role="group" aria-label="Agenda"><button data-ag="cal" aria-pressed="${S.agView==='cal'}">Calendário</button><button data-ag="aniv" aria-pressed="${S.agView==='aniv'}">Aniversários</button><button data-ag="ferias" aria-pressed="${S.agView==='ferias'}">Férias</button><button data-ag="escola" aria-pressed="${S.agView==='escola'}">Férias escolares</button><button data-ag="edu" aria-pressed="${S.agView==='edu'||S.agView==='testes'}">Educação</button></div>`;
   if(S.agView==='aniv')return viewBirthdays(seg);
   if(S.agView==='escola')return viewSchoolBreaks(seg);
-  if(S.agView==='testes')return viewTests(seg);
+  if(S.agView==='testes'||S.agView==='edu')return viewEdu(seg);
   if(S.agView==='ferias')return viewVacations(seg);
   return viewCalendar(seg);
 }
@@ -804,7 +805,7 @@ function familyForm(){
 }
 function exportData(){
   const out={app:'quadro-familia',version:1,exportedAt:new Date().toISOString(),config:{family:{members:S.members},prize:S.prize||null},profile:S.me||null};
-  ['events','reminders','tasks','recipes','birthdays','vacations','shopHistory','schoolBreaks','tests'].forEach(c=>{out[c]=S[c]});out.config.shopLists=S.shopLists||[];
+  ['events','reminders','tasks','recipes','birthdays','vacations','shopHistory','schoolBreaks','tests','edu'].forEach(c=>{out[c]=S[c]});out.config.shopLists=S.shopLists||[];
   out.meals=Object.values(S.meals);
   const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='quadro-familia-'+TODAY+'.json';
@@ -815,7 +816,7 @@ async function importData(j){
   if(!S.db){toast('Configura o Firebase antes de importar.');return}
   toast('A importar…');let n=0,fail=0;
   const put=async(path,data)=>{try{await S.db.doc(path).set(data);n++}catch(e){fail++}};
-  for(const c of ['events','reminders','tasks','recipes','birthdays','vacations','meals','shopHistory','schoolBreaks','tests']){
+  for(const c of ['events','reminders','tasks','recipes','birthdays','vacations','meals','shopHistory','schoolBreaks','tests','edu']){
     for(const row of (Array.isArray(j[c])?j[c]:[])){
       if(!row||!row.id)continue;const {id,...data}=row;
       await put(c+'/'+String(id).replace(/\//g,'_'),data);
@@ -891,6 +892,7 @@ const NAV_ICONS={
   rotinas:['#A855F7','<path d="M5 7l2 2 3-3M5 14l2 2 3-3M13 8h6M13 15h6"/>'],
   compras:['#F97316','<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'],
   avisos:['#EF4444','<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'],
+  educacao:['#0EA5E9','<path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3V11M21.5 9v5"/>'],
   relogio:['#F43F5E','<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M5 4 2.5 6.5M19 4l2.5 2.5"/>'],
   moldura:['#10B981','<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="9" r="1.5"/>']};
 function navBar(){
@@ -898,7 +900,7 @@ function navBar(){
     return `<button data-wv="${k}" aria-pressed="${S.wallView===k}"><span class="ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span><span class="lb">${l}</span></button>`}).join('')}
     <button data-wset><span class="ic" style="--ic:#64748B">${GEAR}</span><span class="lb">Configuração</span></button>
     <button data-wexit><span class="ic" style="--ic:#78716C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg></span><span class="lb">Sair</span></button></div></nav>`}
-const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['relogio','Alarmes'],['moldura','Moldura']];
+const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['educacao','Educação'],['relogio','Alarmes'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
 function curPart(){const h=new Date().getHours();return h<12?'manha':h<19?'tarde':'noite'}
 function addMin(hm,n){const[h,m]=hm.split(':').map(Number);const t=Math.min(23*60+59,h*60+m+n);return pad(Math.floor(t/60))+':'+pad(t%60)}
@@ -925,7 +927,7 @@ function wallLabel(){
   return `${rel(d)}<small>${d===TODAY?niceDate(d):'Toca em Hoje para voltar'}</small>`;
 }
 function wallHead(){
-  const nav=!['rotinas','compras','avisos','inicio','relogio'].includes(S.wallView);
+  const nav=!['rotinas','compras','avisos','inicio','relogio','educacao'].includes(S.wallView);
   const n=new Date();
   return `<div class="fd-top"><div class="fd-clock" id="wClock">${nowHM()}</div>
     ${wxNow()}<div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
@@ -1042,7 +1044,7 @@ function wallWeek(){
 }
 function renderWall(){
   S.lastHM=nowHM();const v=S.wallView;document.body.dataset.v=v;
-  const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts,relogio:wallClock}[v]||(()=>wallDay(S.wallDate));
+  const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts,relogio:wallClock,educacao:()=>viewEdu('',true)}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
   const ytFocus=document.activeElement&&['yt-q','r-q','tm-name'].includes(document.activeElement.id)&&document.activeElement.id;
   let html;
@@ -1342,7 +1344,7 @@ document.addEventListener('click',e=>{
   if(t.id==='btnFamily'){configHub();return}
   if(S.readOnly&&(d.new||d.toggleRem||d.toggleTask||d.clear)){toast('Estás em modo de leitura.');return}
   if(d.new){({event:eventForm,reminder:reminderForm,task:taskForm,recipe:recipeForm,birthday:birthdayForm,vacation:vacationForm,break:breakForm,test:testForm})[d.new]();return}
-  if(d.editEvent){if(d.editEvent.startsWith('test:')){testForm(S.tests.find(x=>x.id===d.editEvent.slice(5)));return}eventForm(S.events.find(x=>x.id===d.editEvent));return}
+  if(d.editEvent){if(d.editEvent.startsWith('test:')){testForm(S.tests.find(x=>x.id===d.editEvent.slice(5)));return}if(d.editEvent.startsWith('edu:')){const x=S.edu.find(y=>y.id===d.editEvent.slice(4));if(x)eduForm(x.type,x);return}eventForm(S.events.find(x=>x.id===d.editEvent));return}
   if(d.editTest){testForm(S.tests.find(x=>x.id===d.editTest));return}
   if(d.editRem){reminderForm(S.reminders.find(x=>x.id===d.editRem));return}
   if(d.editTask){taskForm(S.tasks.find(x=>x.id===d.editTask));return}
@@ -1902,7 +1904,8 @@ function testForm(t){
   const st=students(),def=st[0]?st[0].id:(S.members[0]&&S.members[0].id);
   const isNew=!t;t=t||{who:[S.filter!=='all'&&typeof S.filter==='string'&&member(S.filter)?S.filter:def],subject:'',date:(()=>{if(S.sel&&S.sel>TODAY)return S.sel;const x=parse(TODAY);x.setDate(x.getDate()+7);return iso(x)})(),time:'',note:'',study:[3,1],studyTime:'18:00',eve:true,eveTime:'20:00',alarm:true};
   const who=whoList(t.who)[0]||def;
-  const f=sheet(isNew?'Novo teste':'Teste',`
+  const f=sheet(isNew?'Novo teste ou exame':tkind(t)[1],`
+    <label class="field"><span>Tipo</span><select name="kind">${Object.entries(TKIND).map(([k,v])=>`<option value="${k}" ${(t.kind||'teste')===k?'selected':''}>${v[0]} ${v[1]}</option>`).join('')}</select></label>
     <label class="field"><span>Aluno</span><select name="who" id="t-who">${(st.length?st:S.members).map(m=>`<option value="${m.id}" ${who===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>
     <label class="field"><span>Disciplina</span><input name="subject" id="t-subj" list="t-subjects" value="${esc(t.subject)}" placeholder="Ex.: Matemática" required><datalist id="t-subjects">${subjectsOf(who).map(s=>`<option value="${esc(s)}">`).join('')}</datalist></label>
     <div class="two"><label class="field"><span>Dia do teste</span><input type="date" name="date" value="${esc(t.date)}"></label>
@@ -1916,8 +1919,8 @@ function testForm(t){
     const date=val(f,'date');if(!date){toast('Escolhe o dia do teste');return false}
     const study=[...f.querySelectorAll('[data-sd][aria-pressed="true"]')].map(b=>+b.dataset.sd);
     const id=t.id||uid();
-    const nt={who:[val(f,'who')],subject,date,time:val(f,'time'),note:val(f,'note'),study,studyTime:val(f,'studyTime')||'18:00',eve:!!f.elements.eve.checked,eveTime:val(f,'eveTime')||'20:00',alarm:!!f.elements.alarm.checked};
-    save('tests',id,nt);syncTestReminders(id,nt);toast('Teste de '+subject+' marcado')},
+    const nt={kind:val(f,'kind')||'teste',who:[val(f,'who')],subject,date,time:val(f,'time'),note:val(f,'note'),study,studyTime:val(f,'studyTime')||'18:00',eve:!!f.elements.eve.checked,eveTime:val(f,'eveTime')||'20:00',alarm:!!f.elements.alarm.checked};
+    save('tests',id,nt);syncTestReminders(id,nt);toast(tkind(nt)[1]+' de '+subject+' marcado')},
    onDelete:isNew||S.readOnly?null:()=>{remove('tests',t.id);syncTestReminders(t.id,null)}});
   f.addEventListener('click',e=>{const b=e.target.closest('[data-sd]');if(b)b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'))});
   f.querySelector('#t-who').addEventListener('change',e=>{f.querySelector('#t-subjects').innerHTML=subjectsOf(e.target.value).map(s=>`<option value="${esc(s)}">`).join('')});
@@ -2063,3 +2066,96 @@ function urgentSheet(){
       if(b.dataset.urgsend==='gmail')window.open(url,'_blank','noopener');else location.href=url;
       closeSheet();toast('Email preparado para '+ids.map(id=>member(id).name).join(', '))}});
 }
+
+/* ---------- Educação (só estudantes) ---------- */
+function tkind(t){return TKIND[t.kind||'teste']||TKIND.teste}
+function eduOn(d){const out=[];(S.edu||[]).filter(x=>matches(x)).forEach(x=>{
+  if(x.type==='estudo'&&x.date===d)out.push({id:'edu:'+x.id,title:'✏️ Estudar '+(x.subject||x.title||''),date:d,time:x.time||'',who:x.who,place:'',note:x.dur?x.dur+' min':'',edu:true});
+  if(x.type==='evento'&&x.date===d)out.push({id:'edu:'+x.id,title:'⭐ '+x.title,date:d,time:x.time||'',who:x.who,place:x.place||'',note:x.note||'',edu:true});
+  if(x.type==='livro'&&x.due===d)out.push({id:'edu:'+x.id,title:'📚 Acabar o livro '+x.title,date:d,time:'',who:x.who,place:'',note:x.author||'',edu:true})});return out}
+function eduStudent(){const st=students();const f=S.eduWho&&st.find(m=>m.id===S.eduWho);return f?f.id:'all'}
+function eduMine(x){const w=eduStudent();return w==='all'?true:whoList(x.who).includes(w)}
+function eduProposals(){
+  const dis=new Set(lsJSON('fam.eduDis',[])),out=[],lim=parse(TODAY);lim.setDate(lim.getDate()+21);const L=iso(lim);
+  const has=(who,subj,d)=>(S.edu||[]).some(x=>x.type==='estudo'&&x.date===d&&whoList(x.who).includes(who)&&(x.subject||'').toLowerCase()===subj.toLowerCase());
+  (S.tests||[]).filter(t=>t.date>TODAY&&t.date<=L&&eduMine(t)).forEach(t=>{const who=whoList(t.who)[0],n=t.kind==='exame'?5:t.kind==='trabalho'?3:3,dur=t.kind==='exame'?60:45;
+    let k=0;for(let i=1;i<=n*2&&k<n;i++){const x=parse(t.date);x.setDate(x.getDate()-i);const d=iso(x);if(d<TODAY)break;if(dowMon(x)===6&&i>1)continue;
+      const key='p|'+t.id+'|'+d;k++;if(dis.has(key)||has(who,t.subject,d))continue;
+      out.push({key,who,subject:t.subject,date:d,time:t.studyTime||'18:00',dur,why:`${tkind(t)[1]} de ${t.subject}: ${niceDate(t.date)}`})}});
+  (S.edu||[]).filter(b=>b.type==='livro'&&b.due&&b.due>TODAY&&eduMine(b)&&(+b.pages||0)>(+b.read||0)).forEach(b=>{const days=daysTo(b.due),left=(+b.pages)-(+b.read||0),per=Math.ceil(left/Math.max(1,days));
+    const key='l|'+b.id+'|'+TODAY;if(dis.has(key))return;out.push({key,book:b.id,who:whoList(b.who)[0],subject:'Leitura · '+b.title,date:TODAY,time:'21:00',dur:20,per,days:Math.min(days,14),why:`Faltam ${left} páginas em ${days} dias: ${per} págs por dia`})});
+  return out.sort((a,b)=>a.date.localeCompare(b.date))}
+function acceptProposal(p){
+  if(p.book){for(let i=0;i<p.days;i++){const x=parse(TODAY);x.setDate(x.getDate()+i);addStudy({who:[p.who],subject:p.subject,date:iso(x),time:p.time,dur:p.dur,note:p.per+' páginas'})}}
+  else addStudy({who:[p.who],subject:p.subject,date:p.date,time:p.time,dur:p.dur,note:p.why});
+  dismissProposal(p.key)}
+function dismissProposal(k){const d=lsJSON('fam.eduDis',[]);d.push(k);lsSet('fam.eduDis',JSON.stringify(d.slice(-500)))}
+function addStudy(o){const id=uid();save('edu',id,{type:'estudo',done:false,...o});
+  if(o.time&&o.date>=TODAY)save('reminders',id+'-r',{text:(member(o.who[0])?member(o.who[0]).name+': ':'')+'estudar '+o.subject+(o.dur?' ('+o.dur+' min)':'')+(o.note?' · '+o.note:''),date:o.date,time:o.time,who:o.who,alarm:true,eduId:id,done:false})}
+function removeEdu(id){remove('edu',id);S.reminders.filter(r=>r.eduId===id).forEach(r=>remove('reminders',r.id))}
+function viewEdu(seg,wall){
+  const st=students(),w=eduStudent();
+  const chips=`<div class="who" style="flex-wrap:wrap">${st.length>1?`<button class="chip" data-eduwho="all" aria-pressed="${w==='all'}">Todos</button>`:''}${st.map(m=>`<button class="chip" data-eduwho="${m.id}" aria-pressed="${w===m.id||st.length===1}"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div>`;
+  if(!st.length)return `<section class="panel">${seg||''}<h2>Educação</h2><div class="empty">Ainda não há estudantes. Em Configuração → A família, marca quem é <b>Estudante</b>.</div></section>`;
+  const tests=(S.tests||[]).filter(t=>t.date>=TODAY&&eduMine(t)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const lim=parse(TODAY);lim.setDate(lim.getDate()+14);const L=iso(lim);
+  const study=(S.edu||[]).filter(x=>x.type==='estudo'&&x.date>=TODAY&&x.date<=L&&eduMine(x)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const books=(S.edu||[]).filter(x=>x.type==='livro'&&!x.finished&&eduMine(x));
+  const evs=(S.edu||[]).filter(x=>x.type==='evento'&&x.date>=TODAY&&eduMine(x)).sort((a,b)=>a.date.localeCompare(b.date));
+  const props=eduProposals();S._props=props;
+  const when=(d,t)=>{const n=daysTo(d);return (n===0?'Hoje':n===1?'Amanhã':niceDate(d))+(t?' · '+t:'')};
+  const card=(title,add,body)=>`<div class="edu-card"><div class="row" style="align-items:center"><h3>${title}</h3><span class="spacer"></span>${S.readOnly?'':add}</div>${body}</div>`;
+  return `<section class="panel edu">${seg||''}
+    <div class="row" style="align-items:center;flex-wrap:wrap;gap:10px"><h2 style="margin:0">Educação</h2><span class="spacer"></span>${chips}</div>
+    ${props.length?card(`💡 Propostas <small class="muted">(${props.length})</small>`,'<button class="ghost" data-propall>Aceitar todas</button>',`<div class="list">${props.slice(0,8).map((p,i)=>`<div class="item"><span class="time">${esc(p.time)}</span><span class="body"><span class="kind">${when(p.date)} · ${p.dur} min</span><div class="t">${p.book?'Ler '+p.per+' págs por dia':'Estudar '+esc(p.subject)}</div><div class="sub">${esc(p.why)}</div><div class="people">${peopleTags([p.who])}</div></span>
+      <span class="row" style="gap:6px"><button class="addbtn" data-propok="${i}">Pôr no calendário</button><button class="edit" data-propno="${i}" aria-label="Ignorar">✕</button></span></div>`).join('')}</div>`):''}
+    <div class="edu-grid">
+    ${card('📝 Testes e exames','<button class="addbtn" data-new="test">+ Marcar</button>',`<div class="list">${tests.map(t=>`<button class="item" data-edit-test="${t.id}"><span class="time">${daysTo(t.date)===0?'Hoje':daysTo(t.date)===1?'Amanhã':daysTo(t.date)+' dias'}</span><span class="body"><span class="kind">${tkind(t)[0]} ${tkind(t)[1]} · ${when(t.date,t.time)}</span><div class="t">${esc(t.subject)}</div>${t.note?`<div class="sub">${esc(t.note)}</div>`:''}<div class="people">${peopleTags(t.who)}</div></span></button>`).join('')||'<div class="empty">Sem testes nem exames marcados.</div>'}</div>`)}
+    ${card('✏️ Estudo (próximas 2 semanas)','<button class="addbtn" data-edunew="estudo">+ Sessão</button>',`<div class="list">${study.map(x=>`<div class="item ${x.done?'done':''}"><button class="check" role="checkbox" aria-checked="${!!x.done}" data-edudone="${x.id}" aria-label="Feito"></button><span class="body"><span class="kind">${when(x.date,x.time)}${x.dur?' · '+x.dur+' min':''}</span><div class="t">${esc(x.subject||x.title||'')}</div>${x.note?`<div class="sub">${esc(x.note)}</div>`:''}<div class="people">${peopleTags(x.who)}</div></span><button class="edit" data-eduedit="${x.id}">Editar</button></div>`).join('')||'<div class="empty">Sem sessões de estudo. Usa as propostas ou + Sessão.</div>'}</div>`)}
+    ${card('📚 Livros','<button class="addbtn" data-edunew="livro">+ Livro</button>',`<div class="list">${books.map(b=>{const pct=b.pages?Math.min(100,Math.round((+b.read||0)/(+b.pages)*100)):0;return `<div class="item"><span class="body"><span class="kind">${b.due?'Acabar até '+niceDate(b.due):'Sem prazo'}${b.author?' · '+esc(b.author):''}</span><div class="t">${esc(b.title)}</div>
+      ${b.pages?`<div class="edu-bar"><i style="width:${pct}%"></i></div><div class="sub">${+b.read||0} de ${b.pages} páginas (${pct}%)</div>`:''}<div class="people">${peopleTags(b.who)}</div></span>
+      <span class="row" style="gap:6px;flex-wrap:wrap">${b.pages?`<button class="ghost" data-edupg="${b.id}|10">+10 págs</button>`:''}<button class="edit" data-eduedit="${b.id}">Editar</button></span></div>`}).join('')||'<div class="empty">Sem livros para ler.</div>'}</div>`)}
+    ${card('⭐ Eventos especiais','<button class="addbtn" data-edunew="evento">+ Evento</button>',`<div class="list">${evs.map(x=>`<button class="item" data-eduedit="${x.id}"><span class="time">${daysTo(x.date)===0?'Hoje':daysTo(x.date)===1?'Amanhã':daysTo(x.date)+' dias'}</span><span class="body"><span class="kind">${when(x.date,x.time)}${x.place?' · '+esc(x.place):''}</span><div class="t">${esc(x.title)}</div>${x.note?`<div class="sub">${esc(x.note)}</div>`:''}<div class="people">${peopleTags(x.who)}</div></span></button>`).join('')||'<div class="empty">Visitas de estudo, apresentações, reuniões de pais, festas da escola…</div>'}</div>`)}
+    </div></section>`}
+function eduForm(type,x){
+  const st=students(),w=eduStudent(),def=w!=='all'?w:(st[0]&&st[0].id);
+  x=x||{type,who:[def],date:TODAY,time:type==='estudo'?'18:00':'',dur:45};type=x.type;
+  const who=whoList(x.who)[0]||def;
+  const sel=`<label class="field"><span>Aluno</span><select name="who" id="e-who">${st.map(m=>`<option value="${m.id}" ${who===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>`;
+  const titles={estudo:'Sessão de estudo',livro:'Livro',evento:'Evento especial'};
+  let inner=sel;
+  if(type==='estudo')inner+=`<label class="field"><span>Disciplina</span><input name="subject" list="e-subj" value="${esc(x.subject||'')}" placeholder="Ex.: Matemática"><datalist id="e-subj">${subjectsOf(who).map(s=>`<option value="${esc(s)}">`).join('')}</datalist></label>
+    <div class="two"><label class="field"><span>Dia</span><input type="date" name="date" value="${esc(x.date||TODAY)}"></label><label class="field"><span>Hora</span><input type="time" name="time" value="${esc(x.time||'18:00')}"></label></div>
+    <div class="two"><label class="field"><span>Duração (min)</span><input type="number" name="dur" min="5" max="240" value="${esc(x.dur||45)}"></label><label class="field"><span>Notas</span><input name="note" value="${esc(x.note||'')}" placeholder="Ex.: exercícios págs. 40–45"></label></div>`;
+  if(type==='livro')inner+=`<label class="field"><span>Título</span><input name="title" value="${esc(x.title||'')}" placeholder="Ex.: O Principezinho"></label>
+    <label class="field"><span>Autor</span><input name="author" value="${esc(x.author||'')}"></label>
+    <div class="two"><label class="field"><span>Acabar até</span><input type="date" name="due" value="${esc(x.due||'')}"></label><label class="field"><span>Páginas</span><input type="number" name="pages" min="0" value="${esc(x.pages||'')}"></label></div>
+    <div class="two"><label class="field"><span>Páginas lidas</span><input type="number" name="read" min="0" value="${esc(x.read||0)}"></label><label class="prof-chk"><input type="checkbox" name="finished" ${x.finished?'checked':''}> Já acabou</label></div>`;
+  if(type==='evento')inner+=`<label class="field"><span>O quê</span><input name="title" value="${esc(x.title||'')}" placeholder="Ex.: Visita de estudo ao Oceanário"></label>
+    <div class="two"><label class="field"><span>Dia</span><input type="date" name="date" value="${esc(x.date||TODAY)}"></label><label class="field"><span>Hora</span><input type="time" name="time" value="${esc(x.time||'')}"></label></div>
+    <label class="field"><span>Onde</span><input name="place" value="${esc(x.place||'')}"></label>
+    <label class="field"><span>Levar / notas</span><input name="note" value="${esc(x.note||'')}" placeholder="Ex.: lanche, autorização assinada, 5 €"></label>
+    <label class="prof-chk"><input type="checkbox" name="eve" ${x.eve!==false?'checked':''}> Aviso na véspera às 20:00</label>`;
+  sheet(x.id?titles[type]:'Novo: '+titles[type].toLowerCase(),inner,{onSave:f=>{
+    const o={type,who:[val(f,'who')]};
+    if(type==='estudo'){o.subject=val(f,'subject');if(!o.subject){toast('Escreve a disciplina');return false}Object.assign(o,{date:val(f,'date')||TODAY,time:val(f,'time'),dur:+val(f,'dur')||45,note:val(f,'note'),done:!!x.done})}
+    if(type==='livro'){o.title=val(f,'title');if(!o.title){toast('Escreve o título');return false}Object.assign(o,{author:val(f,'author'),due:val(f,'due'),pages:+val(f,'pages')||0,read:+val(f,'read')||0,finished:!!f.elements.finished.checked})}
+    if(type==='evento'){o.title=val(f,'title');if(!o.title){toast('Escreve o evento');return false}Object.assign(o,{date:val(f,'date')||TODAY,time:val(f,'time'),place:val(f,'place'),note:val(f,'note'),eve:!!f.elements.eve.checked})}
+    if(x.id){save('edu',x.id,o);S.reminders.filter(r=>r.eduId===x.id).forEach(r=>remove('reminders',r.id))}
+    const id=x.id||uid();if(!x.id)save('edu',id,o);
+    const nm=member(o.who[0])?member(o.who[0]).name+': ':'';
+    if(type==='estudo'&&o.time&&o.date>=TODAY)save('reminders',id+'-r',{text:nm+'estudar '+o.subject+' ('+o.dur+' min)'+(o.note?' · '+o.note:''),date:o.date,time:o.time,who:o.who,alarm:true,eduId:id,done:false});
+    if(type==='evento'&&o.eve){const v=parse(o.date);v.setDate(v.getDate()-1);if(iso(v)>=TODAY)save('reminders',id+'-eve',{text:nm+'amanhã: '+o.title+(o.place?' ('+o.place+')':'')+(o.note?' · levar: '+o.note:''),date:iso(v),time:'20:00',who:o.who,alarm:true,eduId:id,done:false})}
+    toast('Guardado')},onDelete:x.id&&!S.readOnly?()=>removeEdu(x.id):null});
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-eduwho],[data-edunew],[data-eduedit],[data-edudone],[data-edupg],[data-propok],[data-propno],[data-propall]');if(!b)return;const d=b.dataset;
+  const rr=()=>{S.wall?renderWall():render()};
+  if(d.eduwho){S.eduWho=d.eduwho;rr();return}
+  if(d.edunew){eduForm(d.edunew);return}
+  if(d.eduedit){const x=(S.edu||[]).find(y=>y.id===d.eduedit);if(x)eduForm(x.type,x);return}
+  if(d.edudone){const x=(S.edu||[]).find(y=>y.id===d.edudone);if(x){const{id,...r}=x;save('edu',id,{...r,done:!x.done})}return}
+  if(d.edupg){const[id,n]=d.edupg.split('|'),x=(S.edu||[]).find(y=>y.id===id);if(x){const{id:_,...r}=x;const read=Math.min(+x.pages||1e9,(+x.read||0)+(+n));save('edu',id,{...r,read,finished:x.pages&&read>=x.pages});if(x.pages&&read>=x.pages)toast('Livro acabado! 🎉')}return}
+  if(d.propok){const p=(S._props||[])[+d.propok];if(p){acceptProposal(p);toast('Posto no calendário');setTimeout(rr,300)}return}
+  if(d.propno){const p=(S._props||[])[+d.propno];if(p){dismissProposal(p.key);rr()}return}
+  if(d.propall!==undefined){(S._props||[]).forEach(acceptProposal);toast('Propostas postas no calendário');setTimeout(rr,300);return}
+});
