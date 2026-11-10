@@ -86,6 +86,7 @@ function handleWriteError(e){
   db.doc('config/gonly').onSnapshot(s=>{const d=s.exists?s.data():{};S.gOnly=!!d.on;S.famCal=d.famCal||'';render()},()=>{});
   db.doc('config/youversion').onSnapshot(s=>{S.yv=s.exists?s.data():{};votdLoad(false)},()=>{});
   db.doc('config/frame').onSnapshot(s=>{S.fw=s.exists?s.data():{};if(S.wall)renderWall()},()=>{});
+  db.doc('config/shelly').onSnapshot(s=>{S.shelly=s.exists?s.data():{};if(S.wall&&S.wallView==='casa')renderWall()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -907,6 +908,7 @@ const NAV_ICONS={
   rotinas:['#A855F7','<path d="M5 7l2 2 3-3M5 14l2 2 3-3M13 8h6M13 15h6"/>'],
   compras:['#F97316','<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'],
   avisos:['#EF4444','<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'],
+  casa:['#F59E0B','<path d="M4 11.5 12 5l8 6.5V20H4z"/><path d="M12 13.5a2 2 0 1 1 0 .01M12 16v2"/>'],
   educacao:['#0EA5E9','<path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3V11M21.5 9v5"/>'],
   relogio:['#F43F5E','<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M5 4 2.5 6.5M19 4l2.5 2.5"/>'],
   moldura:['#10B981','<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="9" r="1.5"/>']};
@@ -915,7 +917,7 @@ function navBar(){
     return `<button data-wv="${k}" aria-pressed="${S.wallView===k}"><span class="ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span><span class="lb">${l}</span></button>`}).join('')}
     <button data-wset><span class="ic" style="--ic:#64748B">${GEAR}</span><span class="lb">Configuração</span></button>
     <button data-wexit><span class="ic" style="--ic:#78716C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg></span><span class="lb">Sair</span></button></div></nav>`}
-const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['educacao','Educação'],['relogio','Alarmes'],['moldura','Moldura']];
+const LAYOUTS=[['inicio','Início'],['semana','Semana'],['hoje','Pessoas'],['linha','Linha'],['mes','Mês'],['rotinas','Rotinas'],['compras','Compras'],['avisos','Avisos'],['casa','Casa'],['educacao','Educação'],['relogio','Alarmes'],['moldura','Moldura']];
 const PARTS=[['manha','Manhã'],['tarde','Tarde'],['noite','Noite'],['tudo','Tudo']];
 function curPart(){const h=new Date().getHours();return h<12?'manha':h<19?'tarde':'noite'}
 function addMin(hm,n){const[h,m]=hm.split(':').map(Number);const t=Math.min(23*60+59,h*60+m+n);return pad(Math.floor(t/60))+':'+pad(t%60)}
@@ -942,7 +944,7 @@ function wallLabel(){
   return `${rel(d)}<small>${d===TODAY?niceDate(d):'Toca em Hoje para voltar'}</small>`;
 }
 function wallHead(){
-  const nav=!['rotinas','compras','avisos','inicio','relogio','educacao'].includes(S.wallView);
+  const nav=!['rotinas','compras','avisos','inicio','relogio','educacao','casa'].includes(S.wallView);
   const n=new Date();
   return `<div class="fd-top"><div class="fd-clock" id="wClock">${nowHM()}</div>
     ${wxNow()}<div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
@@ -1059,7 +1061,7 @@ function wallWeek(){
 }
 function renderWall(){
   S.lastHM=nowHM();const v=S.wallView;document.body.dataset.v=v;
-  const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts,relogio:wallClock,educacao:()=>viewEdu('',true)}[v]||(()=>wallDay(S.wallDate));
+  const body={inicio:wallHome,hoje:()=>wallDay(S.wallDate),semana:wallWeek,mes:wallMonth,linha:wallLine,rotinas:wallRoutines,compras:wallShopping,avisos:wallAlerts,relogio:wallClock,educacao:()=>viewEdu('',true),casa:wallCasa}[v]||(()=>wallDay(S.wallDate));
   const fab=S.readOnly?'':`<button class="w-fab" data-quickadd aria-label="Adicionar">+</button>`;
   const ytFocus=document.activeElement&&['yt-q','r-q','tm-name'].includes(document.activeElement.id)&&document.activeElement.id;
   let html;
@@ -1888,6 +1890,7 @@ function configHub(){
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
     ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
+    ${it('data-shcfg','🏠','Casa (Shelly)','Luzes, tomadas, estores e sensores'+(shCfg().key?' · ligado':''))}
     ${it('data-cfg="moldura"','🖼︎','Moldura','Ligar e desligar widgets, fotografias, versículo do dia')}
     ${it('data-cfg="escola"','🎒︎','Férias escolares','Períodos sem aulas')}
     ${it('data-migrate','🔄','Só calendários do Google',gOnly()?'Ativo · calendário Família e de cada pessoa':'Passar tudo do Quadro para o Google')}
@@ -2382,3 +2385,79 @@ function frameSheet(){
   f.addEventListener('click',e=>{const b=e.target.closest('[data-fcfg]');if(!b)return;const k=b.dataset.fcfg;
     if(k==='votd')yvSheet();else if(k==='fotos')wallSettings();else if(k==='tempo')wxSheet();else if(k==='pos'){lsSet('fam.wpos','{}');toast('Widgets repostos');if(S.wall)renderWall()}});
 }
+
+/* ---------- Casa: Shelly Cloud ---------- */
+var SH={st:null,at:0,busy:false,err:'',poll:null};
+function shCfg(){return S.shelly||{}}
+function shHost(){let h=(shCfg().host||'').trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');return h}
+async function shPost(path,params){const c=shCfg();if(!c.key||!shHost())throw new Error('Falta configurar a Shelly Cloud');
+  const body=new URLSearchParams({...params,auth_key:c.key});
+  let r;try{r=await fetch('https://'+shHost()+path,{method:'POST',body})}catch(e){const er=new Error('A Shelly Cloud não respondeu a este browser.');er.net=true;throw er}
+  let j=null;try{j=await r.json()}catch(e){}
+  if(!r.ok||(j&&j.isok===false)){const m=j&&j.errors?Object.values(j.errors).join(', '):('erro '+r.status);throw new Error(m)}
+  return j&&j.data!==undefined?j.data:j}
+async function shRefresh(force){if(SH.busy||(!force&&Date.now()-SH.at<8000))return;SH.busy=true;
+  try{const d=await shPost('/device/all_status',{});SH.st=(d&&d.devices_status)||{};SH.at=Date.now();SH.err=''}catch(e){SH.err=e.message}
+  SH.busy=false;if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall();else if(!S.wall&&S.tab==='casa')render()}
+// lê o estado de um canal (Gen1 e Gen2)
+function shState(dev){const s=SH.st&&SH.st[dev.id];if(!s)return null;const ch=+dev.channel||0;const o={online:s._dev_info?s._dev_info.online!==false:true};
+  if(dev.type==='switch'){const g2=s['switch:'+ch];if(g2){o.on=!!g2.output;o.w=g2.apower}else if(s.relays&&s.relays[ch]){o.on=!!s.relays[ch].ison;o.w=s.meters&&s.meters[ch]?s.meters[ch].power:undefined}}
+  if(dev.type==='cover'){const g2=s['cover:'+ch];if(g2){o.state=g2.state;o.pos=g2.current_pos}else if(s.rollers&&s.rollers[ch]){o.state=s.rollers[ch].state;o.pos=s.rollers[ch].current_pos}}
+  if(dev.type==='sensor'){const t=s['temperature:0']||s.tmp||(s.temperature!=null?{tC:s.temperature}:null);if(t)o.t=t.tC!=null?t.tC:t.value;
+    const h=s['humidity:0']||s.hum;if(h)o.h=h.rh!=null?h.rh:h.value;
+    const dw=s['window:0']||s.sensor;if(dw)o.open=dw.open!=null?dw.open:(dw.state==='open');
+    const b=s['devicepower:0']||s.bat;if(b)o.bat=b.battery?b.battery.percent:b.value;
+    const em=s['em:0']||s['em1:0']||s['pm1:0'];if(em)o.w=em.total_act_power!=null?em.total_act_power:em.act_power!=null?em.act_power:em.apower}
+  return o}
+function shDiscover(st){const out=[];Object.entries(st||{}).forEach(([id,s])=>{
+  const sw=Object.keys(s).filter(k=>/^switch:\d+$/.test(k));sw.forEach(k=>out.push({id,channel:+k.split(':')[1],type:'switch'}));
+  if(!sw.length&&Array.isArray(s.relays)&&!(Array.isArray(s.rollers)&&s.rollers.length&&s.mode==='roller'))s.relays.forEach((r,i)=>out.push({id,channel:i,type:'switch'}));
+  Object.keys(s).filter(k=>/^cover:\d+$/.test(k)).forEach(k=>out.push({id,channel:+k.split(':')[1],type:'cover'}));
+  if(Array.isArray(s.rollers)&&(s.mode==='roller'||!s.relays))s.rollers.forEach((r,i)=>out.push({id,channel:i,type:'cover'}));
+  if(s['temperature:0']||s.tmp||s['humidity:0']||s.hum||s['window:0']||(s.sensor&&s.sensor.state!=null)||s['em:0']||s['em1:0'])out.push({id,channel:0,type:'sensor'});
+});return out}
+async function shSwitch(dev,on){try{await shPost('/device/relay/control',{id:dev.id,channel:String(+dev.channel||0),turn:on?'on':'off'});setTimeout(()=>shRefresh(true),900)}catch(e){toast(e.message)}}
+async function shCover(dev,dir,pos){try{if(pos!=null)await shPost('/device/relay/roller/settings/topos',{id:dev.id,channel:String(+dev.channel||0),pos:String(pos)});else await shPost('/device/relay/roller/control',{id:dev.id,channel:String(+dev.channel||0),direction:dir});setTimeout(()=>shRefresh(true),1500)}catch(e){toast(e.message)}}
+function shKey(d){return d.id+'|'+d.type+'|'+(+d.channel||0)}
+function wallCasa(){
+  const c=shCfg(),devs=(c.devices||[]).filter(d=>d.on!==false);
+  if(!c.key||!shHost())return `<section class="casa"><div class="w-card" style="padding:20px"><h3 style="margin-top:0">🏠 Casa</h3><p>Liga a tua conta Shelly para controlar luzes, tomadas e estores e ver os sensores.</p><button class="addbtn" data-shcfg>Ligar Shelly Cloud</button></div></section>`;
+  if(!SH.poll){SH.poll=setInterval(()=>{if((S.wall&&S.wallView==='casa')||(!S.wall&&S.tab==='casa'))shRefresh(false);else{clearInterval(SH.poll);SH.poll=null}},10000)}
+  if(!SH.st&&!SH.busy&&!SH.err)shRefresh(true);
+  const rooms={};devs.forEach(d=>{(rooms[d.room||'Casa']=rooms[d.room||'Casa']||[]).push(d)});
+  const tile=d=>{const s=shState(d);const nm=esc(d.name||d.id);const off=s&&s.online===false;
+    if(d.type==='switch')return `<button class="sh-tile sh-sw${s&&s.on?' on':''}${off?' offline':''}" data-shsw="${esc(shKey(d))}" aria-pressed="${!!(s&&s.on)}"><span class="sh-ic">${s&&s.on?'💡':'⚪'}</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':(s.on?'Ligado':'Desligado')+(s.w!=null&&s.w>0?' · '+Math.round(s.w)+' W':'')}</small></button>`;
+    if(d.type==='cover')return `<div class="sh-tile sh-cv${off?' offline':''}"><span class="sh-ic">🪟</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':(s.state==='open'||s.state==='opening'?'A subir':s.state==='close'||s.state==='closing'?'A descer':'Parado')+(s.pos!=null?' · '+s.pos+'%':'')}</small>
+      <div class="sh-cvb"><button data-shcv="${esc(shKey(d))}|open" aria-label="Subir">▲</button><button data-shcv="${esc(shKey(d))}|stop" aria-label="Parar">■</button><button data-shcv="${esc(shKey(d))}|close" aria-label="Descer">▼</button></div>
+      ${s&&s.pos!=null?`<input type="range" min="0" max="100" step="10" value="${s.pos}" data-shpos="${esc(shKey(d))}" aria-label="Posição">`:''}</div>`;
+    return `<div class="sh-tile sh-sn${off?' offline':''}"><span class="sh-ic">${s&&s.open!=null?(s.open?'🚪':'🔒'):s&&s.w!=null?'⚡':'🌡️'}</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':[s.t!=null?Math.round(s.t*10)/10+' °C':'',s.h!=null?Math.round(s.h)+'%':'',s.open!=null?(s.open?'Aberta':'Fechada'):'',s.w!=null?Math.round(s.w)+' W':'',s.bat!=null?'🔋'+s.bat+'%':''].filter(Boolean).join(' · ')||'—'}</small></div>`};
+  return `<section class="casa">${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin-bottom:12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
+    ${devs.length?Object.entries(rooms).map(([r,ds])=>`<h3 class="sh-room">${esc(r)}</h3><div class="sh-grid">${ds.map(tile).join('')}</div>`).join(''):'<div class="w-card" style="padding:20px">Ainda não escolheste dispositivos. <button class="addbtn" data-shcfg>Escolher dispositivos</button></div>'}
+    <p class="small muted" style="margin-top:14px">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5)+' · ':''}<button class="edit" data-shcfg>Configurar</button></p></section>`}
+function shSheet(){const c=shCfg();let found=null;
+  const devRows=list=>list.map((d,i)=>{const cur=(c.devices||[]).find(x=>shKey(x)===shKey(d))||{};return `<div class="sh-row"><label class="prof-chk"><input type="checkbox" name="on_${i}" ${cur.on!==false&&(cur.id||!c.devices)?'checked':''}></label>
+    <span class="sh-ty">${d.type==='switch'?'💡':d.type==='cover'?'🪟':'🌡️'}</span><input name="nm_${i}" value="${esc(cur.name||'')}" placeholder="${esc(d.id)}${d.channel?' · canal '+d.channel:''}" style="flex:2;min-width:120px"><input name="rm_${i}" value="${esc(cur.room||'')}" placeholder="Divisão" list="sh-rooms" style="flex:1;min-width:90px"></div>`}).join('');
+  const f=sheet('Casa · Shelly Cloud',`
+    <p class="muted small" style="margin:0">Na app <b>Shelly Smart Control</b>: <b>Definições do utilizador → Chave de autorização na cloud</b> → <b>Obter chave</b>. Copia o <b>servidor</b> (ex.: shelly-123-eu.shelly.cloud) e a <b>chave</b>.</p>
+    <label class="field"><span>Servidor</span><input name="host" value="${esc(c.host||'')}" placeholder="shelly-123-eu.shelly.cloud" spellcheck="false"></label>
+    <label class="field"><span>Chave de autorização</span><input name="key" value="${esc(c.key||'')}" placeholder="Cola aqui a chave" autocomplete="off" spellcheck="false"></label>
+    <div class="field"><span>Dispositivos</span><button type="button" class="ghost" data-shfind>Procurar dispositivos</button><div id="sh-list" class="sh-list">${c.devices&&c.devices.length?devRows(c.devices):''}</div>
+      <datalist id="sh-rooms">${['Sala','Cozinha','Quarto','Escritório','Casa de banho','Entrada','Garagem','Jardim','Exterior'].map(x=>`<option value="${x}">`).join('')}</datalist></div>
+    <div id="sh-msg" class="small muted"></div>`,
+  {saveLabel:'Guardar',onSave:f=>{const list=found||c.devices||[];const devices=list.map((d,i)=>({id:d.id,channel:+d.channel||0,type:d.type,name:val(f,'nm_'+i),room:val(f,'rm_'+i),on:!!(f.elements['on_'+i]&&f.elements['on_'+i].checked)}));
+    const nc={host:val(f,'host').replace(/^https?:\/\//,'').replace(/\/.*$/,''),key:val(f,'key'),devices};S.shelly=nc;SH.st=null;SH.err='';if(S.db)S.db.doc('config/shelly').set(nc).catch(handleWriteError);toast('Casa configurada');if(S.wall){S.wallView='casa';lsSet('fam.wallView','casa');renderWall()}}});
+  f.querySelector('[data-shfind]').addEventListener('click',async()=>{const msg=f.querySelector('#sh-msg');const old=S.shelly;S.shelly={...(old||{}),host:val(f,'host'),key:val(f,'key')};msg.textContent='A procurar…';
+    try{const d=await shPost('/device/all_status',{});SH.st=d.devices_status||{};found=shDiscover(SH.st);
+      f.querySelector('#sh-list').innerHTML=found.length?devRows(found):'<p class="muted small">Não encontrei dispositivos nesta conta.</p>';
+      msg.textContent=found.length+' encontrados. Dá um nome e uma divisão a cada um e carrega em Guardar.'}
+    catch(e){msg.textContent=e.net?'A Shelly Cloud não respondeu ao browser. Confirma o servidor; se estiver certo, ela pode estar a bloquear pedidos de páginas web — diz-me e eu monto um intermediário.':'Erro: '+e.message}
+    finally{S.shelly=old}});
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[data-shre],[data-shsw],[data-shcv]');if(!b)return;const d=b.dataset;
+  const find=k=>(shCfg().devices||[]).find(x=>shKey(x)===k);
+  if(d.shcfg!==undefined){shSheet();return}
+  if(d.shre!==undefined){shRefresh(true);return}
+  if(d.shsw){const dev=find(d.shsw);if(!dev)return;const s=shState(dev);const on=!(s&&s.on);b.classList.toggle('on',on);shSwitch(dev,on);return}
+  if(d.shcv){const p=d.shcv.split('|'),dir=p.pop(),dev=find(p.join('|'));if(dev)shCover(dev,dir);return}
+});
+document.addEventListener('change',e=>{const r=e.target.closest('[data-shpos]');if(!r)return;const dev=(shCfg().devices||[]).find(x=>shKey(x)===r.dataset.shpos);if(dev)shCover(dev,null,+r.value)});

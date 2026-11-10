@@ -686,3 +686,22 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .login-alt{margin-top:14px;text-align:left}
 .login-alt summary{cursor:pointer;color:var(--muted);font-size:.9rem;min-height:40px}
 .relay-ok h1{color:var(--accent)}
+
+/* Casa (Shelly) */
+.casa{display:flex;flex-direction:column}
+.sh-room{margin:14px 0 8px;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.sh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.sh-tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:120px;padding:16px;border:0;border-radius:var(--r,18px);background:var(--surface);color:var(--fg);text-align:left;box-shadow:0 1px 2px rgb(0 0 0 / .04),0 4px 18px rgb(0 0 0 / .05)}
+.sh-tile b{font-size:1.05rem;font-weight:700;line-height:1.2}
+.sh-tile small{color:var(--muted);font-size:.85rem}
+.sh-ic{font-size:1.6rem;line-height:1}
+.sh-sw.on{background:#FEF3C7;box-shadow:inset 0 0 0 2px #F59E0B}
+.sh-sw.on small{color:#92400E}
+.sh-tile.offline{opacity:.5}
+.sh-cvb{display:flex;gap:6px;margin-top:auto;width:100%}
+.sh-cvb button{flex:1;min-height:44px;border:0;border-radius:12px;background:var(--sunk);color:var(--fg);font-size:1.1rem}
+.sh-cv input[type=range]{width:100%;min-height:0}
+.sh-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.sh-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sh-ty{font-size:1.2rem}
+@media (prefers-color-scheme:dark){.sh-sw.on{background:#3A2E0B}.sh-sw.on small{color:#FCD34D}}
