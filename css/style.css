@@ -619,3 +619,6 @@ body.wall-mode .sheet{max-width:min(500px,100vw);width:100%;height:100%;max-heig
 .fr-wd{min-width:max-content;white-space:nowrap}
 .fr-wx{flex:none}
 .fr-wx{font-size:16px;letter-spacing:normal;font-family:var(--body);font-weight:500;line-height:1.2}
+:root{--p6:#DB2777;--p7:#0891B2;--p8:#65A30D}
+.prof-cal{margin-top:2px}
+.prof-cal .ptag .edit{padding:0 4px;min-height:0;border:0;background:transparent}

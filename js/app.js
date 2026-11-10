@@ -775,7 +775,11 @@ function familyForm(){
     ${S.members.map((m,i)=>`<div class="prof"><div class="mem"><label class="prof-ph" title="Mudar fotografia" data-phm="${m.id}" style="--c:var(--${m.color})${m.photo?`;background-image:url('${m.photo}')`:''}">${m.photo?'':esc((m.name||'?').trim().charAt(0).toUpperCase())}<input type="file" accept="image/*" hidden data-phin="${m.id}"><span class="prof-cam" aria-hidden="true">📷︎</span></label><span class="field" style="flex:1"><input id="mem-${i}" name="m${i}" value="${esc(m.name)}" aria-label="Nome ${i+1}"></span></div>
       <div class="prof-row"><select name="k${i}" aria-label="Adulto ou criança">${[['adulto','Adulto'],['crianca','Criança']].map(([k,l])=>`<option value="${k}" ${(m.kind||'adulto')===k?'selected':''}>${l}</option>`).join('')}</select>
         <label class="prof-chk"><input type="checkbox" name="st${i}" ${m.student?'checked':''}> Estudante</label>
-        <select name="src${i}" aria-label="O que mostrar na agenda">${[['ambos','Agenda: Quadro + Google'],['quadro','Agenda: só Quadro'],['google','Agenda: só Google']].map(([k,l])=>`<option value="${k}" ${(m.src||'ambos')===k?'selected':''}>${l}</option>`).join('')}</select></div></div>`).join('')}
+        <button type="button" class="edit" data-memdel="${m.id}">Remover</button>
+        <select name="src${i}" aria-label="O que mostrar na agenda">${[['ambos','Agenda: Quadro + Google'],['quadro','Agenda: só Quadro'],['google','Agenda: só Google']].map(([k,l])=>`<option value="${k}" ${(m.src||'ambos')===k?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="prof-row prof-cal"><span class="small muted" style="flex-basis:100%">Calendários Google: ${memberCals(m.id).map(x=>`<span class="ptag" style="--c:var(--${m.color})">${esc(x.n)} <button type="button" class="edit" data-calunlink="${esc(x.id)}" aria-label="Desligar ${esc(x.n)}">×</button></span>`).join(' ')||'nenhum'}</span>
+        <input data-calin="${m.id}" placeholder="Email do Google Calendar de ${esc(m.name)}" inputmode="email" style="flex:1;min-width:200px"><button type="button" class="ghost" data-callink="${m.id}">Ligar calendário</button></div></div>`).join('')}
+    <button type="button" class="addbtn" data-memadd>+ Adicionar pessoa</button>
     <p class="muted small" style="margin:0">Toca no círculo de cada pessoa para pôr uma <b>fotografia</b>. ${S.members.some(m=>m.photo)?'<button type="button" class="edit" data-phclear>Tirar fotografias</button>':''}</p>
     <p class="muted small" style="margin:0"><b>Estudante:</b> recebe as férias escolares. <b>Criança:</b> entra no quadro das estrelas. <b>Agenda:</b> mostrar os eventos do Quadro, do Google ou ambos.</p>
     <div class="field"><span>Dados</span><div class="row" style="flex-wrap:wrap">
@@ -1847,7 +1851,7 @@ function configHub(){
   const u=window.famBackend&&window.famBackend.user;
   const it=(attr,ic,t,s)=>`<button type="button" class="cfg-it" ${attr}><span class="cfg-ic">${ic}</span><span style="flex:1;min-width:0"><b>${t}</b><small>${s}</small></span><span class="fd-chev">›</span></button>`;
   const f=sheet('Configuração',`<div class="cfg">
-    ${it('data-cfg="pessoas"','👪︎','Pessoas','Nomes, adulto/criança, estudante, agenda Quadro/Google')}
+    ${it('data-cfg="pessoas"','👪︎','A família','Pessoas, fotografias, adulto/criança, estudante, calendários Google')}
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
     ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
@@ -1965,3 +1969,21 @@ setInterval(()=>wxLoad(false),10*60000);
 function frameWx(big){const w=wxDay(TODAY),cur=WX&&WX.cur;if(!w&&!cur)return '';
   const ic=cur?wxIc(cur.c,!cur.day):wxIc(w.c),t=cur?cur.t:w.mx;
   return `<button class="fr-wx${big?' fr-big':''}" data-wxinfo><span class="wx-ic">${ic}</span><span class="fr-wt">${t}°</span><span class="fr-wd"><b>${esc(wxTxt(cur?cur.c:w.c))}</b>${w?`<span>${w.mx}° / ${w.mn}°${w.pp!=null?' · 💧'+w.pp+'%':''}</span><span>☀︎ ↑${w.sr} · ↓${w.ss}</span>`:''}</span></button>`}
+
+function memberCals(mid){const me=S.me||{},out=[];const cals=me.cals||{},cm=me.calMember||{},nm=me.calNames||{};
+  Object.keys(cals).filter(id=>cals[id]!=='off'&&((cm[id]||me.memberId)===mid)).forEach(id=>out.push({id,n:nm[id]||((me.extra||[]).find(x=>x.id===id)||{}).name||id.split('@')[0]}));return out}
+async function saveMyProfile(p){S.me=p;if(S.db&&S.uid){try{await S.db.doc('data/users/'+S.uid+'/profile').set(p)}catch(e){toast('Não foi possível guardar.');return false}}return true}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-memadd],[data-memdel],[data-callink],[data-calunlink]');if(!b)return;
+  if(b.dataset.memadd!==undefined){const n=S.members.reduce((a,m)=>Math.max(a,+String(m.id).replace(/\D/g,'')||0),0)+1;const cols=['p1','p2','p3','p4','p5','p6','p7','p8'];
+    const used=new Set(S.members.map(m=>m.color));const color=cols.find(x=>!used.has(x))||cols[n%cols.length];
+    await saveMembers([...S.members,{id:'m'+n,name:'Pessoa '+n,color,kind:'adulto',student:false,src:'ambos'}]);setTimeout(familyForm,150);toast('Pessoa adicionada. Escreve o nome e carrega em Guardar.');return}
+  if(b.dataset.memdel){if(S.members.length<=1)return;if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo';return}
+    await saveMembers(S.members.filter(m=>m.id!==b.dataset.memdel));setTimeout(familyForm,150);toast('Pessoa removida');return}
+  if(b.dataset.callink){const mid=b.dataset.callink,inp=document.querySelector(`[data-calin="${mid}"]`),id=(inp&&inp.value||'').trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)){toast('Escreve o email do calendário Google');return}
+    const me=S.me||{};if(!me.memberId){toast('Primeiro escolhe quem és em O meu Google Calendar.');googleSheet();return}
+    const p={...me,cals:{...(me.cals||{}),[id]:'show'},calMember:{...(me.calMember||{}),[id]:mid},calNames:{...(me.calNames||{}),[id]:member(mid).name},extra:[...(me.extra||[]).filter(x=>x.id!==id),{id,name:member(mid).name}],hidden:(me.hidden||[]).filter(x=>x!==id)};
+    if(await saveMyProfile(p)){toast('Calendário ligado a '+member(mid).name+'. A sincronizar…');allowGooglePrompt();S.gbusy=0;syncGoogle(p,true);setTimeout(familyForm,150)}return}
+  if(b.dataset.calunlink){const id=b.dataset.calunlink,me=S.me||{};const p={...me,cals:{...(me.cals||{}),[id]:'off'}};
+    if(await saveMyProfile(p)){toast('Calendário desligado');S.gbusy=0;syncGoogle(p,false);setTimeout(familyForm,150)}return}
+});
