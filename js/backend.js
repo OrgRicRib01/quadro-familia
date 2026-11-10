@@ -97,8 +97,9 @@ if (configured) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { showLogin('Escreve o teu email.'); return; }
     const id = rnd();
     try {
-      await setDoc(doc(fs, 'tvlinks/' + id), { email: em, at: Date.now() });
+      if (loginMsg) loginMsg.textContent = 'A enviar…';
       await sendSignInLinkToEmail(auth, em, { url: HOME + '?tvl=' + id, handleCodeInApp: true });
+      setDoc(doc(fs, 'tvlinks/' + id), { email: em, at: Date.now() }).catch(e => console.warn('tvlinks', e));
       lsSet('fam.linkEmail', em);
       showLogin('');
       if (loginMsg) loginMsg.innerHTML = `📧 Enviámos um email para <b>${em}</b>.<br>Abre-o no <b>telemóvel</b> e toca no link <b>“Sign in to …”</b>. Esta TV entra sozinha. O link vale 1 hora.`;
@@ -109,8 +110,13 @@ if (configured) {
             .catch(e => showLogin('O link expirou ou já foi usado. Pede um novo.')); }
       }, () => showLogin('Ainda não consigo esperar pelo link (falta ativar esta opção no Firebase).'));
     } catch (e) {
-      showLogin(e && e.code === 'auth/operation-not-allowed' ? 'A entrada por email ainda não está ativada no Firebase.'
-        : e && e.code === 'permission-denied' ? 'As regras do Firebase ainda não permitem esta entrada.' : 'Não foi possível enviar o email. Tenta de novo.');
+      console.warn('Link por email', e);
+      const code = (e && e.code) || '';
+      showLogin((code === 'auth/operation-not-allowed' ? 'A entrada por email ainda não está ativada no Firebase.'
+        : code === 'permission-denied' ? 'As regras do Firebase ainda não permitem esta entrada.'
+        : code === 'auth/unauthorized-continue-uri' || code === 'auth/invalid-continue-uri' ? 'O endereço do Quadro não está autorizado no Firebase.'
+        : code === 'auth/quota-exceeded' ? 'Foram pedidos demasiados emails hoje. Tenta amanhã.'
+        : 'Não foi possível enviar o email.') + (code ? ' (' + code + ')' : ''));
     }
   });
 
