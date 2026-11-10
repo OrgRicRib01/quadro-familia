@@ -129,7 +129,8 @@ function toEv(e,mode,cname){
   if(ed<d)ed=d;
   const busy=mode==='busy';
   const xp=e.extendedProperties&&e.extendedProperties.private||{};
-  return {q:String(xp.quadro||''),i:String(e.id||''),r:e.recurringEventId?String(e.recurringEventId):'',t:busy?'Ocupado':String(e.summary||'(sem título)').slice(0,120),d,e:ed,h,he:busy?'':he,p:busy?'':String(e.location||'').slice(0,80),c:busy?'':String(cname||'').slice(0,40)};
+  const dm=/(?:^|\n)\s*(?:Aluno|Aluna|Para|Pessoa)\s*:\s*([^\n<]+)/i.exec(String(e.description||''));
+  return {w:dm?dm[1].trim().slice(0,40):'',q:String(xp.quadro||''),i:String(e.id||''),r:e.recurringEventId?String(e.recurringEventId):'',t:busy?'Ocupado':String(e.summary||'(sem título)').slice(0,120),d,e:ed,h,he:busy?'':he,p:busy?'':String(e.location||'').slice(0,80),c:busy?'':String(cname||'').slice(0,40)};
 }
 function syncWindow(){const n=new Date();const a=new Date(n.getFullYear(),n.getMonth()-1,1);const b=new Date(n.getFullYear(),n.getMonth()+4,1);return [iso(a)+'T00:00:00',iso(b)+'T00:00:00']}
 async function syncGoogle(prof,manual){
@@ -190,7 +191,7 @@ function gcalOn(d){
   const out=[],seen=new Set();
   Object.entries(S.gcal).forEach(([mid,doc])=>{
     (doc.events||[]).forEach(x=>{
-      const m=x.m||mid;if(m!=='all'&&!member(m))return;
+      const wm=x.w&&memberByName(x.w);const m=wm?wm.id:(x.m||mid);if(m!=='all'&&!member(m))return;
       if(!gOK(m,x.c))return;
       if(m!=='all'&&srcOf(m)==='quadro')return;
       if(gOnly()&&m!=='all'&&isSchoolG(x,m)&&schoolOff(m,d))return;
@@ -1851,10 +1852,13 @@ function gEventSheet(key){const f0=findGev(key);if(!f0){toast('Evento não encon
   const {src,x}=f0,m=x.m||src,mine=S.me&&S.me.memberId===src;
   const when=(x.d===x.e?niceDate(x.d):niceDate(x.d)+' – '+niceDate(x.e))+(x.h?' · '+x.h+(x.he?'–'+x.he:''):'');
   const f=sheet('Evento do Google',`<div class="item" style="cursor:default"><span class="body"><span class="kind">Google${x.c?' · '+esc(x.c):''}</span><div class="t">${esc(x.t)}</div><div class="sub">${esc(when)}${x.p?' · '+esc(x.p):''}</div>
-      <div class="people"><span class="ptag" style="--c:${colorOf(m)}">${esc(gName(m))}</span></div></span></div>
+      <div class="people"><span class="ptag" style="--c:${colorOf(m)}">${esc(gName(x.w&&memberByName(x.w)?memberByName(x.w).id:m))}</span></div></span></div>
+    ${x.i&&x.ci&&mine?`<label class="field"><span>De quem é${x.r?' (toda a série)':''}</span><select data-gowner><option value="">Do calendário (${esc(gName(m))})</option><option value="all">Todos</option>${S.members.map(p=>`<option value="${p.id}" ${x.w&&memberByName(x.w)&&memberByName(x.w).id===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>`:''}
     ${x.i&&x.ci?(mine?`<button type="button" class="ghost" data-gedit="${esc(key)}">Editar</button><div class="field"><span>Apagar no Google Calendar</span><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="del" data-gdel="one">Apagar este evento</button>${x.r?'<button type="button" class="del" data-gdel="all">Apagar toda a série</button>':''}</div>
       <p class="muted small" style="margin:4px 0 0">Apaga mesmo no Google, também no telemóvel. Não dá para desfazer.</p></div>`
       :`<p class="muted small" style="margin:0">Este evento vem do Google de ${esc(member(src)?member(src).name:'outra pessoa')}. Só quem sincronizou este calendário o pode apagar a partir do Quadro.</p>`):'<p class="muted small" style="margin:0">Sincroniza o Google de novo para poder apagar este evento a partir do Quadro.</p>'}`);
+  const so=f.querySelector('[data-gowner]');if(so)so.addEventListener('change',async()=>{if(needGoogle())return;const v=so.value;
+    const nm=v==='all'?'Todos':v?member(v).name:'';try{await S.mcp.callTool(GSERVER,'update_event',{calendarId:x.ci,eventId:x.r||x.i,description:nm?'Para: '+nm:''});toast(nm?'Agora é de '+nm:'Volta a ser do calendário');resyncSoon()}catch(e){toast(gErr(e))}});
   f.addEventListener('click',async ev=>{const b=ev.target.closest('[data-gdel]');if(!b)return;
     if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para apagar';return}
     allowGooglePrompt();
@@ -2181,9 +2185,10 @@ function gInput(o){const allDay=!o.time;const inp={summary:o.title,calendarId:o.
   if(o.place)inp.location=o.place;if(o.rrule)inp.recurrenceData=[o.rrule];if(o.noRem)inp.noReminders=true;if(o.props)inp.props=o.props;return inp}
 async function gCreate(o){const r=await S.mcp.callTool(GSERVER,'create_event',gInput(o));const p=r.payload||{};return p.id||''}
 async function gCreateSafe(o,who){ // tenta no calendário da pessoa; se não tiver acesso, usa o calendário Família
+  {const w=whoList(who).filter(x=>member(x));if(o.cal===famCal()&&w.length===1&&!whoList(who).includes('all'))o={...o,desc:'Para: '+member(w[0]).name+(o.desc?'\n'+o.desc:'')}}
   try{return {id:await gCreate(o),cal:o.cal}}catch(e){const fc=famCal();if(!fc||fc===o.cal)throw e;
     const names=whoList(who).filter(x=>member(x)).map(x=>member(x).name).join(', ');
-    const id=await gCreate({...o,cal:fc,title:o.title+(names?' ('+names+')':'')});return {id,cal:fc,fallback:true}}}
+    const w1=whoList(who).filter(x=>member(x));const id=await gCreate({...o,cal:fc,desc:(w1.length===1?'Para: '+member(w1[0]).name+'\n':'')+(o.desc||''),title:o.title+(names&&w1.length!==1?' ('+names+')':'')});return {id,cal:fc,fallback:true}}}
 async function gUpdate(cal,id,o){const inp=gInput({...o,cal});inp.eventId=id;delete inp.recurrenceData;delete inp.noReminders;return S.mcp.callTool(GSERVER,'update_event',inp)}
 async function gDelete(cal,id){return S.mcp.callTool(GSERVER,'delete_event',{calendarId:cal,eventId:id})}
 async function ensureSynced(cal,who){if(!cal||cal==='primary'||!S.me||!S.me.memberId)return;const me=S.me;if((me.cals||{})[cal]&&me.cals[cal]!=='off')return;
@@ -2300,3 +2305,5 @@ async function runMigration(famId,mc){
 function groupSchoolG(gs,d){if(!gOnly())return gs;const sc={},rest=[];
   gs.forEach(g=>{if(g.mid!=='all'&&g.h&&g.d===d&&isSchoolG(g,g.mid)){const s=sc[g.mid]||(sc[g.mid]={h:g.h,he:g.he||g.h});if(g.h<s.h)s.h=g.h;if((g.he||'')>s.he)s.he=g.he}else rest.push(g)});
   return [...Object.entries(sc).map(([m,s])=>({t:'Escola',d,e:d,h:s.h,he:s.he,mid:m,src:m,i:'',c:'Escola',p:''})),...rest]}
+
+function memberByName(n){n=String(n||'').trim().toLowerCase();if(!n)return null;if(n==='todos'||n==='família'||n==='familia')return {id:'all'};return S.members.find(m=>(m.name||'').trim().toLowerCase()===n)||S.members.find(m=>(m.name||'').toLowerCase().split(/\s+/)[0]===n.split(/\s+/)[0])||null}
