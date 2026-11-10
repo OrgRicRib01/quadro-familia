@@ -483,7 +483,6 @@ body.wall-mode[data-v="moldura"] .ml-radio{top:16px;bottom:auto;left:auto;right:
 .ml-video.docked iframe{margin-top:76px}
 .ml-video.full{inset:0 !important;width:auto !important;height:auto !important;z-index:30}
 body.wall-mode[data-v="moldura"] .ml-radio{display:none}
-body.wall-mode[data-v="moldura"]:has(.fm-tabs [data-fmode="galeria"][aria-pressed="true"]) .ml-radio{display:flex}
 #mediaLayer .ml-video.docked{background:transparent;pointer-events:none}
 .ml-video.docked>*{pointer-events:auto}
 .ml-video.docked iframe{flex:none;height:calc(100% - 76px);border-radius:0 0 22px 22px}
@@ -557,3 +556,20 @@ body.wall-mode[data-v="moldura"]:has(.fm-tabs [data-fmode="galeria"][aria-presse
 .fd-tchip{background:var(--accent-soft);color:var(--fg);font-variant-numeric:tabular-nums}
 .ck-ringing{background:rgb(15 23 42 / .96)}
 .ck-ringing .alarm-btns button:first-child{color:#0F172A}
+
+.prof{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+.prof-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-left:26px}
+.prof-row select{flex:1;min-width:140px}
+.prof-chk{display:flex;gap:6px;align-items:center;font-weight:600;min-height:44px}
+.prof-chk input{width:20px;height:20px;min-height:0}
+/* ecrã de parede: janelas (Ajustes, formulários) abrem à direita, sobre a coluna do Hoje */
+body.wall-mode .scrim{justify-content:flex-end;align-items:stretch;padding:0}
+body.wall-mode .sheet{max-width:min(500px,100vw);width:100%;height:100%;max-height:none;border-radius:22px 0 0 22px;padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
+@media (prefers-reduced-motion:no-preference){body.wall-mode .sheet{animation:fdright .2s ease-out}@keyframes fdright{from{transform:translateX(40px);opacity:.6}}}
+
+.g-radio{position:absolute;right:20px;bottom:20px;z-index:2;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:min(60%,520px);
+  background:rgb(0 0 0 / .5);backdrop-filter:blur(10px);color:#fff;border-radius:22px;padding:10px 10px 10px 16px}
+.g-rn{display:flex;flex-direction:column;line-height:1.15;min-width:0;margin-right:auto}
+.g-rn small{font-size:.72rem;opacity:.75}
+.g-rn b{font-weight:700;font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.g-rb{border:0;border-radius:999px;background:rgb(255 255 255 / .16);color:#fff;font-weight:600;min-height:44px;padding:0 14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

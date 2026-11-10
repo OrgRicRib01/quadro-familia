@@ -187,6 +187,7 @@ function gcalOn(d){
     (doc.events||[]).forEach(x=>{
       const m=x.m||mid;if(m!=='all'&&!member(m))return;
       if(!gOK(m,x.c))return;
+      if(m!=='all'&&srcOf(m)==='quadro')return;
       if(d<x.d||d>x.e)return;
       if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
@@ -275,6 +276,7 @@ function eventsOn(d){
   const dd=parse(d);
   return S.events.filter(e=>{
     if(!e.date||!matches(e))return false;
+    if(!localShown(e))return false;
     if(e.school&&whoList(e.who).every(m=>schoolOff(m,d)))return false;
     if(e.date===d)return true;
     if(e.date>d)return false;
@@ -359,7 +361,7 @@ const SCHOOL_PRESET_2627=[
   {title:'Natal',start:'2026-12-16',end:'2027-01-03'},
   {title:'Carnaval',start:'2027-02-08',end:'2027-02-10'},
   {title:'Páscoa',start:'2027-03-22',end:'2027-04-02'}];
-function schoolMembers(){return [...new Set(S.events.filter(e=>e.school).flatMap(e=>whoList(e.who)).filter(m=>m!=='all'&&member(m)))]}
+function schoolMembers(){const st=S.members.filter(m=>m.student).map(m=>m.id);if(st.length)return st;return [...new Set(S.events.filter(e=>e.school).flatMap(e=>whoList(e.who)).filter(m=>m!=='all'&&member(m)))]}
 function viewSchoolBreaks(seg){
   const rows=[...S.schoolBreaks].sort((a,b)=>(a.start||'').localeCompare(b.start||''));
   const up=rows.filter(b=>(b.end||b.start)>=TODAY),past=rows.filter(b=>(b.end||b.start)<TODAY).reverse();
@@ -740,14 +742,18 @@ function mealForm(d){
 }
 function familyForm(){
   const u=window.famBackend&&window.famBackend.user;
-  const f=sheet('A família',`<p class="muted small" style="margin:0">Escreve o nome de cada pessoa. A cor acompanha-a em toda a app.</p>
-    ${S.members.map((m,i)=>`<label class="mem"><span class="dot" style="--c:var(--${m.color})"></span><span class="field" style="flex:1"><input id="mem-${i}" name="m${i}" value="${esc(m.name)}" aria-label="Nome ${i+1}"></span></label>`).join('')}
+  const f=sheet('A família',`<p class="muted small" style="margin:0">O perfil de cada pessoa. A cor acompanha-a em toda a app.</p>
+    ${S.members.map((m,i)=>`<div class="prof"><div class="mem"><span class="dot" style="--c:var(--${m.color})"></span><span class="field" style="flex:1"><input id="mem-${i}" name="m${i}" value="${esc(m.name)}" aria-label="Nome ${i+1}"></span></div>
+      <div class="prof-row"><select name="k${i}" aria-label="Adulto ou criança">${[['adulto','Adulto'],['crianca','Criança']].map(([k,l])=>`<option value="${k}" ${(m.kind||'adulto')===k?'selected':''}>${l}</option>`).join('')}</select>
+        <label class="prof-chk"><input type="checkbox" name="st${i}" ${m.student?'checked':''}> Estudante</label>
+        <select name="src${i}" aria-label="O que mostrar na agenda">${[['ambos','Agenda: Quadro + Google'],['quadro','Agenda: só Quadro'],['google','Agenda: só Google']].map(([k,l])=>`<option value="${k}" ${(m.src||'ambos')===k?'selected':''}>${l}</option>`).join('')}</select></div></div>`).join('')}
+    <p class="muted small" style="margin:0"><b>Estudante:</b> recebe as férias escolares. <b>Criança:</b> entra no quadro das estrelas. <b>Agenda:</b> mostrar os eventos do Quadro, do Google ou ambos.</p>
     <div class="field"><span>Dados</span><div class="row" style="flex-wrap:wrap">
       <button type="button" class="ghost" id="btnExport">Exportar cópia</button>
       ${S.readOnly||!S.db?'':'<label class="ghost" style="cursor:pointer">Importar cópia<input id="impFile" type="file" accept="application/json,.json" hidden></label>'}
       ${u?`<button type="button" class="ghost" id="btnOut">Sair (${esc(u.email||'')})</button>`:''}
     </div></div>`,
-  {onSave:f=>{saveMembers(S.members.map((m,i)=>({...m,name:val(f,'m'+i)||m.name})))}});
+  {onSave:f=>{saveMembers(S.members.map((m,i)=>({...m,name:val(f,'m'+i)||m.name,kind:val(f,'k'+i)||'adulto',student:!!(f.elements['st'+i]&&f.elements['st'+i].checked),src:val(f,'src'+i)||'ambos'})))}});
   f.querySelector('#btnExport').addEventListener('click',exportData);
   const imp=f.querySelector('#impFile');
   if(imp)imp.addEventListener('change',async()=>{const file=imp.files[0];if(!file)return;
@@ -917,7 +923,7 @@ function wallHome(){
   const part=curPart(),members=wallMembers();
   const rout=members.map(m=>{const ts=S.tasks.filter(t=>forM(t,m.id)&&t.repeat&&taskActive(t,TODAY)&&(!t.part||t.part===part));const dn=ts.filter(t=>isDone(t)).length;
     return `<div class="fd-rrow">${avatar(m.id)}<span class="fd-rn">${esc(m.name)}</span><span class="fd-rc">${dn}/${ts.length}</span><span class="fd-prog"><i style="width:${ts.length?Math.round(dn/ts.length*100):0}%;background:var(--${m.color})"></i></span></div>`}).join('');
-  const stars=S.members.map(m=>({m,n:starsFor(m.id)}));const mx=Math.max(1,...stars.map(x=>x.n));
+  const kids=S.members.filter(m=>m.kind==='crianca');const stars=(kids.length?kids:S.members).map(m=>({m,n:starsFor(m.id)}));const mx=Math.max(1,...stars.map(x=>x.n));
   const board=`<div class="fd-bars">${stars.map(x=>`<div class="fd-bcol"><b>${x.n}</b><span class="fd-b" style="height:${Math.max(4,Math.round(x.n/mx*86))}px;background:var(--${x.m.color})"></span><small>${esc(x.m.name)}</small></div>`).join('')}</div>`;
   const meal=S.meals[TODAY],nx=[1,2].map(k=>{const x=parse(TODAY);x.setDate(x.getDate()+k);const ds=iso(x);return `<div class="fd-mrow"><span>${DOW[dowMon(x)]}</span>${S.meals[ds]?esc(S.meals[ds].title):'<i>por decidir</i>'}</div>`}).join('');
   const shopN=shopItems().filter(x=>!x.done).length;
@@ -1091,7 +1097,7 @@ function wallFrame(){
   const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio'],['tv','NOS TV ↗']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
   if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
-      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}
+      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${galleryRadio()}
       <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
       ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div>
       </div>
@@ -1476,7 +1482,7 @@ function mediaSheet(){
   loadStations(false);
 }
 
-function refreshFrame(){if(S.dragging)return;if(S.wall&&S.wallView==='moldura'&&S.frameMode!=='galeria'&&!overlay.innerHTML)renderWall()}
+function refreshFrame(){if(S.dragging)return;if(S.wall&&S.wallView==='moldura'&&!overlay.innerHTML)renderWall()}
 function dockVideo(){const v=document.querySelector('#mediaLayer .ml-video');if(!v)return;
   const want={tv:'tv',site:'radio'}[v.dataset.kind]||'video';
   const slot=S.wall&&S.wallView==='moldura'&&S.frameMode===want&&!v.classList.contains('full')&&document.querySelector('.fm-'+want);
@@ -1738,3 +1744,11 @@ function clockTick(){
     ring({title:a.label||'Alarme',sub:a.h,sound:a.sound,snooze:a.snooze||10});return}
 }
 setInterval(clockTick,250);
+
+function srcOf(id){const m=member(id);return (m&&m.src)||'ambos'}
+function localShown(e){const w=whoList(e.who);if(w.includes('all'))return true;return !w.length||w.some(id=>srcOf(id)!=='google')}
+
+function galleryRadio(){const now=S.radioNow,rs=S.media.radios.slice(0,4);
+  if(!now&&!rs.length)return '';
+  return `<div class="g-radio">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span class="g-rn"><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="g-rb" data-mstop="radio">Parar</button>`
+    :`<span class="g-rn"><small>Rádio</small></span>${rs.map(r=>`<button class="g-rb" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">▶ ${esc(r.n)}</button>`).join('')}`}</div>`}
