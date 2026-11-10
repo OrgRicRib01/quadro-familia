@@ -85,6 +85,7 @@ function handleWriteError(e){
   db.doc('config/weather').onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&typeof d.lat==='number'){const ch=!S.wxPlace||S.wxPlace.lat!==d.lat||S.wxPlace.lon!==d.lon;S.wxPlace=d;if(ch){WX=null;wxLoad(true)}}},()=>{});
   db.doc('config/gonly').onSnapshot(s=>{const d=s.exists?s.data():{};S.gOnly=!!d.on;S.famCal=d.famCal||'';render()},()=>{});
   db.doc('config/youversion').onSnapshot(s=>{S.yv=s.exists?s.data():{};votdLoad(false)},()=>{});
+  db.doc('config/frame').onSnapshot(s=>{S.fw=s.exists?s.data():{};if(S.wall)renderWall()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
     const m=s.exists&&s.data().members;
@@ -1159,14 +1160,14 @@ function wallFrame(){
   const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio'],['tv','NOS TV ↗']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
   if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
-      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${dragBox('wx',frameWx(true))}${dragBox('radio',galleryRadio())}${dragBox('votd',votdWidget())}
-      <div class="ov"><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
+      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${fw('wx')?dragBox('wx',frameWx(true)):''}${fw('radio')?dragBox('radio',galleryRadio()):''}${fw('votd')?dragBox('votd',votdWidget()):''}
+      <div class="ov"${fw('clock')?'':' hidden'}><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
       ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div>
       </div>
     ${frameSide(today,tomorrow,row,up,pend)}</div>`;
 }
 function frameSide(today,tomorrow,row,up,pend){
-  return `<div class="w-side">${S.frameMode&&S.frameMode!=='galeria'?frameWx(false)+votdWidget():''}<h4 class="w-sh">Hoje</h4>${today.map(x=>row(x,true)).join('')||'<div class="muted">Nada marcado</div>'}
+  return `<div class="w-side">${S.frameMode&&S.frameMode!=='galeria'?(fw('wx')?frameWx(false):'')+(fw('votd')?votdWidget():''):''}<h4 class="w-sh">Hoje</h4>${today.map(x=>row(x,true)).join('')||'<div class="muted">Nada marcado</div>'}
       <h4 class="w-sh" style="color:var(--muted)">Amanhã</h4>${tomorrow.map(x=>row(x,false)).join('')||'<div class="muted">Nada marcado</div>'}
       <div class="row" style="gap:10px;margin-top:auto;align-items:stretch;padding-top:12px">
         ${up?`<div class="w-mini"><small>Aniversário</small><b>${esc(up.name)}</b><span class="small muted">${up.n===0?'Hoje!':up.n===1?'Amanhã':'daqui a '+up.n+' dias'}</span></div>`:''}
@@ -1885,7 +1886,7 @@ function configHub(){
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
     ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
-    ${it('data-cfg="votd"','📖','Versículo do dia','YouVersion na Moldura'+(yvCfg().key?' · ligado':''))}
+    ${it('data-cfg="moldura"','🖼︎','Moldura','Ligar e desligar widgets, fotografias, versículo do dia')}
     ${it('data-cfg="escola"','🎒︎','Férias escolares','Períodos sem aulas')}
     ${it('data-migrate','🔄','Só calendários do Google',gOnly()?'Ativo · calendário Família e de cada pessoa':'Passar tudo do Quadro para o Google')}
     ${it('data-cfg="dados"','💾︎','Dados','Exportar ou importar uma cópia')}
@@ -1893,7 +1894,7 @@ function configHub(){
   f.addEventListener('click',e=>{const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
     if(k==='pessoas')familyForm();else if(k==='google')googleSheet();else if(k==='ecra')wallSettings();
     else if(k==='escola'){closeSheet();if(S.wall)exitWall();S.tab='agenda';render();setTimeout(()=>{const x=document.querySelector('[data-ag="escola"]');if(x)x.click()},60)}
-    else if(k==='dados'){if(!isAdmin()){toast('Só a conta principal pode importar ou exportar os dados.');return}dataSheet()}else if(k==='tempo')wxSheet();else if(k==='votd')yvSheet();else if(k==='sair')window.famBackend.signOut()});
+    else if(k==='dados'){if(!isAdmin()){toast('Só a conta principal pode importar ou exportar os dados.');return}dataSheet()}else if(k==='tempo')wxSheet();else if(k==='votd')yvSheet();else if(k==='moldura')frameSheet();else if(k==='sair')window.famBackend.signOut()});
 }
 function dataSheet(){
   const f=sheet('Dados',`<p class="muted small" style="margin:0">Uma cópia guarda tudo num ficheiro: agenda, lembretes, tarefas, receitas, listas de compras e configuração.</p>
@@ -2363,3 +2364,19 @@ function yvSheet(){const c=yvCfg();
     finally{S.yv=old}});
 }
 document.addEventListener('click',e=>{if(e.target.closest('[data-votd]')){if(VOTD)sheet(VOTD.ref,`<p style="font-size:1.25rem;line-height:1.5;margin:0">“${esc(VOTD.text)}”</p><p class="muted">${esc(VOTD.bible||'')} · YouVersion</p>`)}});
+
+/* ---------- Configuração da Moldura ---------- */
+var FW=[['clock','Relógio e data','A hora grande e a data'],['wx','Tempo','Temperatura, chuva, nascer e pôr do sol'],['radio','Rádio','As 4 primeiras das tuas rádios'],['votd','Versículo do dia','YouVersion']];
+function fw(k){const v=(S.fw||{})[k];return v!==false}
+function frameSheet(){
+  const f=sheet('Moldura',`<div class="field"><span>Widgets</span>
+    ${FW.map(([k,l,s])=>`<label class="cfg-tog"><span><b>${l}</b><small>${s}${k==='votd'&&!yvCfg().key?' · ainda não configurado':''}</small></span><input type="checkbox" role="switch" name="fw_${k}" ${fw(k)?'checked':''}></label>`).join('')}</div>
+    <div class="cfg">
+      <button type="button" class="cfg-it" data-fcfg="votd"><span class="cfg-ic">📖</span><span style="flex:1;min-width:0"><b>Versículo do dia</b><small>Chave da YouVersion e versão da Bíblia${yvCfg().key?' · ligado':''}</small></span><span class="fd-chev">›</span></button>
+      <button type="button" class="cfg-it" data-fcfg="fotos"><span class="cfg-ic">🖼︎</span><span style="flex:1;min-width:0"><b>Fotografias e tempo entre fotografias</b><small>${S.photos.length} fotografias · ${photoSec()} s</small></span><span class="fd-chev">›</span></button>
+      <button type="button" class="cfg-it" data-fcfg="tempo"><span class="cfg-ic">⛅</span><span style="flex:1;min-width:0"><b>Localidade do tempo</b><small>${esc(wxPlace().name)}</small></span><span class="fd-chev">›</span></button>
+      <button type="button" class="cfg-it" data-fcfg="pos"><span class="cfg-ic">↺</span><span style="flex:1;min-width:0"><b>Repor a posição dos widgets</b><small>Voltam ao sítio original neste ecrã</small></span></button>
+    </div>`,{saveLabel:'Guardar',onSave:f=>{const o={};FW.forEach(([k])=>o[k]=!!f.elements['fw_'+k].checked);S.fw=o;if(S.db)S.db.doc('config/frame').set(o).catch(handleWriteError);if(S.wall)renderWall();toast('Moldura atualizada')}});
+  f.addEventListener('click',e=>{const b=e.target.closest('[data-fcfg]');if(!b)return;const k=b.dataset.fcfg;
+    if(k==='votd')yvSheet();else if(k==='fotos')wallSettings();else if(k==='tempo')wxSheet();else if(k==='pos'){lsSet('fam.wpos','{}');toast('Widgets repostos');if(S.wall)renderWall()}});
+}

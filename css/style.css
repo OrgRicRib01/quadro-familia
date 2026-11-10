@@ -673,3 +673,12 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .votd b{font-weight:700;font-size:.9rem;opacity:.95}
 .fr-drag.fr-votd{left:32px;top:96px}
 .w-side>.votd{background:var(--surface);color:var(--fg);max-width:none;margin:6px 0}
+
+.cfg-tog{display:flex;align-items:center;gap:12px;padding:12px 4px;border-top:1px solid var(--line);cursor:pointer}
+.cfg-tog span{flex:1;min-width:0}
+.cfg-tog b{display:block;font-weight:700}
+.cfg-tog small{color:var(--muted);font-size:.82rem}
+.cfg-tog input{appearance:none;-webkit-appearance:none;width:52px;height:30px;min-height:0;border-radius:999px;background:var(--sunk);position:relative;cursor:pointer;flex:none;border:0;padding:0;transition:background .15s}
+.cfg-tog input::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgb(0 0 0 / .3);transition:transform .15s}
+.cfg-tog input:checked{background:var(--accent)}
+.cfg-tog input:checked::after{transform:translateX(22px)}
