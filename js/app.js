@@ -210,13 +210,16 @@ async function googleSheet(){
     <p class="muted small" style="margin:0">Se outra pessoa partilhou o calendário dela contigo no Google, escolhe <b>É de…</b> e os eventos aparecem com a cor dela. Um calendário partilhado, como o "Família", fica em <b>É da família</b> e aparece para todos. Assim o ecrã de parede mostra toda a família sem cada um ter de abrir o Quadro.</p>
     <label class="field"><span>Quem és tu</span><select id="g-member" name="member"><option value="">Escolher…</option>${S.members.map(m=>`<option value="${m.id}" ${me.memberId===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select></label>
     <div class="field"><span>Os meus calendários</span><div id="gcals" class="list"><div class="empty">A carregar calendários…</div></div></div>
+    <div class="field"><span>Adicionar calendário</span><div class="row" style="gap:8px;flex-wrap:wrap"><input id="g-addid" placeholder="Email ou ID do calendário (ex.: tiago…@gmail.com)" inputmode="email" style="flex:2;min-width:220px"><input id="g-addn" placeholder="Nome (opcional)" style="flex:1;min-width:140px"><button type="button" class="addbtn" id="g-add">Adicionar</button></div>
+      <p class="muted small" style="margin:4px 0 0">Para calendários partilhados contigo que não aparecem na lista. A pessoa tem de o partilhar com a tua conta Google.</p></div>
+    <div id="g-hidden"></div>
     <p class="muted small" style="margin:0">Os teus eventos atualizam sempre que abres o Quadro (de 15 em 15 minutos, no máximo).</p>`,
   {saveLabel:'Guardar e sincronizar',onSave:f=>{
     const memberId=val(f,'member');if(!memberId){toast('Escolhe quem és.');return false}
     const cals={},calNames={};
     f.querySelectorAll('[data-cal]').forEach(s=>{cals[s.dataset.cal]=s.value;calNames[s.dataset.cal]=s.dataset.name});
     const calMember={};f.querySelectorAll('[data-calm]').forEach(s=>{if(s.value)calMember[s.dataset.calm]=s.value});
-    const prof={memberId,cals,calNames,calMember};
+    const prof={memberId,cals,calNames,calMember,extra:gx.extra,hidden:gx.hidden};
     const prev=S.me&&S.me.memberId;
     (async()=>{
       try{await S.db.doc('data/users/'+S.uid+'/profile').set(prof)}catch(e){toast('Não foi possível guardar as tuas escolhas.');return}
@@ -227,19 +230,33 @@ async function googleSheet(){
     })();
   }});
   const box=f.querySelector('#gcals');
-  if(!S.mcp){box.innerHTML=`<div class="empty">O Google Calendar não está configurado nesta instalação (ver README).</div>`;return}
-  try{
-    const cals=await fetchCals();
-    if(!cals.length){box.innerHTML=`<div class="empty">Não encontrei calendários nesta conta Google.</div>`;return}
-    S.myCals=cals;
-    box.innerHTML=cals.map((c,i)=>{const mode=(me.cals||{})[c.id]||'off';const cm=(me.calMember||{})[c.id]||'';
-      return `<div class="item" style="flex-wrap:wrap;align-items:center;gap:8px"><span class="body" style="flex-basis:100%"><div class="t">${esc(c.summary||c.id)}</div></span>
-        <select id="gc-${i}" data-cal="${esc(c.id)}" data-name="${esc(c.summary||'')}" class="gsel" aria-label="Mostrar">
+  const gx={extra:[...(me.extra||[])],hidden:[...(me.hidden||[])],fetched:[]};
+  const draw=()=>{
+    const keep={};box.querySelectorAll('[data-cal]').forEach(s=>keep[s.dataset.cal]=s.value);const keepM={};box.querySelectorAll('[data-calm]').forEach(s=>keepM[s.dataset.calm]=s.value);
+    const all=[...gx.fetched,...gx.extra.filter(x=>!gx.fetched.some(c=>c.id===x.id)).map(x=>({id:x.id,summary:x.name,extra:true}))].filter(c=>!gx.hidden.includes(c.id));
+    S.myCals=all;
+    box.innerHTML=all.map((c,i)=>{const mode=keep[c.id]||(me.cals||{})[c.id]||(c.extra?'show':'off');const cm=keepM[c.id]!==undefined?keepM[c.id]:((me.calMember||{})[c.id]||'');
+      return `<div class="item" style="flex-wrap:wrap;align-items:center;gap:8px"><span class="body" style="flex:1;min-width:60%"><div class="t">${esc(c.summary||c.id)}</div>${c.extra?`<div class="small muted">${esc(c.id)}</div>`:''}</span>
+        <button type="button" class="edit" data-gremove="${esc(c.id)}" aria-label="Remover ${esc(c.summary||c.id)}">Remover</button>
+        <span style="flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap"><select data-cal="${esc(c.id)}" data-name="${esc(c.summary||'')}" class="gsel" aria-label="Mostrar">
           <option value="off" ${mode==='off'?'selected':''}>Não mostrar</option>
           <option value="show" ${mode==='show'?'selected':''}>Mostrar</option>
           <option value="busy" ${mode==='busy'?'selected':''}>Só "Ocupado"</option></select>
-        <select id="gm-${i}" data-calm="${esc(c.id)}" class="gsel" aria-label="De quem é"><option value="">É meu</option><option value="all" ${cm==='all'?'selected':''}>É da família (todos)</option>${S.members.map(m=>`<option value="${m.id}" ${cm===m.id?'selected':''}>É de ${esc(m.name)}</option>`).join('')}</select></div>`}).join('');
-  }catch(e){box.innerHTML=`<div class="empty">${esc(gErr(e))}</div>`}
+        <select data-calm="${esc(c.id)}" class="gsel" aria-label="De quem é"><option value="">É meu</option><option value="all" ${cm==='all'?'selected':''}>É da família (todos)</option>${S.members.map(m=>`<option value="${m.id}" ${cm===m.id?'selected':''}>É de ${esc(m.name)}</option>`).join('')}</select></span></div>`}).join('')||'<div class="empty">Nenhum calendário. Adiciona um em baixo.</div>';
+    const hb=f.querySelector('#g-hidden');const hid=gx.hidden.map(id=>{const c=gx.fetched.find(x=>x.id===id);return {id,n:c?c.summary:id}}).filter(x=>gx.fetched.some(c=>c.id===x.id));
+    hb.innerHTML=hid.length?`<p class="muted small" style="margin:0">Removidos: ${hid.map(h=>`${esc(h.n)} <button type="button" class="edit" data-grestore="${esc(h.id)}">Repor</button>`).join(' · ')}</p>`:'';
+  };
+  f.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    if(b.dataset.gremove){const id=b.dataset.gremove;gx.extra=gx.extra.filter(x=>x.id!==id);if(gx.fetched.some(c=>c.id===id)&&!gx.hidden.includes(id))gx.hidden.push(id);draw();toast('Removido. Carrega em Guardar para confirmar.');return}
+    if(b.dataset.grestore){gx.hidden=gx.hidden.filter(x=>x!==b.dataset.grestore);draw();return}
+    if(b.id==='g-add'){const id=f.querySelector('#g-addid').value.trim(),nm=f.querySelector('#g-addn').value.trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)){toast('Escreve o email ou o ID do calendário');return}
+      gx.hidden=gx.hidden.filter(x=>x!==id);if(!gx.fetched.some(c=>c.id===id)&&!gx.extra.some(x=>x.id===id))gx.extra.push({id,name:nm||id.split('@')[0]});
+      f.querySelector('#g-addid').value='';f.querySelector('#g-addn').value='';draw();toast('Calendário adicionado. Escolhe de quem é e carrega em Guardar.')}});
+  if(!S.mcp){box.innerHTML=`<div class="empty">O Google Calendar não está configurado nesta instalação (ver README).</div>`;return}
+  try{
+    gx.fetched=await fetchCals();draw();
+  }catch(e){draw();box.insertAdjacentHTML('afterbegin',`<div class="empty">${esc(gErr(e))}</div>`)}
 }
 async function pushToGoogle(ev,calendarId){
   if(!S.mcp){toast('O Google Calendar não está configurado nesta instalação (ver README).');return null}
