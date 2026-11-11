@@ -1071,7 +1071,7 @@ function renderWall(){
   const navSafe=()=>safe(navBar,'o menu');
   html=(v==='moldura'?safe(wallFrame,'a Moldura'):safe(wallHead,'o topo')+safe(body,'esta vista')+fab)+navSafe();
   document.getElementById('wall').innerHTML=html;
-  refocus();dockVideo();initSort();if(ytFocus){const q=document.getElementById(ytFocus);if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
+  refocus();dockVideo();initSort();if(v==='casa')shInitSort();if(ytFocus){const q=document.getElementById(ytFocus);if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
 }
 function wallShopping(){return shopBody(true)}
 function toMin(hm){const[h,m]=String(hm).split(':').map(Number);return h*60+(m||0)}
@@ -2426,24 +2426,80 @@ async function shNames(st){const out={};
   try{const d=await shPost('/device/all_status',{show_info:'true'});Object.entries((d&&d.devices_status)||{}).forEach(([id,s])=>{const i=s._dev_info||{};
     if(i.name&&!(out[id+'|0']&&out[id+'|0'].name))out[id+'|0']={name:i.name,room:i.room_name||''}});if(d&&d.devices_status)Object.assign(st,d.devices_status)}catch(e){}
   return out}
+// vários comandos seguidos respeitando o limite da Shelly Cloud (1 pedido por segundo)
+async function shBatch(devs,fn){if(!devs.length)return;toast('A enviar para '+devs.length+(devs.length===1?' dispositivo':' dispositivos')+'…');
+  for(let i=0;i<devs.length;i++){try{await fn(devs[i])}catch(e){toast(e.message)}if(i<devs.length-1)await new Promise(r=>setTimeout(r,1100))}setTimeout(()=>shRefresh(true),1200)}
 function shKey(d){return d.id+'|'+d.type+'|'+(+d.channel||0)}
 function wallCasa(){
-  const c=shCfg(),devs=(c.devices||[]).filter(d=>d.on!==false);
-  if(!c.key||!shHost())return `<section class="casa"><div class="w-card" style="padding:20px"><h3 style="margin-top:0">🏠 Casa</h3><p>Liga a tua conta Shelly para controlar luzes, tomadas e estores e ver os sensores.</p><button class="addbtn" data-shcfg>Ligar Shelly Cloud</button></div></section>`;
+  const c=shCfg(),all=(c.devices||[]).filter(d=>d.on!==false);
+  if(!c.key||!shHost())return `<section class="casa"><div class="sh-empty"><span class="sh-empty-ic">🏠</span><h3>Casa</h3><p>Liga a tua conta Shelly para controlar luzes, tomadas e estores e ver os sensores.</p><button class="addbtn" data-shcfg>Ligar Shelly Cloud</button></div></section>`;
   if(!SH.poll){SH.poll=setInterval(()=>{if((S.wall&&S.wallView==='casa')||(!S.wall&&S.tab==='casa'))shRefresh(false);else{clearInterval(SH.poll);SH.poll=null}},10000)}
   if(!SH.st&&!SH.busy&&!SH.err)shRefresh(true);
-  if(!SH.namesTried&&devs.some(d=>!d.name||!d.room)){SH.namesTried=true;shNames({}).then(n=>{SH.names=n;if(Object.keys(n).length){if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()}})}
+  if(!SH.namesTried&&all.some(d=>!d.name||!d.room)){SH.namesTried=true;shNames({}).then(n=>{SH.names=n;if(Object.keys(n).length&&S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()})}
   const nmOf=d=>(SH.names&&(SH.names[d.id+'|'+(+d.channel||0)]||SH.names[d.id+'|0']))||{};
-  const rooms={};devs.forEach(d=>{const r=d.room||nmOf(d).room||'Casa';(rooms[r]=rooms[r]||[]).push(d)});
-  const tile=d=>{const s=shState(d);const nm=esc(d.name||nmOf(d).name||d.id);const off=s&&s.online===false;
-    if(d.type==='switch')return `<button class="sh-tile sh-sw${s&&s.on?' on':''}${off?' offline':''}" data-shsw="${esc(shKey(d))}" aria-pressed="${!!(s&&s.on)}"><span class="sh-ic">${s&&s.on?'💡':'⚪'}</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':(s.on?'Ligado':'Desligado')+(s.w!=null&&s.w>0?' · '+Math.round(s.w)+' W':'')}</small></button>`;
-    if(d.type==='cover')return `<div class="sh-tile sh-cv${off?' offline':''}"><span class="sh-ic">🪟</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':(s.state==='open'||s.state==='opening'?'A subir':s.state==='close'||s.state==='closing'?'A descer':'Parado')+(s.pos!=null?' · '+s.pos+'%':'')}</small>
-      <div class="sh-cvb"><button data-shcv="${esc(shKey(d))}|open" aria-label="Subir">▲</button><button data-shcv="${esc(shKey(d))}|stop" aria-label="Parar">■</button><button data-shcv="${esc(shKey(d))}|close" aria-label="Descer">▼</button></div>
-      ${s&&s.pos!=null?`<input type="range" min="0" max="100" step="10" value="${s.pos}" data-shpos="${esc(shKey(d))}" aria-label="Posição">`:''}</div>`;
-    return `<div class="sh-tile sh-sn${off?' offline':''}"><span class="sh-ic">${s&&s.open!=null?(s.open?'🚪':'🔒'):s&&s.w!=null?'⚡':'🌡️'}</span><b>${nm}</b><small>${!s?'…':off?'Sem ligação':[s.t!=null?Math.round(s.t*10)/10+' °C':'',s.h!=null?Math.round(s.h)+'%':'',s.open!=null?(s.open?'Aberta':'Fechada'):'',s.w!=null?Math.round(s.w)+' W':'',s.bat!=null?'🔋'+s.bat+'%':''].filter(Boolean).join(' · ')||'—'}</small></div>`};
-  return `<section class="casa">${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin-bottom:12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
-    ${devs.length?Object.entries(rooms).map(([r,ds])=>`<h3 class="sh-room">${esc(r)}</h3><div class="sh-grid">${ds.map(tile).join('')}</div>`).join(''):'<div class="w-card" style="padding:20px">Ainda não escolheste dispositivos. <button class="addbtn" data-shcfg>Escolher dispositivos</button></div>'}
-    <p class="small muted" style="margin-top:14px">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5)+' · ':''}<button class="edit" data-shcfg>Configurar</button></p></section>`}
+  const roomOf=d=>d.room||nmOf(d).room||'Casa';
+  const roomNames=[...new Set(all.map(roomOf))];
+  const fr=S.shRoom&&roomNames.includes(S.shRoom)?S.shRoom:'';
+  const devs=fr?all.filter(d=>roomOf(d)===fr):all;
+  // resumo
+  const st=all.map(d=>[d,shState(d)]);
+  const lightsOn=st.filter(([d,s])=>d.type==='switch'&&s&&s.on).length;
+  const watts=st.reduce((a,[d,s])=>a+(s&&s.w>0?s.w:0),0);
+  const temps=st.filter(([d,s])=>s&&s.t!=null).map(([d,s])=>s.t);
+  const openW=st.filter(([d,s])=>s&&s.open===true).length;
+  const coversOpen=st.filter(([d,s])=>d.type==='cover'&&s&&s.pos>0).length;
+  const chip=(ic,v,l,cls='')=>`<div class="sh-sum${cls}"><span>${ic}</span><b>${v}</b><small>${l}</small></div>`;
+  const summary=`<div class="sh-top">
+    <div class="sh-sums">${chip('💡',lightsOn,lightsOn===1?'ligado':'ligados',lightsOn?' hot':'')}${chip('⚡',Math.round(watts)+' W','agora')}${temps.length?chip('🌡️',(Math.round(temps.reduce((a,b)=>a+b,0)/temps.length*10)/10).toLocaleString('pt-PT')+'°','média'):''}${chip('🪟',coversOpen,'estores abertos')}${openW?chip('🚪',openW,openW===1?'aberta':'abertas',' warn'):''}</div>
+    <div class="sh-acts">
+      ${lightsOn?`<button class="sh-act" data-shall="off">⏻ Desligar tudo</button>`:''}
+      ${st.some(([d])=>d.type==='cover')?`<button class="sh-act" data-shallcv="open">▲ Abrir estores</button><button class="sh-act" data-shallcv="close">▼ Fechar estores</button>`:''}
+      <button class="sh-act${S.shEdit?' on':''}" data-shedit aria-pressed="${!!S.shEdit}">${S.shEdit?'✓ Concluído':'✥ Organizar'}</button>
+      <button class="sh-act ic" data-shcfg aria-label="Configurar">${GEAR}</button>
+    </div></div>
+    ${roomNames.length>1?`<div class="sh-rooms" role="group" aria-label="Divisões"><button data-shroom="" aria-pressed="${!fr}">Todas</button>${roomNames.map(r=>`<button data-shroom="${esc(r)}" aria-pressed="${fr===r}">${esc(r)}</button>`).join('')}</div>`:''}`;
+  const sub=(s,off,txt)=>!s?'<span class="sh-dim">a carregar…</span>':off?'<span class="sh-off">Sem ligação</span>':txt;
+  const tile=d=>{const s=shState(d),k=esc(shKey(d)),nm=esc(d.name||nmOf(d).name||d.id),off=s&&s.online===false;
+    const head=(ic,cls='')=>`<div class="sh-h"><span class="sh-ic${cls}">${ic}</span><span class="sh-nm"><b>${nm}</b><small>${d.type==='switch'?'Luz / tomada':d.type==='cover'?'Estore':'Sensor'}</small></span></div>`;
+    if(d.type==='switch'){const on=!!(s&&s.on);
+      return `<div class="sh-tile sh-sw${on?' on':''}${off?' offline':''}" data-k="${k}"><button class="sh-hit" data-shsw="${k}" aria-pressed="${on}" aria-label="${nm}: ${on?'desligar':'ligar'}"></button>
+        ${head(on?'💡':'💡',on?' lit':'')}
+        <div class="sh-ft"><span class="sh-st">${sub(s,off,on?'Ligado':'Desligado')}${on&&s.w>0?`<em>${Math.round(s.w)} W</em>`:''}</span><span class="sh-tg" aria-hidden="true"><i></i></span></div></div>`}
+    if(d.type==='cover'){const pos=s&&s.pos!=null?s.pos:null,mv=s&&(s.state==='open'||s.state==='opening')?'up':s&&(s.state==='close'||s.state==='closing')?'down':'';
+      const closed=pos==null?50:100-pos;
+      return `<div class="sh-tile sh-cv${off?' offline':''}" data-k="${k}">
+        ${head('🪟')}
+        <div class="sh-cvb">
+          <div class="sh-win${mv?' mv-'+mv:''}" aria-hidden="true"><div class="sh-sky"></div><div class="sh-slats" style="height:${closed}%"></div></div>
+          <div class="sh-cvc">
+            <div class="sh-st big">${sub(s,off,mv==='up'?'A abrir…':mv==='down'?'A fechar…':pos===0?'Fechado':pos===100?'Aberto':pos!=null?pos+'% aberto':'Parado')}</div>
+            <div class="sh-btns"><button data-shcv="${k}|open" aria-label="Abrir">▲<small>Abrir</small></button><button data-shcv="${k}|stop" aria-label="Parar">■<small>Parar</small></button><button data-shcv="${k}|close" aria-label="Fechar">▼<small>Fechar</small></button></div>
+            ${pos!=null?`<div class="sh-pre">${[0,25,50,75,100].map(p=>`<button data-shpre="${k}|${p}" aria-pressed="${Math.abs(pos-p)<5}">${p}%</button>`).join('')}</div>`:''}
+          </div></div></div>`}
+    // sensores
+    if(s&&s.open!=null&&s.t==null)return `<div class="sh-tile sh-sn sh-door ${s.open?'open':'shut'}${off?' offline':''}" data-k="${k}">${head(s.open?'🚪':'🔒')}
+      <div class="sh-big">${off?'—':s.open?'Aberta':'Fechada'}</div>${s.bat!=null?`<div class="sh-mini">🔋 ${s.bat}%</div>`:''}</div>`;
+    if(s&&s.t==null&&s.w!=null)return `<div class="sh-tile sh-sn${off?' offline':''}" data-k="${k}">${head('⚡')}<div class="sh-big">${Math.round(s.w)}<span>W</span></div></div>`;
+    return `<div class="sh-tile sh-sn${off?' offline':''}" data-k="${k}">${head('🌡️')}
+      <div class="sh-big">${s&&s.t!=null?(Math.round(s.t*10)/10).toLocaleString('pt-PT')+'<span>°C</span>':sub(s,off,'—')}</div>
+      <div class="sh-mini">${s&&s.h!=null?`<span>💧 ${Math.round(s.h)}%</span>`:''}${s&&s.bat!=null?`<span>🔋 ${s.bat}%</span>`:''}${s&&s.open!=null?`<span>${s.open?'🚪 Aberta':'🔒 Fechada'}</span>`:''}</div></div>`};
+  const groups={};devs.forEach(d=>{const r=roomOf(d);(groups[r]=groups[r]||[]).push(d)});
+  const body=devs.length?Object.entries(groups).map(([r,ds])=>`${fr?'':`<h3 class="sh-room">${esc(r)}<small>${ds.length}</small></h3>`}<div class="sh-grid${S.shEdit?' editing':''}" data-shgrid="${esc(r)}">${ds.map(tile).join('')}</div>`).join('')
+    :'<div class="sh-empty"><p>Ainda não escolheste dispositivos.</p><button class="addbtn" data-shcfg>Escolher dispositivos</button></div>';
+  return `<section class="casa">${summary}${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin:0 0 12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
+    ${S.shEdit?'<p class="sh-hint">Arrasta os cartões para os reorganizar. Larga-os noutra divisão para os mudar de divisão.</p>':''}
+    ${body}<p class="small muted sh-upd">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5):''}</p></section>`}
+function shSaveOrder(){const c=shCfg();const devs=[...(c.devices||[])];const byK={};devs.forEach(d=>byK[shKey(d)]=d);
+  const seen=new Set(),out=[];
+  document.querySelectorAll('[data-shgrid]').forEach(g=>{const room=g.dataset.shgrid;g.querySelectorAll('.sh-tile[data-k]').forEach(t=>{const d=byK[t.dataset.k];if(!d||seen.has(t.dataset.k))return;seen.add(t.dataset.k);
+    out.push(S.shRoom?d:{...d,room:room==='Casa'&&!d.room?d.room:room})})});
+  devs.forEach(d=>{if(!seen.has(shKey(d)))out.push(d)});
+  // com filtro de divisão ativo, manter a posição relativa das outras divisões
+  const nc={...c,devices:out};S.shelly=nc;if(S.db)S.db.doc('config/shelly').set(nc).catch(handleWriteError)}
+function shInitSort(){if(!S.shEdit)return;const gs=[...document.querySelectorAll('[data-shgrid]')];if(!gs.length)return;
+  loadSortable().then(Sortable=>gs.forEach(g=>{if(!g.isConnected||g._sort)return;
+    g._sort=Sortable.create(g,{group:'shelly',animation:200,draggable:'.sh-tile',ghostClass:'sh-ghost',chosenClass:'sh-chosen',
+      onStart:()=>{S.dragging=true},onEnd:()=>{S.dragging=false;S.dragAt=Date.now();shSaveOrder();setTimeout(()=>{if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()},250)}})})).catch(()=>{})}
 function shSheet(){const c=shCfg();let found=null;
   let names={};const devRows=list=>list.map((d,i)=>{const nm=names[d.id+'|'+(+d.channel||0)]||names[d.id+'|0']||{};const cur0=(c.devices||[]).find(x=>shKey(x)===shKey(d))||{};const cur={...cur0,name:cur0.name||nm.name||'',room:cur0.room||nm.room||''};return `<div class="sh-row"><label class="prof-chk"><input type="checkbox" name="on_${i}" ${cur0.id?(cur0.on!==false?'checked':''):'checked'}></label>
     <span class="sh-ty">${d.type==='switch'?'💡':d.type==='cover'?'🪟':'🌡️'}</span><input name="nm_${i}" value="${esc(cur.name||'')}" placeholder="${esc(d.id)}${d.channel?' · canal '+d.channel:''}" style="flex:2;min-width:120px"><input name="rm_${i}" value="${esc(cur.room||'')}" placeholder="Divisão" list="sh-rooms" style="flex:1;min-width:90px"></div>`}).join('');
@@ -2466,11 +2522,18 @@ function shSheet(){const c=shCfg();let found=null;
     catch(e){msg.textContent=e.net?'A Shelly Cloud não respondeu ao browser. Confirma o servidor; se estiver certo, ela pode estar a bloquear pedidos de páginas web — diz-me e eu monto um intermediário.':'Erro: '+e.message}
     finally{S.shelly=old}});
 }
-document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[data-shre],[data-shsw],[data-shcv]');if(!b)return;const d=b.dataset;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[data-shre],[data-shsw],[data-shcv],[data-shpre],[data-shedit],[data-shroom],[data-shall],[data-shallcv]');if(!b)return;const d=b.dataset;
+  if(S.shEdit&&(d.shsw||d.shcv||d.shpre))return;
+  const rw=()=>{if(S.wall)renderWall();else render()};
+  if(d.shedit!==undefined){S.shEdit=!S.shEdit;rw();return}
+  if(d.shroom!==undefined){S.shRoom=d.shroom;rw();return}
+  if(d.shall){const devs=(shCfg().devices||[]).filter(x=>x.on!==false&&x.type==='switch'&&(shState(x)||{}).on);shBatch(devs,x=>shPost('/device/relay/control',{id:x.id,channel:String(+x.channel||0),turn:'off'}));return}
+  if(d.shallcv){const devs=(shCfg().devices||[]).filter(x=>x.on!==false&&x.type==='cover');shBatch(devs,x=>shPost('/device/relay/roller/control',{id:x.id,channel:String(+x.channel||0),direction:d.shallcv}));return}
+  if(d.shpre){const p=d.shpre.split('|'),pos=+p.pop(),dev=(shCfg().devices||[]).find(x=>shKey(x)===p.join('|'));if(dev)shCover(dev,null,pos);return}
   const find=k=>(shCfg().devices||[]).find(x=>shKey(x)===k);
   if(d.shcfg!==undefined){shSheet();return}
   if(d.shre!==undefined){shRefresh(true);return}
-  if(d.shsw){const dev=find(d.shsw);if(!dev)return;const s=shState(dev);const on=!(s&&s.on);b.classList.toggle('on',on);shSwitch(dev,on);return}
+  if(d.shsw){const dev=find(d.shsw);if(!dev)return;const s=shState(dev);const on=!(s&&s.on);const t=b.closest('.sh-tile');if(t)t.classList.toggle('on',on);shSwitch(dev,on);return}
   if(d.shcv){const p=d.shcv.split('|'),dir=p.pop(),dev=find(p.join('|'));if(dev)shCover(dev,dir);return}
 });
 document.addEventListener('change',e=>{const r=e.target.closest('[data-shpos]');if(!r)return;const dev=(shCfg().devices||[]).find(x=>shKey(x)===r.dataset.shpos);if(dev)shCover(dev,null,+r.value)});
