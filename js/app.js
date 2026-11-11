@@ -1,4 +1,15 @@
 var MEALT=[['pequeno','Pequeno-almoço','☕'],['almoco','Almoço','🍽'],['lanche','Lanche','🥪'],['jantar','Jantar','🌙']];
+var WXC={0:['☀️','Céu limpo'],1:['🌤️','Pouco nublado'],2:['⛅','Parcialmente nublado'],3:['☁️','Nublado'],45:['🌫️','Nevoeiro'],48:['🌫️','Nevoeiro'],
+  51:['🌦️','Chuvisco fraco'],53:['🌦️','Chuvisco'],55:['🌧️','Chuvisco forte'],56:['🌧️','Chuvisco gelado'],57:['🌧️','Chuvisco gelado'],61:['🌦️','Chuva fraca'],63:['🌧️','Chuva'],65:['🌧️','Chuva forte'],
+  66:['🌧️','Chuva gelada'],67:['🌧️','Chuva gelada'],71:['🌨️','Neve fraca'],73:['🌨️','Neve'],75:['❄️','Neve forte'],77:['🌨️','Granizo fino'],80:['🌦️','Aguaceiros'],81:['🌧️','Aguaceiros'],82:['⛈️','Aguaceiros fortes'],
+  85:['🌨️','Aguaceiros de neve'],86:['🌨️','Aguaceiros de neve'],95:['⛈️','Trovoada'],96:['⛈️','Trovoada com granizo'],99:['⛈️','Trovoada com granizo']};
+var FW=[['clock','Relógio e data','A hora grande e a data'],['wx','Tempo','Temperatura, chuva, nascer e pôr do sol'],['radio','Rádio','A primeira das tuas rádios'],['votd','Versículo do dia','YouVersion'],['spotify','Spotify','Playlists, álbuns e podcasts']];
+var SH={st:null,at:0,busy:false,err:'',poll:null};
+var IC_GATE='<svg class="ic-gate" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5v15M21 5v15M3 8h18M3 17h18" stroke-width="2"/><path d="M6.5 8v9M10 8v9M13.5 8v9M17 8v9" stroke-width="1.6"/><path d="M6.5 8l1-2.5 1 2.5M10 8l1-2.5 1 2.5M13.5 8l1-2.5 1 2.5" stroke-width="1.3"/></svg>';
+var IC_GARAGE='<svg class="ic-gate" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l9-6 9 6v10H3z" stroke-width="2"/><path d="M6.5 20v-8h11v8M6.5 14.5h11M6.5 17h11" stroke-width="1.6"/></svg>';
+var SH_ZONES=[['','Automático'],['rc','Rés-do-chão'],['andar1','1.º andar'],['garagem','Garagem'],['portao','Portão da rua'],['exterior','Jardim / exterior']];
+var GBD=null,gbdBusy=false;
+var SPL={el:null,src:'',raf:0};
 var TKIND={teste:['📝','Teste'],exame:['🎓','Exame'],trabalho:['📂','Trabalho'],apresentacao:['🎤','Apresentação']};
 var GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 // Estado do leitor de vídeo/rádio (declarado no início para estar pronto no primeiro desenho do ecrã).
@@ -2014,10 +2025,7 @@ function avatarData(file){return new Promise((ok,ko)=>{const img=new Image(),u=U
 
 /* ---------- Tempo (Open-Meteo, sem chave) ---------- */
 var WX=null,wxBusy=false;
-var WXC={0:['☀️','Céu limpo'],1:['🌤️','Pouco nublado'],2:['⛅','Parcialmente nublado'],3:['☁️','Nublado'],45:['🌫️','Nevoeiro'],48:['🌫️','Nevoeiro'],
-  51:['🌦️','Chuvisco fraco'],53:['🌦️','Chuvisco'],55:['🌧️','Chuvisco forte'],56:['🌧️','Chuvisco gelado'],57:['🌧️','Chuvisco gelado'],61:['🌦️','Chuva fraca'],63:['🌧️','Chuva'],65:['🌧️','Chuva forte'],
-  66:['🌧️','Chuva gelada'],67:['🌧️','Chuva gelada'],71:['🌨️','Neve fraca'],73:['🌨️','Neve'],75:['❄️','Neve forte'],77:['🌨️','Granizo fino'],80:['🌦️','Aguaceiros'],81:['🌧️','Aguaceiros'],82:['⛈️','Aguaceiros fortes'],
-  85:['🌨️','Aguaceiros de neve'],86:['🌨️','Aguaceiros de neve'],95:['⛈️','Trovoada'],96:['⛈️','Trovoada com granizo'],99:['⛈️','Trovoada com granizo']};
+
 function wxPlace(){return S.wxPlace||{name:'Lisboa',lat:38.7223,lon:-9.1393}}
 function wxLoad(force){const pl=wxPlace(),key=pl.lat.toFixed(2)+','+pl.lon.toFixed(2);
   if(!WX){const c=lsJSON('fam.wx',null);if(c&&c.key===key)WX=c}
@@ -2419,7 +2427,7 @@ function yvSheet(){const c=yvCfg();
 document.addEventListener('click',e=>{if(e.target.closest('[data-votd]')){if(VOTD)sheet(VOTD.ref,`<p style="font-size:1.25rem;line-height:1.5;margin:0">“${esc(VOTD.text)}”</p><p class="muted">${esc(VOTD.bible||'')} · YouVersion</p>`)}});
 
 /* ---------- Configuração da Moldura ---------- */
-var FW=[['clock','Relógio e data','A hora grande e a data'],['wx','Tempo','Temperatura, chuva, nascer e pôr do sol'],['radio','Rádio','A primeira das tuas rádios'],['votd','Versículo do dia','YouVersion'],['spotify','Spotify','Playlists, álbuns e podcasts']];
+
 function fw(k){const v=(S.fw||{})[k];return v!==false}
 function frameSheet(){
   const f=sheet('Moldura',`<div class="field"><span>Widgets</span>
@@ -2436,7 +2444,7 @@ function frameSheet(){
 }
 
 /* ---------- Casa: Shelly Cloud ---------- */
-var SH={st:null,at:0,busy:false,err:'',poll:null};
+
 function shCfg(){return S.shelly||{}}
 function shHost(){let h=(shCfg().host||'').trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');return h}
 async function shPost(path,params){const c=shCfg();if(!c.key||!shHost())throw new Error('Falta configurar a Shelly Cloud');
@@ -2605,9 +2613,9 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[da
 document.addEventListener('change',e=>{const r=e.target.closest('[data-shpos]');if(!r)return;const dev=(shCfg().devices||[]).find(x=>shKey(x)===r.dataset.shpos);if(dev)shCover(dev,null,+r.value)});
 
 /* ---------- Casa: vista ilustrada (moradia de dois andares, portão e garagem) ---------- */
-var IC_GATE='<svg class="ic-gate" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5v15M21 5v15M3 8h18M3 17h18" stroke-width="2"/><path d="M6.5 8v9M10 8v9M13.5 8v9M17 8v9" stroke-width="1.6"/><path d="M6.5 8l1-2.5 1 2.5M10 8l1-2.5 1 2.5M13.5 8l1-2.5 1 2.5" stroke-width="1.3"/></svg>';
-var IC_GARAGE='<svg class="ic-gate" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l9-6 9 6v10H3z" stroke-width="2"/><path d="M6.5 20v-8h11v8M6.5 14.5h11M6.5 17h11" stroke-width="1.6"/></svg>';
-var SH_ZONES=[['','Automático'],['rc','Rés-do-chão'],['andar1','1.º andar'],['garagem','Garagem'],['portao','Portão da rua'],['exterior','Jardim / exterior']];
+
+
+
 function shZone(d,room){if(d.zone)return d.zone;const r=(room||'').toLowerCase();
   if(/garag/.test(r))return 'garagem';if(/port[ãa]o|rua|gate/.test(r))return 'portao';if(/jardim|exterior|quintal|terra[çc]o|piscina|varanda|alpendre/.test(r))return 'exterior';
   if(/quarto|suite|suíte|escrit|wc|banho|1\.?º|primeiro|andar|sót[ãa]o|cima/.test(r))return 'andar1';return 'rc'}
@@ -2686,7 +2694,7 @@ function wallCasaHouse(all,roomOf,nmOf){
   return `<div class="hs-wrap"><div class="hs-pic">${svg}</div><div class="hs-side">${zones}</div></div>`}
 
 /* ---------- Aniversários guardados no Google (modo só Google) ---------- */
-var GBD=null,gbdBusy=false;
+
 function allBdays(){if(!gOnly())return S.birthdays;if(!GBD){try{GBD=JSON.parse(localStorage.getItem('fam.gbd')||'null')}catch(e){GBD=null}}setTimeout(()=>gbdLoad(false),0);return [...S.birthdays,...((GBD&&GBD.list)||[])]}
 async function gbdLoad(force){const cal=famCal();if(!S.mcp||!cal||gbdBusy)return;if(!force&&GBD&&GBD.cal===cal&&Date.now()-GBD.at<6*3600000)return;gbdBusy=true;
   try{const t=new Date(),e=new Date(t.getFullYear()+1,t.getMonth(),t.getDate()+1);const seen={},list=[];let tok,n=0;
@@ -2766,7 +2774,7 @@ function spCur(){const c=spCfg(),it=c.items||[];return it.find(x=>x.id===c.cur)|
 function spotifyWidget(){const c=spCfg(),it=c.items||[];if(!it.length)return '';const cur=spCur();
   return `<div class="sp-w"><div class="sp-bar"><span class="sp-logo">♫ Spotify</span>${it.length>1?`<div class="sp-tabs">${it.map(x=>`<button class="sp-tab${x.id===cur.id?' on':''}" data-sppick="${esc(x.id)}">${esc(x.n||x.t)}</button>`).join('')}</div>`:`<span class="sp-name">${esc(cur.n||'')}</span>`}</div>
     <div class="sp-slot${c.big?' big':''}" id="spSlot"></div></div>`}
-var SPL={el:null,src:'',raf:0};
+
 function spSync(){const slot=document.getElementById('spSlot');const cur=spCur();
   if(!slot||!cur||!S.wall){if(SPL.el)SPL.el.style.display='none';return}
   if(!SPL.el){SPL.el=document.createElement('div');SPL.el.id='spLayer';document.body.appendChild(SPL.el)}
