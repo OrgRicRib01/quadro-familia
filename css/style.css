@@ -838,3 +838,29 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 @keyframes hsBlink{0%{opacity:0}30%{opacity:1}45%{opacity:.4}100%{opacity:1}}
 .hs-chip{transition:background .3s,box-shadow .3s}
 @media (prefers-reduced-motion:reduce){.hs-win.anim-on .hs-glass,.hs-win.anim-on .hs-halo,.hs-win.anim-off .hs-glass,.hs-shut.anim,.hs-gar.anim,.hs-gate.anim-open,.hs-gate.anim-close,.hs-lamp.anim-on{animation:none}}
+/* Refeições */
+.mealday .body{display:flex;flex-direction:column;gap:4px}
+.mealday .plate.none{border:0;background:none;padding:0;text-align:left;color:var(--muted);font:inherit;min-height:32px}
+.ml-row{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:4px 8px;border:0;border-radius:10px;background:transparent;color:var(--fg);text-align:left;font:inherit}
+.ml-row:hover{background:var(--sunk)}
+.ml-ic{flex:none;width:28px;text-align:center;font-size:1.1rem}
+.ml-tx{display:flex;flex-direction:column;min-width:0}
+.ml-tx small{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ml-tx b{font-weight:600;overflow-wrap:anywhere}
+.meal-add{flex:none;width:44px;height:44px;border:1px dashed var(--line);border-radius:12px;background:transparent;color:var(--muted);font-size:1.2rem}
+.meal-seg{display:flex;flex-wrap:wrap;gap:6px}
+.meal-seg button{flex:1 1 40%;min-height:44px}
+.mi-box{border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.mi-box summary{cursor:pointer;font-weight:700;min-height:32px;display:flex;align-items:center}
+.mi-bar{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.mi-search{display:flex;gap:6px}.mi-search input{flex:1;min-width:0}
+.mi-res{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:10px;max-height:340px;overflow:auto}
+.mi-card{display:flex;flex-direction:column;gap:4px;padding:0 0 6px;border:2px solid transparent;border-radius:12px;background:var(--sunk);color:var(--fg);text-align:left;overflow:hidden;font-size:.82rem;font-weight:600;line-height:1.2}
+.mi-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--line)}
+.mi-card span{padding:0 8px}
+.mi-card.on{border-color:var(--accent)}
+.mi-keep{gap:8px;margin-top:8px;font-size:.9rem}
+
+.fd-now{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.fd-today{font-family:var(--display);font-weight:700;font-size:clamp(.95rem,1.4vw,1.15rem);line-height:1.1;white-space:nowrap}
+.fd-view{padding-left:16px;border-left:2px solid var(--line)}

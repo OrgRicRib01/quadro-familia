@@ -1,3 +1,4 @@
+var MEALT=[['pequeno','Pequeno-almoço','☕'],['almoco','Almoço','🍽'],['lanche','Lanche','🥪'],['jantar','Jantar','🌙']];
 var TKIND={teste:['📝','Teste'],exame:['🎓','Exame'],trabalho:['📂','Trabalho'],apresentacao:['🎤','Apresentação']};
 var GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 // Estado do leitor de vídeo/rádio (declarado no início para estar pronto no primeiro desenho do ecrã).
@@ -8,7 +9,7 @@ const TABS=[
  {id:'lembretes',label:'Lembretes',icon:'<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>'},
  {id:'tarefas',label:'Tarefas',icon:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>'},
  {id:'compras',label:'Compras',icon:'<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>'},
- {id:'almocos',label:'Almoços',icon:'<path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M16 21V3c-2 1-3 4-3 7h3"/>'}
+ {id:'almocos',label:'Refeições',icon:'<path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M16 21V3c-2 1-3 4-3 7h3"/>'}
 ];
 const LISTS=['Casa','Compras','Escola','Outros'];
 const DEFAULT_MEMBERS=[1,2,3,4,5].map(i=>({id:'m'+i,name:'Pessoa '+i,color:'p'+i}));
@@ -481,7 +482,7 @@ function viewCalendar(seg){
   if(holidayOn(S.sel))items+=`<div class="item"><span class="time">Dia</span><span class="body"><span class="kind" style="color:var(--danger)">Feriado nacional</span><div class="t">${esc(holidayOn(S.sel))}</div></span></div>`;
   items+=breaksOn(S.sel).filter(b=>matches(b)).map(b=>`<button class="item" data-edit-break="${b.id}"><span class="time">Dia</span><span class="body"><span class="kind">Sem aulas</span><div class="t">${esc(b.title)}</div><div class="people">${peopleTags(b.who)}</div></span></button>`).join('');
   items+=vacationsOn(S.sel).map(v=>`<button class="item" data-edit-vac="${v.id}"><span class="time">✈︎</span><span class="body"><span class="kind">Férias${v.place?' · '+esc(v.place):''}</span><div class="t">${esc(v.title)}</div><div class="sub">Até ${niceDate(v.end||v.start)}</div><div class="people">${peopleTags(v.who)}</div></span></button>`).join('');
-  if(meal)items+=`<button class="item" data-open-meal="${S.sel}"><span class="time">🍽︎</span><span class="body"><span class="kind">Almoço</span><div class="t">${esc(meal.title)}</div>${meal.cook&&member(meal.cook)?`<div class="sub">Cozinha: ${esc(member(meal.cook).name)}</div>`:''}</span></button>`;
+  items+=mealsOn(S.sel).map(meal=>{const [k,l,ic]=mealT(meal);return `<button class="item" data-open-meal="${S.sel}|${k}|${esc(meal.id)}"><span class="time">${ic}</span><span class="body"><span class="kind">${l}</span><div class="t">${esc(meal.title)}</div>${meal.cook&&member(meal.cook)?`<div class="sub">Cozinha: ${esc(member(meal.cook).name)}</div>`:''}</span></button>`}).join('');
   items+=ev.map(e=>`<button class="item" data-edit-event="${e.id}"><span class="time">${e.time?esc(e.time):'Dia'}</span><span class="body">
       <span class="kind">${e.repeat==='yearly'?'Evento anual':'Evento'}</span><div class="t">${esc(e.title)}</div>
       ${e.place||e.note?`<div class="sub">${esc([e.place,e.note].filter(Boolean).join(' · '))}</div>`:''}
@@ -615,16 +616,16 @@ function viewLunch(){
   }
   const ws=parse(S.weekStart);const end=new Date(ws);end.setDate(ws.getDate()+6);
   let days='';
-  for(let i=0;i<7;i++){const d=new Date(ws);d.setDate(ws.getDate()+i);const ds=iso(d);const m=S.meals[ds];
-    days+=`<button class="meal ${ds===TODAY?'today':''}" data-open-meal="${ds}"><div class="d"><span>${DOW[i]}</span><b>${d.getDate()}</b></div>
-      <div class="body"><div class="plate ${m?'':'none'}">${m?esc(m.title):'Por decidir'}</div>
-      ${m&&m.cook&&member(m.cook)?`<div class="sub muted small"><span class="dot" style="--c:${colorOf(m.cook)};display:inline-block;margin-right:5px"></span>Cozinha: ${esc(member(m.cook).name)}</div>`:''}</div></button>`;}
+  for(let i=0;i<7;i++){const d=new Date(ws);d.setDate(ws.getDate()+i);const ds=iso(d);const ms=mealsOn(ds);
+    days+=`<div class="meal mealday ${ds===TODAY?'today':''}"><div class="d"><span>${DOW[i]}</span><b>${d.getDate()}</b></div>
+      <div class="body">${ms.length?mealRows(ds):`<button type="button" class="plate none" data-open-meal="${ds}">Por decidir</button>`}</div>
+      <button type="button" class="meal-add" data-open-meal="${ds}" aria-label="Adicionar refeição a ${DOW[i]} ${d.getDate()}">＋</button></div>`;}
   return `<section class="panel">${seg}
     <div class="row"><h2>${ws.getDate()} ${MONTHS[ws.getMonth()].slice(0,3)} – ${end.getDate()} ${MONTHS[end.getMonth()].slice(0,3)}</h2><span class="spacer"></span>
       <button class="iconbtn" data-week="-1" aria-label="Semana anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></button>
       <button class="iconbtn" data-week="1" aria-label="Semana seguinte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button></div>
     <div class="week">${days}</div>
-    <p class="muted small" style="margin:0">Toca num dia para escolher o almoço do livro de receitas ou escrever outro prato.</p>
+    <p class="muted small" style="margin:0">Toca em ＋ para juntar uma refeição (pequeno-almoço, almoço, lanche ou jantar). Há ideias de pratos para escolher.</p>
   </section>`;
 }
 
@@ -769,22 +770,55 @@ function recipeView(r){
     closeSheet();toast(ing.length+' ingredientes adicionados às Compras');
   });
 }
-function mealForm(d){
-  const m=S.meals[d]||{};
+function mealForm(arg){
+  const [d,t0,id0]=String(arg).split('|');
+  const m=(id0&&S.meals[id0])||(t0?S.meals[mealId(d,t0)]:null)||{};
+  let tipo=m.title?mealTipo(m):(t0||mealGuess(d));
   const rs=[...S.recipes].sort((a,b)=>(a.name||'').localeCompare(b.name||'','pt'));
-  const f=sheet('Almoço · '+niceDate(d),`
+  let pick=null;
+  const f=sheet((m.title?'Editar refeição':'Nova refeição')+' · '+niceDate(d),`
+    <div class="field"><span>Refeição</span><div class="seg meal-seg" role="group" aria-label="Tipo de refeição">${MEALT.map(([k,l,ic])=>`<button type="button" data-mt="${k}" aria-pressed="${tipo===k}">${ic} ${l}</button>`).join('')}</div></div>
     ${rs.length?`<label class="field"><span>Do livro de receitas</span><select id="m-recipe" name="recipe"><option value="">Escolher…</option>${rs.map(r=>`<option value="${r.id}" ${m.recipeId===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select></label>`:''}
     <label class="field"><span>${rs.length?'Ou escreve o prato':'Prato'}</span><input id="m-title" name="title" value="${esc(m.title)}" placeholder="Ex.: Sopa e bacalhau à Brás"></label>
     <label class="field"><span>Quem cozinha</span><select id="m-cook" name="cook"><option value="">—</option>${S.members.map(p=>`<option value="${p.id}" ${m.cook===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
-    ${m.recipeId&&S.recipes.find(r=>r.id===m.recipeId)?`<button type="button" class="ghost" data-seer>Ver receita</button>`:''}`,
-  {onSave:f=>{const rid=val(f,'recipe');const rec=S.recipes.find(r=>r.id===rid);
-      const title=val(f,'title')||(rec&&rec.name)||'';
-      if(!title){if(m.title)remove('meals',d);return}
-      save('meals',d,{title,recipeId:rec&&(!val(f,'title')||val(f,'title')===rec.name)?rid:(m.recipeId&&title===m.title?m.recipeId:''),cook:val(f,'cook'),date:d})},
-   onDelete:m.title&&!S.readOnly?()=>remove('meals',d):null});
+    ${m.recipeId&&S.recipes.find(r=>r.id===m.recipeId)?`<button type="button" class="ghost" data-seer>Ver receita</button>`:''}
+    <details class="mi-box"${m.title?'':' open'}><summary>💡 Ideias de pratos</summary>
+      <div class="mi-bar"><button type="button" class="chip" data-mi="pt">🇵🇹 Portuguesas</button><button type="button" class="chip" data-mi="tipo">Para esta refeição</button><button type="button" class="chip" data-mi="rand">🎲 Surpresa</button></div>
+      <div class="mi-search"><input type="search" id="mi-q" placeholder="Procurar (ex.: bacalhau, chicken, soup)" enterkeyhint="search"><button type="button" class="ghost" data-mi="q">Procurar</button></div>
+      <div id="mi-res" class="mi-res"><p class="muted small">Escolhe uma opção acima para ver ideias.</p></div>
+      <label class="row mi-keep" hidden><input type="checkbox" name="keep" checked> Guardar a receita (ingredientes e preparação) no livro de receitas</label>
+      <p class="muted small" style="margin:6px 0 0">Ideias de TheMealDB, uma base de receitas de todo o mundo. Os nomes e a preparação vêm em inglês.</p>
+    </details>`,
+  {onSave:async f=>{const rid=val(f,'recipe');const rec=S.recipes.find(r=>r.id===rid);
+      const title=val(f,'title')||(rec&&rec.name)||'';const nid=mealId(d,tipo);
+      if(!title){if(m.title)remove('meals',m.id);return}
+      let recipeId=rec&&(!val(f,'title')||val(f,'title')===rec.name)?rid:(m.recipeId&&title===m.title?m.recipeId:'');
+      if(pick&&title===pick.name&&f.elements.keep&&f.elements.keep.checked){try{recipeId=await mdbImport(pick.id)}catch(e){toast('Não consegui guardar a receita: '+e.message)}}
+      if(m.id&&m.id!==nid)remove('meals',m.id);
+      save('meals',nid,{title,recipeId,cook:val(f,'cook'),date:d,tipo,img:pick&&title===pick.name?pick.img:(title===m.title?m.img||'':'')})},
+   onDelete:m.title&&!S.readOnly?()=>remove('meals',m.id):null});
+  f.querySelectorAll('[data-mt]').forEach(b=>b.addEventListener('click',()=>{tipo=b.dataset.mt;f.querySelectorAll('[data-mt]').forEach(x=>x.setAttribute('aria-pressed',x===b))}));
   const sel=f.querySelector('[name=recipe]');
   sel?.addEventListener('change',()=>{const rec=S.recipes.find(r=>r.id===sel.value);if(rec)f.elements.title.value=rec.name});
-  f.querySelector('[data-seer]')?.addEventListener('click',()=>recipeView(S.recipes.find(r=>r.id===m.recipeId)));
+  f.querySelector('[data-seer]')?.addEventListener('click',()=>{const r=S.recipes.find(x=>x.id===m.recipeId);if(r){closeSheet();recipeView(r)}});
+  const res=f.querySelector('#mi-res');
+  const show=async(kind)=>{res.innerHTML='<p class="muted small">A procurar ideias…</p>';
+    try{let list=[];
+      if(kind==='pt')list=await mdb('filter.php?a=Portuguese');
+      else if(kind==='tipo'){const cat={pequeno:'Breakfast',lanche:'Dessert',almoco:'',jantar:''}[tipo];
+        if(cat)list=await mdb('filter.php?c='+cat);else{const [a,b]=await Promise.all([mdb('filter.php?a=Portuguese'),mdb('filter.php?a=Spanish')]);list=[...a,...b]}}
+      else if(kind==='rand'){const xs=await Promise.all(Array.from({length:6},()=>mdb('random.php')));list=xs.flat()}
+      else{const q=f.querySelector('#mi-q').value.trim();if(!q){res.innerHTML='<p class="muted small">Escreve o que procuras.</p>';return}list=await mdb('search.php?s='+encodeURIComponent(q))}
+      const seen=new Set();list=list.filter(x=>x&&!seen.has(x.idMeal)&&seen.add(x.idMeal));
+      if(kind!=='rand')list=list.sort(()=>Math.random()-.5);
+      list=list.slice(0,12);
+      res.innerHTML=list.length?list.map(x=>`<button type="button" class="mi-card" data-mid="${esc(x.idMeal)}" data-mn="${esc(x.strMeal)}" data-mimg="${esc(x.strMealThumb||'')}"><img src="${esc((x.strMealThumb||'')+'/preview')}" alt="" loading="lazy"><span>${esc(x.strMeal)}</span></button>`).join('')
+        :'<p class="muted small">Não encontrei nada. Experimenta outra palavra (em inglês funciona melhor).</p>'}
+    catch(e){res.innerHTML='<p class="muted small">Não consegui ligar ao banco de receitas. Verifica a internet e tenta de novo.</p>'}};
+  f.querySelectorAll('[data-mi]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.mi)));
+  f.querySelector('#mi-q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();show('q')}});
+  res.addEventListener('click',e=>{const c=e.target.closest('[data-mid]');if(!c)return;pick={id:c.dataset.mid,name:c.dataset.mn,img:c.dataset.mimg};
+    f.elements.title.value=pick.name;if(sel)sel.value='';res.querySelectorAll('.mi-card').forEach(x=>x.classList.toggle('on',x===c));f.querySelector('.mi-keep').hidden=false});
 }
 function familyForm(){
   const u=window.famBackend&&window.famBackend.user;
@@ -859,7 +893,7 @@ const isAll=x=>whoList(x.who).includes('all');
 const forM=(x,m)=>!isAll(x)&&whoList(x.who).includes(m);
 function wallData(d,raw){
   const f=S.filter;S.filter=wFilter();
-  const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:raw?gcalOn(d):groupSchoolG(gcalOn(d),d),bd:birthdaysOn(d),meal:S.meals[d]};
+  const r={ev:eventsOn(d),rm:remindersOn(d),vac:vacationsOn(d),g:raw?gcalOn(d):groupSchoolG(gcalOn(d),d),bd:birthdaysOn(d),meal:mealNext(d),meals:mealsOn(d)};
   S.filter=f;return r;
 }
 function colItems(m,D,d){
@@ -953,8 +987,9 @@ function wallLabel(){
 function wallHead(){
   const nav=!['rotinas','compras','avisos','inicio','relogio','educacao','casa'].includes(S.wallView);
   const n=new Date();
-  return `<div class="fd-top"><div class="fd-clock" id="wClock">${nowHM()}</div>
-    ${wxNow()}<div class="fd-date"><b>${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</b><small>${S.wallView==='inicio'?'Família '+esc(familyName()):wallLabel().replace(/<small>.*$/,'')}</small></div>
+  const lbl=S.wallView==='inicio'?'Família '+esc(familyName())+'<small>Início</small>':wallLabel();
+  return `<div class="fd-top"><div class="fd-now"><div class="fd-clock" id="wClock">${nowHM()}</div><div class="fd-today">${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</div></div>
+    ${wxNow()}<div class="fd-date fd-view"><b>${lbl.replace(/<small>[\s\S]*$/,'')}</b>${(lbl.match(/<small>[\s\S]*$/)||[''])[0]}</div>
     ${whoBar()}
     <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
       ${clockChip()}<button class="fd-btn urg-top" data-urgent aria-label="Mensagem urgente">⚠</button><button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn fd-gear" data-wset aria-label="Configuração">${GEAR}</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
@@ -993,7 +1028,7 @@ function wallHome(){
     return `<div class="fd-rrow">${avatar(m.id)}<span class="fd-rn">${esc(m.name)}</span><span class="fd-rc">${dn}/${ts.length}</span><span class="fd-prog"><i style="width:${ts.length?Math.round(dn/ts.length*100):0}%;background:var(--${m.color})"></i></span></div>`}).join('');
   const kids=S.members.filter(m=>m.kind==='crianca');const stars=(kids.length?kids:S.members).map(m=>({m,n:starsFor(m.id)}));const mx=Math.max(1,...stars.map(x=>x.n));
   const board=`<div class="fd-bars">${stars.map(x=>`<div class="fd-bcol"><b>${x.n}</b><span class="fd-b" style="height:${Math.max(4,Math.round(x.n/mx*86))}px;background:var(--${x.m.color})"></span><small>${esc(x.m.name)}</small></div>`).join('')}</div>`;
-  const meal=S.meals[TODAY],nx=[1,2].map(k=>{const x=parse(TODAY);x.setDate(x.getDate()+k);const ds=iso(x);return `<div class="fd-mrow"><span>${DOW[dowMon(x)]}</span>${S.meals[ds]?esc(S.meals[ds].title):'<i>por decidir</i>'}</div>`}).join('');
+  const meal=mealNext(TODAY),nx=[1,2].map(k=>{const x=parse(TODAY);x.setDate(x.getDate()+k);const ds=iso(x);const ms=mealsOn(ds);return `<div class="fd-mrow"><span>${DOW[dowMon(x)]}</span>${ms.length?ms.map(m=>mealT(m)[2]+' '+esc(m.title)).join(' · '):'<i>por decidir</i>'}</div>`}).join('');
   const shopN=shopItems().filter(x=>!x.done).length;
   const todos=S.tasks.filter(t=>t.list!=='Compras'&&!t.repeat&&!t.done&&wMatch(t)).sort((a,b)=>(a.due||'9').localeCompare(b.due||'9'));
   const head=(ic,t,sub,v)=>`<button class="fd-ch" ${v}><span class="fd-ci">${ic}</span><span><b>${t}</b><small>${sub}</small></span><span class="fd-chev">›</span></button>`;
@@ -1005,14 +1040,15 @@ function wallHome(){
     <div class="fd-right">
       <div class="fd-card">${head(IC('rotinas'),'Rotinas',PARTS.find(x=>x[0]===part)[1],'data-wv="rotinas"')}<div class="fd-cb">${rout}</div></div>
       <div class="fd-card">${head('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6"/></svg>','Estrelas','Esta semana'+(S.prize&&S.prize.title?' · '+esc(S.prize.title):''),'data-wv="rotinas"')}<div class="fd-cb">${board}</div></div>
-      <div class="fd-card">${head('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M16 21V3c-2 1-3 4-3 7h3"/></svg>','Almoço','Hoje','data-open-meal="'+TODAY+'"')}
-        <div class="fd-cb"><div class="fd-meal">${meal?esc(meal.title):'Por decidir'}</div>${meal&&meal.cook&&member(meal.cook)?`<small class="muted">Cozinha: ${esc(member(meal.cook).name)}</small>`:''}${nx}
+      <div class="fd-card">${head('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M16 21V3c-2 1-3 4-3 7h3"/></svg>','Refeições',meal?mealT(meal)[1]+(mealsOn(TODAY).length>1?' · +'+(mealsOn(TODAY).length-1):''):'Hoje','data-open-meal="'+TODAY+'"')}
+        <div class="fd-cb"><div class="fd-meal">${meal?mealT(meal)[2]+' '+esc(meal.title):'Por decidir'}</div>${meal&&meal.cook&&member(meal.cook)?`<small class="muted">Cozinha: ${esc(member(meal.cook).name)}</small>`:''}${nx}
         <button class="fd-chip" data-wv="compras">Compras · ${shopN}</button></div></div>
       <div class="fd-card">${head(IC('rotinas'),'Tarefas',todos.length+' por fazer','data-wv="avisos"')}<div class="fd-cb">${todos.slice(0,4).map(t=>`<div class="fd-todo"><button class="check" role="checkbox" aria-checked="false" data-toggle-task="${t.id}" aria-label="Feita"></button><span><b>${esc(t.text)}</b><small>${esc(t.list||'')}${t.due?' · até '+esc(rel(t.due)):''}</small></span><span class="dot" style="--c:${dotsFor(t.who)[0]}"></span></div>`).join('')||'<div class="muted small">Tudo feito!</div>'}</div></div>
     </div></div>`;
 }
-function railMeal(d){const meal=S.meals[d];
-  return `<div class="w-card"><h4>Almoço${d===TODAY?' de hoje':''}</h4><button class="w-it" data-open-meal="${d}"><span style="flex:1;min-width:0"><div class="tt">${meal?esc(meal.title):'Por decidir'}</div><div class="ss">${meal&&meal.cook&&member(meal.cook)?'Cozinha: '+esc(member(meal.cook).name):'Tocar para escolher'}</div></span></button></div>`}
+function railMeal(d){return mealCard(d)}
+function mealCard(d){const ms=mealsOn(d);
+  return `<div class="w-card"><h4>Refeições${d===TODAY?' de hoje':''}</h4>${ms.map(m=>{const [k,l,ic]=mealT(m);return `<button class="w-it" data-open-meal="${d}|${k}|${esc(m.id)}"><span class="tm">${ic}</span><span style="flex:1;min-width:0"><div class="tt">${esc(m.title)}</div><div class="ss">${l}${m.cook&&member(m.cook)?' · '+esc(member(m.cook).name):''}</div></span></button>`}).join('')}<button class="w-it" data-open-meal="${d}"><span class="tm">＋</span><span style="flex:1;min-width:0"><div class="tt">${ms.length?'Juntar refeição':'Por decidir'}</div><div class="ss">Tocar para escolher</div></span></button></div>`}
 function railReminders(d){
   const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d&&wMatch(r)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,5);
   return `<div class="w-card"><h4>Lembretes</h4>${pend.map(r=>`<div class="w-it"><button class="check" role="checkbox" aria-checked="false" data-toggle-rem="${r.id}" aria-label="Marcar como feito"></button><span style="flex:1;min-width:0"><div class="tt">${esc(r.text)}</div><div class="ss"${r.date<TODAY?' style="color:var(--danger)"':''}>${rel(r.date)}${r.time?' · '+esc(r.time):''}</div></span></div>`).join('')||'<div class="empty">Sem lembretes pendentes</div>'}</div>`}
@@ -1040,7 +1076,7 @@ function wallDay(d){
   return `${band.length?`<div class="w-band">${band.join('')}</div>`:''}
     <div class="w-body"><div class="w-cols" style="--n:${wallMembers().length}" data-swipe="wall">${cols}</div>
     <aside class="w-rail">
-      <div class="w-card"><h4>Almoço${d===TODAY?' de hoje':''}</h4><button class="w-it" data-open-meal="${d}"><span style="flex:1;min-width:0"><div class="tt">${meal?esc(meal.title):'Por decidir'}</div><div class="ss">${meal&&meal.cook&&member(meal.cook)?'Cozinha: '+esc(member(meal.cook).name):'Tocar para escolher'}</div></span></button></div>
+      ${mealCard(d)}
       <div class="w-card"><h4>Lembretes</h4>${pend.map(r=>`<div class="w-it"><button class="check" role="checkbox" aria-checked="false" data-toggle-rem="${r.id}" aria-label="Marcar como feito"></button><span style="flex:1;min-width:0"><div class="tt">${esc(r.text)}</div><div class="ss"${r.date<TODAY?' style="color:var(--danger)"':''}>${rel(r.date)}${r.time?' · '+esc(r.time):''}</div></span><span class="row" style="gap:3px;padding-top:6px">${dots(r.who)}</span></div>`).join('')||'<div class="empty">Sem lembretes pendentes</div>'}</div>
       <div class="w-card"><h4>Tarefas</h4>${tasks.map(t=>`<div class="w-it"><button class="check" role="checkbox" aria-checked="false" data-toggle-task="${t.id}" aria-label="Marcar como feita"></button><span style="flex:1;min-width:0"><div class="tt">${esc(t.text)}</div><div class="ss">${esc(t.list||'')}${t.due?' · até '+rel(t.due):''}</div></span><span class="row" style="gap:3px;padding-top:6px">${dots(t.who)}</span></div>`).join('')||'<div class="empty">Sem tarefas</div>'}</div>
       ${up.length?`<div class="w-card"><h4>Próximos aniversários</h4>${up.map(b=>`<button class="w-it" data-edit-bday="${b.id}"><span class="tm">${+b.md.slice(3)}/${+b.md.slice(0,2)}</span><span style="flex:1;min-width:0"><div class="tt">${esc(b.name)}</div><div class="ss">${b.n===0?'Hoje!':b.n===1?'Amanhã':'Daqui a '+b.n+' dias'}</div></span></button>`).join('')}</div>`:''}
@@ -1062,7 +1098,7 @@ function wallWeek(){
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
     cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b>${wxLine(d)}</button>
       ${its.map(z=>{const tag=z.a?'button':'div';const ms=(z.ms||[]).filter(id=>id==='all'||member(id));const av=ms.length?`<span class="w-av">${(ms.includes('all')?['all']:ms.slice(0,3)).map(id=>avatar(id,true)).join('')}</span>`:'';return `<${tag} class="w-wi${av?' has-av':''}" style="--c:${z.c}" ${z.a||''}>${av}${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
-      ${D.meal?`<button class="w-wi meal" data-open-meal="${d}" style="--c:var(--line)"><span class="ss">Almoço</span><span class="tt">${esc(D.meal.title)}</span></button>`:''}</div>`;
+      ${(D.meals||[]).map(m=>{const [k,l,ic]=mealT(m);return `<button class="w-wi meal" data-open-meal="${d}|${k}|${esc(m.id)}" style="--c:var(--line)"><span class="ss">${ic} ${l}</span><span class="tt">${esc(m.title)}</span></button>`}).join('')}</div>`;
   }
   return `<div class="w-week" data-swipe="wall">${cols}</div>${syncLine()}`;
 }
@@ -1164,7 +1200,7 @@ function wallFrame(){
   const tmr=parse(TODAY);tmr.setDate(tmr.getDate()+1);const td=iso(tmr);
   const now=nowHM();
   const row=(x,today)=>`<div class="w-fr${today&&x.end&&x.end<=now?' past':''}"><span class="tm">${x.k||'Dia'}</span><span class="dot" style="--c:${x.c}"></span><span class="tt" style="min-width:0">${esc(x.t)}</span></div>`;
-  const meal=S.meals[TODAY],pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=TODAY&&wMatch(r)).length;
+  const meal=mealNext(TODAY),pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=TODAY&&wMatch(r)).length;
   const up=allBdays().map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n)[0];
   const today=frameList(wallData(TODAY),TODAY),tomorrow=frameList(wallData(td),td).slice(0,5);
   const fm=S.frameMode||'galeria';
@@ -1173,7 +1209,7 @@ function wallFrame(){
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
       ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${fw('wx')?dragBox('wx',frameWx(true)):''}${fw('radio')?dragBox('radio',galleryRadio()):''}${fw('votd')?dragBox('votd',votdWidget()):''}
       <div class="ov"${fw('clock')?'':' hidden'}><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
-      ${meal?`<div class="w-chipb">Almoço: ${esc(meal.title)}</div>`:''}</div>
+      ${meal?`<div class="w-chipb">${mealT(meal)[1]}: ${esc(meal.title)}</div>`:''}</div>
       </div>
     ${frameSide(today,tomorrow,row,up,pend)}</div>`;
 }
@@ -1250,7 +1286,7 @@ function quickAdd(){
     <button type="button" data-new="event">Evento<small>consulta, treino</small></button>
     <button type="button" data-new="reminder">Lembrete<small>não esquecer</small></button>
     <button type="button" data-new="task">Tarefa<small>casa, compras</small></button>
-    <button type="button" data-open-meal="${S.sel}">Almoço<small>${S.sel===TODAY?'de hoje':niceDate(S.sel)}</small></button>
+    <button type="button" data-open-meal="${S.sel}">Refeição<small>${S.sel===TODAY?'de hoje':niceDate(S.sel)}</small></button>
     <button type="button" data-new="vacation">Férias<small>período</small></button>
     <button type="button" data-new="birthday">Aniversário<small>todos os anos</small></button>
     <button type="button" data-new="test">Teste<small>estudantes</small></button>
@@ -2663,3 +2699,19 @@ function gBdaySheet(id){const b=allBdays().find(x=>x.id===id);if(!b)return;const
   const f=sheet('🎂 '+esc(b.name),`<p style="margin:0">${+b.md.slice(3)} de ${MONTHS[+b.md.slice(0,2)-1]}${b.year?' · nasceu em '+esc(b.year):''}</p>
     <p class="muted small">Guardado no calendário Família do Google. Repete todos os anos.</p>`,
   {onDelete:S.readOnly?null:async()=>{try{await S.mcp.callTool(GSERVER,'delete_event',{calendarId:cal,eventId:eid},{cache:false});GBD.list=GBD.list.filter(x=>x.id!==id);try{localStorage.setItem('fam.gbd',JSON.stringify(GBD))}catch(e){}toast('Aniversário apagado');S.gbusy=0;syncGoogle(null,false);if(S.wall)renderWall();else render()}catch(e){toast(gErr(e))}}})}
+
+/* ---------- Refeições (pequeno-almoço, almoço, lanche, jantar) ---------- */
+function mealTipo(m){return (m&&m.tipo)||'almoco'}
+function mealId(d,t){return t==='almoco'?d:d+'_'+t}
+function mealT(m){return MEALT.find(x=>x[0]===mealTipo(m))||MEALT[1]}
+function mealsOn(d){const o=k=>MEALT.findIndex(x=>x[0]===k);return Object.values(S.meals||{}).filter(m=>m&&m.title&&(m.date||m.id)===d).sort((a,b)=>o(mealTipo(a))-o(mealTipo(b)))}
+function mealGuess(d){if(d!==TODAY)return 'almoco';const h=new Date().getHours();return h<10?'pequeno':h<15?'almoco':h<18?'lanche':'jantar'}
+function mealNext(d){const ms=mealsOn(d);if(!ms.length)return null;if(d!==TODAY)return ms[0];const h=new Date().getHours(),lim={pequeno:10,almoco:15,lanche:18,jantar:24};return ms.find(m=>h<lim[mealTipo(m)])||ms[ms.length-1]}
+function mealRows(d,cls){const ms=mealsOn(d);return ms.length?ms.map(m=>{const [k,l,ic]=mealT(m);return `<button type="button" class="${cls||'ml-row'}" data-open-meal="${d}|${k}|${esc(m.id)}"><span class="ml-ic">${ic}</span><span class="ml-tx"><small>${l}</small><b>${esc(m.title)}</b></span></button>`}).join(''):''}
+// banco de receitas TheMealDB (gratuito, sem chave)
+var MDB='https://www.themealdb.com/api/json/v1/1/';
+async function mdb(q){const r=await fetch(MDB+q);if(!r.ok)throw new Error('erro '+r.status);const j=await r.json();return j.meals||[]}
+async function mdbImport(id){const x=(await mdb('lookup.php?i='+encodeURIComponent(id)))[0];if(!x)throw new Error('receita não encontrada');
+  const ex=S.recipes.find(r=>r.mdb===String(id));if(ex)return ex.id;
+  const ing=[];for(let i=1;i<=20;i++){const n=(x['strIngredient'+i]||'').trim();if(n)ing.push(((x['strMeasure'+i]||'').trim()+' '+n).trim())}
+  const rid='mdb'+id;save('recipes',rid,{name:x.strMeal,mins:'',serves:'',tag:[x.strArea,x.strCategory].filter(Boolean).join(' · '),ingredients:ing.join('\n'),steps:(x.strInstructions||'').trim(),img:x.strMealThumb||'',src:x.strSource||x.strYoutube||'',mdb:String(id)});return rid}
