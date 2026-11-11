@@ -860,3 +860,5 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .sug.has-img{display:flex;flex-direction:row;align-items:center;gap:10px;text-align:left}
 .sug.has-img span{display:flex;flex-direction:column;min-width:0}
 .w-shopit .shop-img{width:52px;height:52px}
+
+.ghost.danger{color:#B91C1C;border-color:#FCA5A5}

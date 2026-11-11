@@ -37,8 +37,8 @@ const S={
 const GSERVER='Google Calendar';
 
 /* ---------- store layer: shared db when available, in-memory otherwise ---------- */
-const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory','schoolBreaks','tests','edu'];
-S.schoolBreaks=[];S.tests=[];S.edu=[];S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
+const COLS=['events','reminders','tasks','recipes','meals','birthdays','vacations','photos','shopHistory','schoolBreaks','tests','edu','shopArchive'];
+S.schoolBreaks=[];S.shopArchive=[];S.tests=[];S.edu=[];S.birthdays=[];S.vacations=[];S.photos=[];S.shopHistory=[];S.shopLists=[];S.shopList=lsGet('fam.shopList')||'';S.agView='cal';
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 async function save(col,id,data){
   id=id||uid();
@@ -573,7 +573,7 @@ function shopBody(big){
   const open=it.filter(t=>!t.done).sort((a,b)=>(a.text||'').localeCompare(b.text||'','pt')),got=it.filter(t=>t.done);
   const lists=`<div class="${big?'w-who':'who'}" role="group" aria-label="Listas de compras">${shopLists().map(l=>{const n=shopItems(l).filter(x=>!x.done).length;
       return `<button class="chip" data-shoplist="${esc(l)}" aria-pressed="${l===store}">${esc(l)}${n?` <b>${n}</b>`:''}</button>`}).join('')}
-    ${S.readOnly?'':'<button class="chip" data-shopnew>+ Lista</button>'}<button class="chip" data-shophist aria-pressed="${!!S.shopShowHist}">Histórico</button></div>`;
+    ${S.readOnly?'':'<button class="chip" data-shopnew>+ Lista</button>'}<button class="chip" data-shopmenu aria-label="Enviar, arquivar ou apagar a lista ${esc(store)}">⋯ Lista</button><button class="chip" data-shophist aria-pressed="${!!S.shopShowHist}">Histórico</button></div>`;
   const dl=`<datalist id="shophist">${S.shopHistory.map(h=>`<option value="${esc(h.name)}"></option>`).join('')}</datalist>`;
   const sug=S.readOnly?[]:shopSuggestions(store);
   const sugHtml=sug.length?`<div class="field"><span>Sugestões pelo histórico</span><div class="sugs">${sug.map(x=>`<button class="sug${x.h.img?' has-img':''}" data-shopsug="${esc(x.h.id)}">${shopImg(x.h,80)}<span><b>+ ${esc(x.h.name)}</b><small>${esc(x.why)}</small></span></button>`).join('')}</div></div>`:'';
@@ -1415,6 +1415,7 @@ document.addEventListener('click',e=>{
   if(d.shopcat!==undefined){S.shopCat=d.shopcat;S.shopHistAll=false;if(S.wall)renderWall();else render();return}
   if(d.shophall!==undefined){S.shopHistAll=true;if(S.wall)renderWall();else render();return}
   if(d.shopsug){if(S.readOnly)return;const h=S.shopHistory.find(x=>x.id===d.shopsug);if(h){addShopItem(h.name);toast(h.name+' adicionado a '+curShop())}return}
+  if(d.shopmenu!==undefined){shopMenu(curShop());return}
   if(d.shopnew!==undefined){if(S.readOnly)return;shopListsSheet();return}
   if(d.dellist){if(S.readOnly)return;if(shopItems(d.dellist).length){toast('Essa lista ainda tem artigos. Limpa-a primeiro.');return}
     if(!t.dataset.armed){t.dataset.armed='1';t.textContent='Toca de novo para apagar';return}
@@ -2702,3 +2703,44 @@ function mealRows(d,cls){const ms=mealsOn(d);return ms.length?ms.map(m=>{const [
 
 
 document.addEventListener('input',e=>{if(e.target.id!=='shop-hq')return;S.shopQ=e.target.value;S.shopHistAll=false;S.refocusId='shop-hq';S.refocusUntil=Date.now()+1500;clearTimeout(S.shopQT);S.shopQT=setTimeout(()=>{if(S.wall)renderWall();else render();const el=document.getElementById('shop-hq');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)});
+
+/* ---------- Gerir uma lista de compras: email, arquivo, apagar ---------- */
+function shopListText(store){const it=shopItems(store);const open=it.filter(t=>!t.done).sort((a,b)=>(a.text||'').localeCompare(b.text||'','pt')),got=it.filter(t=>t.done);
+  return `Lista de compras · ${store} · ${niceDate(TODAY)}\n\n`+(open.length?open.map(t=>'☐ '+t.text).join('\n'):'(nada por comprar)')+(got.length?'\n\nJá no carrinho:\n'+got.map(t=>'✓ '+t.text).join('\n'):'')+'\n\n— enviado pelo Quadro da Família'}
+function shopMenu(store){
+  const it=shopItems(store),arch=(S.shopArchive||[]).filter(a=>a.store===store).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  const mails=S.members.filter(m=>m.email);
+  const f=sheet('Lista · '+esc(store),`
+    <p class="muted small" style="margin:0">${it.filter(x=>!x.done).length} por comprar · ${it.filter(x=>x.done).length} no carrinho</p>
+    <div class="field"><span>Enviar por email</span>
+      ${mails.length?`<div class="who" style="flex-wrap:wrap" data-slto>${mails.map(m=>`<button type="button" class="chip" data-to="${esc(m.email)}" aria-pressed="false"><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}</button>`).join('')}</div>`:''}
+      <input id="sl-extra" type="email" placeholder="Outro email (opcional)" autocomplete="off" inputmode="email" style="margin-top:6px">
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="addbtn" data-slsend="gmail">Enviar pelo Gmail</button><button type="button" class="ghost" data-slsend="mail">App de email</button><button type="button" class="ghost" data-slcopy>Copiar</button></div></div>
+    <div class="field"><span>Arquivar</span><p class="muted small" style="margin:0 0 6px">Guarda uma cópia desta lista no arquivo e esvazia-a para a próxima compra.</p>
+      <button type="button" class="ghost" data-slarch ${it.length?'':'disabled'}>Arquivar e esvaziar</button></div>
+    ${arch.length?`<div class="field"><span>Arquivo (${arch.length})</span><div class="list">${arch.slice(0,30).map(a=>`<div class="item"><span class="body"><div class="t">${esc(niceDate(a.date||TODAY))}</div><div class="sub">${(a.items||[]).length} artigos${a.by?' · '+esc(a.by):''}</div></span><button type="button" class="edit" data-slview="${esc(a.id)}">Ver</button></div>`).join('')}</div></div>`:''}
+    ${S.readOnly?'':`<div class="field"><span>Apagar lista</span><p class="muted small" style="margin:0 0 6px">${shopLists().length>1?'Apaga a lista e os artigos que tem. O histórico de artigos fica guardado.':'Esta é a única lista: podes esvaziá-la, mas não apagá-la.'}</p>
+      <button type="button" class="ghost danger" data-sldel ${shopLists().length>1?'':'disabled'}>Apagar a lista ${esc(store)}</button></div>`}`,{});
+  const picked=()=>[...f.querySelectorAll('[data-slto] [aria-pressed="true"]')].map(b=>b.dataset.to).concat((f.querySelector('#sl-extra').value||'').split(/[,;\s]+/).filter(x=>/@/.test(x)));
+  f.querySelectorAll('[data-slto] .chip').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true')));
+  f.querySelectorAll('[data-slsend]').forEach(b=>b.addEventListener('click',()=>{const to=picked();const subj='Lista de compras · '+store,body=shopListText(store);
+    const url=b.dataset.slsend==='gmail'?`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to.join(','))}&su=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`
+      :`mailto:${to.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+    window.open(url,'_blank','noopener')}));
+  f.querySelector('[data-slcopy]').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(shopListText(store));toast('Lista copiada')}catch(e){toast('Não foi possível copiar')}});
+  f.querySelector('[data-slarch]')?.addEventListener('click',e=>{const b=e.currentTarget;if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para arquivar';return}
+    const items=shopItems(store).map(t=>({text:t.text,done:!!t.done}));const me=S.me&&member(S.me.memberId);
+    save('shopArchive',null,{store,date:TODAY,at:new Date().toISOString(),items,by:me?me.name:''});
+    shopItems(store).forEach(t=>remove('tasks',t.id));toast('Lista arquivada');closeSheet()});
+  f.querySelector('[data-sldel]')?.addEventListener('click',e=>{const b=e.currentTarget;if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para apagar '+store;return}
+    shopItems(store).forEach(t=>remove('tasks',t.id));const rest=shopLists().filter(l=>l!==store);saveShopLists(rest);S.shopList=rest[0];lsSet('fam.shopList',rest[0]);toast('Lista apagada');closeSheet()});
+  f.querySelectorAll('[data-slview]').forEach(b=>b.addEventListener('click',()=>{const a=arch.find(x=>x.id===b.dataset.slview);if(a){closeSheet();shopArchView(a)}}));
+}
+function shopArchView(a){
+  const f=sheet('Arquivo · '+esc(a.store)+' · '+esc(niceDate(a.date||TODAY)),`<div class="list">${(a.items||[]).map(x=>`<div class="item ${x.done?'done':''}"><span class="body"><div class="t">${x.done?'✓ ':'☐ '}${esc(x.text)}</div></span></div>`).join('')||'<div class="empty">Vazia.</div>'}</div>
+    ${S.readOnly?'':`<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="addbtn" data-sarest>Voltar a pôr na lista</button><button type="button" class="ghost danger" data-sadel>Apagar do arquivo</button></div>`}`,{});
+  f.querySelector('[data-sarest]')?.addEventListener('click',()=>{const have=new Set(shopItems(a.store).filter(t=>!t.done).map(t=>slugify(t.text)));let n=0;
+    (a.items||[]).forEach(x=>{if(!have.has(slugify(x.text))){addShopItem(x.text,a.store);n++}});if(!shopLists().includes(a.store))saveShopLists([...shopLists(),a.store]);
+    S.shopList=a.store;lsSet('fam.shopList',a.store);toast(n+' artigos repostos em '+a.store);closeSheet()});
+  f.querySelector('[data-sadel]')?.addEventListener('click',e=>{const b=e.currentTarget;if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para apagar';return}remove('shopArchive',a.id);toast('Apagado do arquivo');closeSheet()});
+}
