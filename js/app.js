@@ -190,8 +190,13 @@ function maybeAutoSync(){
 // Evita mostrar duas vezes a mesma aula: se o Quadro já tem um evento da pessoa à mesma hora, o do Google é omitido.
 let _localCache={};
 function localAt(d){const k=d+'|'+S.events.length+'|'+(S.events[0]&&S.events[0].id);if(_localCache.k!==k){_localCache={k,v:S.events.filter(e=>e.time&&(e.date===d||(e.repeat==='weekly'&&e.date<=d&&dowMon(parse(e.date))===dowMon(parse(d)))))}}return _localCache.v}
+// Férias: a pessoa (ou toda a família) está de férias neste dia?
+function isVacG(x){return x.q==='ferias'||/^\s*✈/.test(x.t||'')}
+function onVacation(m,d){
+  if((S.vacations||[]).some(v=>v.start&&d>=v.start&&d<=(v.end||v.start)&&(whoList(v.who).includes('all')||whoList(v.who).includes(m))))return true;
+  return Object.entries(S.gcal||{}).some(([mid,doc])=>(doc.events||[]).some(x=>{if(!isVacG(x)||d<x.d||d>x.e)return false;const wm=x.w&&memberByName(x.w);const o=wm?wm.id:(x.m||mid);return o==='all'||o===m}))}
 function gcalOn(d){
-  const out=[],seen=new Set();
+  const out=[],seen=new Set();const vac={};
   Object.entries(S.gcal).forEach(([mid,doc])=>{
     (doc.events||[]).forEach(x=>{
       const wm=x.w&&memberByName(x.w);const m=wm?wm.id:(x.m||mid);if(m!=='all'&&!member(m))return;
@@ -200,6 +205,8 @@ function gcalOn(d){
       if(gOnly()&&m!=='all'&&isSchoolG(x,m)&&schoolOff(m,d))return;
       if(d<x.d||d>x.e)return;
       if(x.c&&/feriad/i.test(x.c)&&holidayOn(d))return;
+      // em férias, as atividades que se repetem (trabalho, aulas, treinos…) dessa pessoa não aparecem
+      if(x.r&&!isVacG(x)){const ids=m==='all'?[]:[m];if(ids.length&&(vac[m]!==undefined?vac[m]:(vac[m]=onVacation(m,d))))return}
       const k=m+'|'+x.t+'|'+x.d+'|'+x.h;if(seen.has(k))return;seen.add(k);
       if(!gOnly()&&x.h&&x.d===d&&localAt(d).some(e=>e.time===x.h&&whoList(e.who).includes(m)))return;
       out.push({...x,mid:m,src:mid});
