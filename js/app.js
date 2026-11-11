@@ -2397,7 +2397,7 @@ async function shPost(path,params){const c=shCfg();if(!c.key||!shHost())throw ne
   if(!r.ok||(j&&j.isok===false)){const m=j&&j.errors?Object.values(j.errors).join(', '):('erro '+r.status);throw new Error(m)}
   return j&&j.data!==undefined?j.data:j}
 async function shRefresh(force){if(SH.busy||(!force&&Date.now()-SH.at<8000))return;SH.busy=true;
-  try{const d=await shPost('/device/all_status',{});SH.st=(d&&d.devices_status)||{};SH.at=Date.now();SH.err=''}catch(e){SH.err=e.message}
+  try{const d=await shPost('/device/all_status',{});const nw=(d&&d.devices_status)||{};const now=Date.now();Object.keys(SH.hold||{}).forEach(id=>{if(SH.hold[id]>now&&SH.st&&SH.st[id])nw[id]=SH.st[id]});SH.st=nw;SH.at=now;SH.err=''}catch(e){SH.err=e.message}
   SH.busy=false;if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall();else if(!S.wall&&S.tab==='casa')render()}
 // lê o estado de um canal (Gen1 e Gen2)
 function shState(dev){const s=SH.st&&SH.st[dev.id];if(!s)return null;const ch=+dev.channel||0;const o={online:s._dev_info?s._dev_info.online!==false:true};
@@ -2416,8 +2416,10 @@ function shDiscover(st){const out=[];Object.entries(st||{}).forEach(([id,s])=>{
   if(Array.isArray(s.rollers)&&(s.mode==='roller'||!s.relays))s.rollers.forEach((r,i)=>out.push({id,channel:i,type:'cover'}));
   if(s['temperature:0']||s.tmp||s['humidity:0']||s.hum||s['window:0']||(s.sensor&&s.sensor.state!=null)||s['em:0']||s['em1:0'])out.push({id,channel:0,type:'sensor'});
 });return out}
-async function shSwitch(dev,on){try{await shPost('/device/relay/control',{id:dev.id,channel:String(+dev.channel||0),turn:on?'on':'off'});setTimeout(()=>shRefresh(true),900)}catch(e){toast(e.message)}}
-async function shCover(dev,dir,pos){try{if(pos!=null)await shPost('/device/relay/roller/settings/topos',{id:dev.id,channel:String(+dev.channel||0),pos:String(pos)});else await shPost('/device/relay/roller/control',{id:dev.id,channel:String(+dev.channel||0),direction:dir});setTimeout(()=>shRefresh(true),1500)}catch(e){toast(e.message)}}
+function shOpt(dev,f){const s=SH.st&&SH.st[dev.id];if(!s)return;(SH.hold=SH.hold||{})[dev.id]=Date.now()+5000;try{f(s,+dev.channel||0)}catch(e){}if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()}
+async function shSwitch(dev,on){shOpt(dev,(s,ch)=>{if(s['switch:'+ch])s['switch:'+ch].output=on;else if(s.relays&&s.relays[ch])s.relays[ch].ison=on});try{await shPost('/device/relay/control',{id:dev.id,channel:String(+dev.channel||0),turn:on?'on':'off'});setTimeout(()=>shRefresh(true),900)}catch(e){toast(e.message)}}
+async function shCover(dev,dir,pos){const tgt=pos!=null?pos:dir==='open'?100:dir==='close'?0:null;
+  if(tgt!=null)shOpt(dev,(s,ch)=>{const r=s['cover:'+ch]||(s.rollers&&s.rollers[ch]);if(r)r.current_pos=tgt});try{if(pos!=null)await shPost('/device/relay/roller/settings/topos',{id:dev.id,channel:String(+dev.channel||0),pos:String(pos)});else await shPost('/device/relay/roller/control',{id:dev.id,channel:String(+dev.channel||0),direction:dir});setTimeout(()=>shRefresh(true),1500)}catch(e){toast(e.message)}}
 // nomes e divisões tal como estão na app Shelly (melhor esforço: a Shelly Cloud não documenta isto oficialmente)
 async function shNames(st){const out={};
   try{const d=await shPost('/interface/device/get_all_lists',{});const rooms=(d&&d.rooms)||{};const devs=(d&&d.devices)||{};
@@ -2444,14 +2446,14 @@ function wallCasa(){
   const devs=fr?all.filter(d=>roomOf(d)===fr):all;
   // resumo
   const st=all.map(d=>[d,shState(d)]);
-  const lightsOn=st.filter(([d,s])=>d.type==='switch'&&s&&s.on).length;
+  const lightsOn=st.filter(([d,s])=>d.type==='switch'&&!shImpulse(d,shZone(d,roomOf(d)))&&s&&s.on).length;
   const watts=st.reduce((a,[d,s])=>a+(s&&s.w>0?s.w:0),0);
   const temps=st.filter(([d,s])=>s&&s.t!=null).map(([d,s])=>s.t);
   const openW=st.filter(([d,s])=>s&&s.open===true).length;
   const coversOpen=st.filter(([d,s])=>d.type==='cover'&&s&&s.pos>0).length;
   const chip=(ic,v,l,cls='')=>`<div class="sh-sum${cls}"><span>${ic}</span><b>${v}</b><small>${l}</small></div>`;
   const summary=`<div class="sh-top">
-    <div class="sh-sums">${chip('💡',lightsOn,lightsOn===1?'ligado':'ligados',lightsOn?' hot':'')}${chip('⚡',Math.round(watts)+' W','agora')}${temps.length?chip('🌡️',(Math.round(temps.reduce((a,b)=>a+b,0)/temps.length*10)/10).toLocaleString('pt-PT')+'°','média'):''}${chip('🪟',coversOpen,'estores abertos')}${openW?chip('🚪',openW,openW===1?'aberta':'abertas',' warn'):''}</div>
+    <div class="sh-sums">${chip('💡',lightsOn,lightsOn===1?'ligado':'ligados',lightsOn?' hot':'')}${chip('⚡',Math.round(watts)+' W','agora')}${temps.length?chip('🌡️',(Math.round(temps.reduce((a,b)=>a+b,0)/temps.length*10)/10).toLocaleString('pt-PT')+'°','média'):''}${chip('🪟',coversOpen,'estores abertos')}${openW?chip('🚪',openW,openW===1?'aberto':'abertos',' warn'):''}</div>
     <div class="sh-acts">
       ${lightsOn?`<button class="sh-act" data-shall="off">⏻ Desligar tudo</button>`:''}
       ${st.some(([d])=>d.type==='cover')?`<button class="sh-act" data-shallcv="open">▲ Abrir estores</button><button class="sh-act" data-shallcv="close">▼ Fechar estores</button>`:''}
@@ -2462,7 +2464,12 @@ function wallCasa(){
     ${mode==='cards'&&roomNames.length>1?`<div class="sh-rooms" role="group" aria-label="Divisões"><button data-shroom="" aria-pressed="${!fr}">Todas</button>${roomNames.map(r=>`<button data-shroom="${esc(r)}" aria-pressed="${fr===r}">${esc(r)}</button>`).join('')}</div>`:''}`;
   const sub=(s,off,txt)=>!s?'<span class="sh-dim">a carregar…</span>':off?'<span class="sh-off">Sem ligação</span>':txt;
   const tile=d=>{const s=shState(d),k=esc(shKey(d)),nm=esc(d.name||nmOf(d).name||d.id),off=s&&s.online===false;
-    const head=(ic,cls='')=>`<div class="sh-h"><span class="sh-ic${cls}">${ic}</span><span class="sh-nm"><b>${nm}</b><small>${d.type==='switch'?'Luz / tomada':d.type==='cover'?'Estore':'Sensor'}</small></span></div>`;
+    const head=(ic,cls='')=>`<div class="sh-h"><span class="sh-ic${cls}">${ic}</span><span class="sh-nm"><b>${nm}</b><small>${shImpulse(d,shZone(d,roomOf(d)))?'Comando':d.type==='switch'?'Luz / tomada':d.type==='cover'?'Estore':'Sensor'}</small></span></div>`;
+    const zn=shZone(d,roomOf(d));
+    if(shImpulse(d,zn)){const armed=S.shArm===shKey(d);
+      return `<div class="sh-tile sh-gate${armed?' armed':''}${off?' offline':''}" data-k="${k}">${head(zn==='portao'?IC_GATE:IC_GARAGE)}
+        <div class="sh-ft"><span class="sh-st">${sub(s,off,armed?'Toca de novo para confirmar':zn==='portao'?'Portão':'Garagem')}</span></div>
+        <button class="sh-pulse" data-shpulse="${k}">${armed?'Confirmar':'Abrir / fechar'}</button></div>`}
     if(d.type==='switch'){const on=!!(s&&s.on);
       return `<div class="sh-tile sh-sw${on?' on':''}${off?' offline':''}" data-k="${k}"><button class="sh-hit" data-shsw="${k}" aria-pressed="${on}" aria-label="${nm}: ${on?'desligar':'ligar'}"></button>
         ${head(on?'💡':'💡',on?' lit':'')}
@@ -2480,11 +2487,11 @@ function wallCasa(){
           </div></div></div>`}
     // sensores
     if(s&&s.open!=null&&s.t==null)return `<div class="sh-tile sh-sn sh-door ${s.open?'open':'shut'}${off?' offline':''}" data-k="${k}">${head(s.open?'🚪':'🔒')}
-      <div class="sh-big">${off?'—':s.open?'Aberta':'Fechada'}</div>${s.bat!=null?`<div class="sh-mini">🔋 ${s.bat}%</div>`:''}</div>`;
+      <div class="sh-big">${off?'—':s.open?'Aberto':'Fechado'}</div>${s.bat!=null?`<div class="sh-mini">🔋 ${s.bat}%</div>`:''}</div>`;
     if(s&&s.t==null&&s.w!=null)return `<div class="sh-tile sh-sn${off?' offline':''}" data-k="${k}">${head('⚡')}<div class="sh-big">${Math.round(s.w)}<span>W</span></div></div>`;
     return `<div class="sh-tile sh-sn${off?' offline':''}" data-k="${k}">${head('🌡️')}
       <div class="sh-big">${s&&s.t!=null?(Math.round(s.t*10)/10).toLocaleString('pt-PT')+'<span>°C</span>':sub(s,off,'—')}</div>
-      <div class="sh-mini">${s&&s.h!=null?`<span>💧 ${Math.round(s.h)}%</span>`:''}${s&&s.bat!=null?`<span>🔋 ${s.bat}%</span>`:''}${s&&s.open!=null?`<span>${s.open?'🚪 Aberta':'🔒 Fechada'}</span>`:''}</div></div>`};
+      <div class="sh-mini">${s&&s.h!=null?`<span>💧 ${Math.round(s.h)}%</span>`:''}${s&&s.bat!=null?`<span>🔋 ${s.bat}%</span>`:''}${s&&s.open!=null?`<span>${s.open?'🚪 Aberto':'🔒 Fechado'}</span>`:''}</div></div>`};
   const groups={};devs.forEach(d=>{const r=roomOf(d);(groups[r]=groups[r]||[]).push(d)});
   const body=devs.length?Object.entries(groups).map(([r,ds])=>`${fr?'':`<h3 class="sh-room">${esc(r)}<small>${ds.length}</small></h3>`}<div class="sh-grid${S.shEdit?' editing':''}" data-shgrid="${esc(r)}">${ds.map(tile).join('')}</div>`).join('')
     :'<div class="sh-empty"><p>Ainda não escolheste dispositivos.</p><button class="addbtn" data-shcfg>Escolher dispositivos</button></div>';
@@ -2526,7 +2533,7 @@ function shSheet(){const c=shCfg();let found=null;
     finally{S.shelly=old}});
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[data-shre],[data-shsw],[data-shcv],[data-shpre],[data-shedit],[data-shroom],[data-shall],[data-shallcv],[data-shmode],[data-shpulse],[data-shcvsheet]');if(!b)return;const d=b.dataset;
-  if(S.shEdit&&(d.shsw||d.shcv||d.shpre))return;
+  if(S.shEdit&&(d.shsw||d.shcv||d.shpre||d.shpulse))return;
   const rw=()=>{if(S.wall)renderWall();else render()};
   const find=k=>(shCfg().devices||[]).find(x=>shKey(x)===k);
   if(d.shmode){S.shMode=d.shmode;S.shEdit=false;lsSet('fam.shMode',d.shmode);rw();return}
@@ -2538,7 +2545,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[da
       ${s.pos!=null?`<div class="sh-pre">${[0,25,50,75,100].map(p=>`<button type="button" data-shpre="${k}|${p}" aria-pressed="${Math.abs(s.pos-p)<5}">${p}%</button>`).join('')}</div>`:''}`,{});return}
   if(d.shedit!==undefined){S.shEdit=!S.shEdit;rw();return}
   if(d.shroom!==undefined){S.shRoom=d.shroom;rw();return}
-  if(d.shall){const devs=(shCfg().devices||[]).filter(x=>x.on!==false&&x.type==='switch'&&(shState(x)||{}).on);shBatch(devs,x=>shPost('/device/relay/control',{id:x.id,channel:String(+x.channel||0),turn:'off'}));return}
+  if(d.shall){const devs=(shCfg().devices||[]).filter(x=>x.on!==false&&x.type==='switch'&&!shImpulse(x,shZone(x,x.room))&&(shState(x)||{}).on);shBatch(devs,x=>shPost('/device/relay/control',{id:x.id,channel:String(+x.channel||0),turn:'off'}));return}
   if(d.shallcv){const devs=(shCfg().devices||[]).filter(x=>x.on!==false&&x.type==='cover');shBatch(devs,x=>shPost('/device/relay/roller/control',{id:x.id,channel:String(+x.channel||0),direction:d.shallcv}));return}
   if(d.shpre){const p=d.shpre.split('|'),pos=+p.pop(),dev=(shCfg().devices||[]).find(x=>shKey(x)===p.join('|'));if(dev)shCover(dev,null,pos);return}
   if(d.shcfg!==undefined){shSheet();return}
@@ -2549,6 +2556,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[da
 document.addEventListener('change',e=>{const r=e.target.closest('[data-shpos]');if(!r)return;const dev=(shCfg().devices||[]).find(x=>shKey(x)===r.dataset.shpos);if(dev)shCover(dev,null,+r.value)});
 
 /* ---------- Casa: vista ilustrada (moradia de dois andares, portão e garagem) ---------- */
+var IC_GATE='<svg class="ic-gate" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5v15M21 5v15M3 8h18M3 17h18" stroke-width="2"/><path d="M6.5 8v9M10 8v9M13.5 8v9M17 8v9" stroke-width="1.6"/><path d="M6.5 8l1-2.5 1 2.5M10 8l1-2.5 1 2.5M13.5 8l1-2.5 1 2.5" stroke-width="1.3"/></svg>';
+var IC_GARAGE='<svg class="ic-gate" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l9-6 9 6v10H3z" stroke-width="2"/><path d="M6.5 20v-8h11v8M6.5 14.5h11M6.5 17h11" stroke-width="1.6"/></svg>';
 var SH_ZONES=[['','Automático'],['rc','Rés-do-chão'],['andar1','1.º andar'],['garagem','Garagem'],['portao','Portão da rua'],['exterior','Jardim / exterior']];
 function shZone(d,room){if(d.zone)return d.zone;const r=(room||'').toLowerCase();
   if(/garag/.test(r))return 'garagem';if(/port[ãa]o|rua|gate/.test(r))return 'portao';if(/jardim|exterior|quintal|terra[çc]o|piscina|varanda|alpendre/.test(r))return 'exterior';
@@ -2568,20 +2577,22 @@ function wallCasaHouse(all,roomOf,nmOf){
     const cv=its.find(x=>x.d.type==='cover'&&x.s&&x.s.pos!=null);const open=its.some(x=>x.s&&x.s.open===true);
     return {x:p[0],y:p[1],rooms:rs,lit,closed:cv?100-cv.s.pos:0,open,its}})};
   const W=[...winData('rc',winsRc),...winData('andar1',winsUp)];
+  const P=SH.prev||{},N={};const ch=(k,v)=>{N[k]=v;return k in P&&P[k]!==v};
   const anyOn=k=>z(k).some(x=>x.d.type==='switch'&&!shImpulse(x.d,k)&&x.s&&x.s.on);
   const garCv=z('garagem').find(x=>x.d.type==='cover'&&x.s&&x.s.pos!=null);
   const garOpen=garCv?garCv.s.pos:(z('garagem').some(x=>x.s&&x.s.open===true)?100:0);
   const gateOpen=z('portao').some(x=>(x.s&&x.s.open===true)||(x.d.type==='cover'&&x.s&&x.s.pos>0));
   const extLit=anyOn('exterior')||anyOn('portao');
-  const win=w=>`<g class="hs-win${w.lit?' lit':''}">
+  const win=(w,i)=>{const cl=ch('w'+i,w.lit),cs=ch('s'+i,w.closed);const p0=((P['s'+i]!=null?P['s'+i]:w.closed)/100).toFixed(2);
+    return `<g class="hs-win${w.lit?' lit':''}${cl?(w.lit?' anim-on':' anim-off'):''}">
       <rect x="${w.x}" y="${w.y}" width="90" height="80" rx="4" class="hs-glass"/>
       ${w.lit?`<rect x="${w.x-30}" y="${w.y-25}" width="150" height="130" class="hs-halo" />`:''}
-      <rect x="${w.x}" y="${w.y}" width="90" height="${(80*w.closed/100).toFixed(1)}" class="hs-shut"/>
+      <rect x="${w.x}" y="${w.y}" width="90" height="80" class="hs-shut${cs?' anim':''}" style="transform:scaleY(${(w.closed/100).toFixed(2)});--p0:${p0}"/>
       <path d="M${w.x+45} ${w.y}v80M${w.x} ${w.y+40}h90" class="hs-mull"/>
       <rect x="${w.x}" y="${w.y}" width="90" height="80" rx="4" class="hs-frame"/>
       <rect x="${w.x-6}" y="${w.y+80}" width="102" height="7" rx="2" class="hs-sill"/>
       ${w.rooms.length?`<text x="${w.x+45}" y="${w.y+104}" class="hs-lbl">${esc(w.rooms.join(' · ')).slice(0,40)}</text>`:''}
-      ${w.open?`<text x="${w.x+82}" y="${w.y+14}" class="hs-warn">!</text>`:''}</g>`;
+      ${w.open?`<text x="${w.x+82}" y="${w.y+14}" class="hs-warn">!</text>`:''}</g>`};
   const drops=rain?Array.from({length:40},(_,i)=>`<line x1="${(i*53)%1000}" y1="${(i*97)%300}" x2="${(i*53)%1000-6}" y2="${(i*97)%300+18}" class="hs-drop" style="animation-delay:${(i%10)/10}s"/>`).join(''):'';
   const stars=night&&!cloudy?Array.from({length:24},(_,i)=>`<circle cx="${(i*137)%1000}" cy="${(i*71)%200+10}" r="${i%3?1.2:2}" class="hs-star"/>`).join(''):'';
   const svg=`<svg viewBox="0 0 1000 620" preserveAspectRatio="xMidYMax slice" class="hs-svg${night?' night':''}${rain?' rain':''}" role="img" aria-label="Casa: ${W.filter(w=>w.lit).length} janelas com luz, portão ${gateOpen?'aberto':'fechado'}, garagem ${garOpen>0?'aberta':'fechada'}">
@@ -2593,10 +2604,10 @@ function wallCasaHouse(all,roomOf,nmOf){
     <rect y="520" width="1000" height="100" class="hs-ground"/><rect y="555" width="1000" height="65" class="hs-street"/><path d="M0 588h1000" class="hs-lane"/>
     <!-- árvore e jardim -->
     <rect x="120" y="390" width="14" height="130" class="hs-trunk"/><circle cx="127" cy="370" r="58" class="hs-tree"/><circle cx="95" cy="400" r="38" class="hs-tree"/>
-    ${extLit?'<circle cx="250" cy="430" r="80" fill="url(#hsGlow)"/>':''}<rect x="246" y="430" width="8" height="90" class="hs-post"/><circle cx="250" cy="430" r="11" class="hs-lamp${extLit?' on':''}"/>
+    ${extLit?'<circle cx="250" cy="430" r="80" fill="url(#hsGlow)"/>':''}<rect x="246" y="430" width="8" height="90" class="hs-post"/><circle cx="250" cy="430" r="11" class="hs-lamp${extLit?' on':''}${ch('ext',extLit)&&extLit?' anim-on':''}"/>
     <!-- muro e portão -->
     <rect x="0" y="500" width="40" height="40" class="hs-wall"/><rect x="200" y="500" width="100" height="40" class="hs-wall"/>
-    <g class="hs-gate${gateOpen?' open':''}"><path d="M40 505h160v35H40z" class="hs-gatebg"/>${Array.from({length:9},(_,i)=>`<rect x="${44+i*18}" y="505" width="6" height="35" class="hs-bar"/>`).join('')}<path d="M40 505h160M40 522h160" class="hs-rail"/></g>
+    <g class="hs-gate${gateOpen?' open':''}${ch('gate',gateOpen)?(gateOpen?' anim-open':' anim-close'):''}"><path d="M40 505h160v35H40z" class="hs-gatebg"/>${Array.from({length:9},(_,i)=>`<rect x="${44+i*18}" y="505" width="6" height="35" class="hs-bar"/>`).join('')}<path d="M40 505h160M40 522h160" class="hs-rail"/></g>
     <!-- casa -->
     <path d="M290 175 L550 40 L810 175 Z" class="hs-roof"/><rect x="700" y="70" width="34" height="70" class="hs-chim"/>
     <rect x="300" y="170" width="500" height="350" class="hs-house"/><path d="M300 345h500" class="hs-floor"/>
@@ -2607,19 +2618,20 @@ function wallCasaHouse(all,roomOf,nmOf){
     <!-- garagem -->
     <path d="M800 330 L880 300 L960 330 Z" class="hs-roof"/><rect x="800" y="328" width="160" height="192" class="hs-house"/>
     <rect x="815" y="380" width="130" height="140" class="hs-garin"/>
-    ${anyOn('garagem')?'<rect x="815" y="380" width="130" height="140" class="hs-garlit"/>':''}
-    <g><rect x="815" y="380" width="130" height="${(140*(100-garOpen)/100).toFixed(1)}" class="hs-gardoor"/>${Array.from({length:Math.max(0,Math.floor((100-garOpen)*7/100))},(_,i)=>`<path d="M815 ${400+i*20}h130" class="hs-garline"/>`).join('')}</g>
+    ${anyOn('garagem')?`<rect x="815" y="380" width="130" height="140" class="hs-garlit${ch('garl',true)?' anim-on':''}"/>`:(ch('garl',false),'')}
+    <g class="hs-gar${ch('gar',garOpen)?' anim':''}" style="transform:scaleY(${((100-garOpen)/100).toFixed(2)});--p0:${(((100-(P.gar!=null?P.gar:garOpen)))/100).toFixed(2)}"><rect x="815" y="380" width="130" height="140" class="hs-gardoor"/>${Array.from({length:7},(_,i)=>`<path d="M815 ${400+i*20}h130" class="hs-garline"/>`).join('')}</g>
     ${drops}
   </svg>`;
   // chips por zona
   const zl={andar1:'1.º andar',rc:'Rés-do-chão',garagem:'Garagem',portao:'Portão',exterior:'Jardim'};
   const chip=x=>{const k=esc(shKey(x.d)),s=x.s,off=s&&s.online===false;let st='…',cls='';
     if(s&&!off){if(x.d.type==='switch'){st=shImpulse(x.d,x.zone)?(S.shArm===shKey(x.d)?'Toca de novo':'Acionar'):(s.on?'Ligado':'Desligado');cls=s.on&&!shImpulse(x.d,x.zone)?' on':''}
-      else if(x.d.type==='cover')st=s.pos!=null?s.pos+'%':'—';else st=s.t!=null?(Math.round(s.t*10)/10).toLocaleString('pt-PT')+'°'+(s.h!=null?' · '+Math.round(s.h)+'%':''):s.open!=null?(s.open?'Aberta':'Fechada'):s.w!=null?Math.round(s.w)+' W':'—';
+      else if(x.d.type==='cover')st=s.pos!=null?s.pos+'%':'—';else st=s.t!=null?(Math.round(s.t*10)/10).toLocaleString('pt-PT')+'°'+(s.h!=null?' · '+Math.round(s.h)+'%':''):s.open!=null?(s.open?'Aberto':'Fechado'):s.w!=null?Math.round(s.w)+' W':'—';
       if(s.open===true)cls=' warn'}else if(off)st='Sem ligação';
-    const ic=x.d.type==='cover'?'🪟':x.d.type==='switch'?(shImpulse(x.d,x.zone)?(x.zone==='portao'?'🚧':'🚗'):'💡'):(s&&s.open!=null?'🚪':'🌡️');
+    const ic=x.d.type==='cover'?'🪟':x.d.type==='switch'?(shImpulse(x.d,x.zone)?(x.zone==='portao'?IC_GATE:IC_GARAGE):'💡'):(s&&s.open!=null?'🚪':'🌡️');
     const act=x.d.type==='switch'?(shImpulse(x.d,x.zone)?`data-shpulse="${k}"`:`data-shsw="${k}"`):x.d.type==='cover'?`data-shcvsheet="${k}"`:'';
     return `<button class="hs-chip${cls}${S.shArm===shKey(x.d)?' armed':''}" ${act} ${act?'':'disabled'}><span>${ic}</span><b>${esc(x.nm)}</b><small>${st}</small></button>`};
+  SH.prev=N;
   const order=['andar1','rc','garagem','portao','exterior'];
   const zones=order.filter(k=>z(k).length).map(k=>`<div class="hs-zone"><span class="hs-zl">${zl[k]}</span>${z(k).map(chip).join('')}</div>`).join('');
   return `<div class="hs-wrap"><div class="hs-pic">${svg}</div><div class="hs-side">${zones}</div></div>`}
