@@ -857,6 +857,6 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 
 /* fotografias dos artigos */
 .shop-img{flex:none;width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line)}
-.sug.has-img{display:flex;align-items:center;gap:10px;text-align:left}
+.sug.has-img{display:flex;flex-direction:row;align-items:center;gap:10px;text-align:left}
 .sug.has-img span{display:flex;flex-direction:column;min-width:0}
 .w-shopit .shop-img{width:52px;height:52px}
