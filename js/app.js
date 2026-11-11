@@ -625,7 +625,7 @@ function viewLunch(){
       <button class="iconbtn" data-week="-1" aria-label="Semana anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></button>
       <button class="iconbtn" data-week="1" aria-label="Semana seguinte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button></div>
     <div class="week">${days}</div>
-    <p class="muted small" style="margin:0">Toca em ＋ para juntar uma refeição (pequeno-almoço, almoço, lanche ou jantar). Há ideias de pratos para escolher.</p>
+    <p class="muted small" style="margin:0">Toca em ＋ para juntar uma refeição (pequeno-almoço, almoço, lanche ou jantar).</p>
   </section>`;
 }
 
@@ -775,50 +775,23 @@ function mealForm(arg){
   const m=(id0&&S.meals[id0])||(t0?S.meals[mealId(d,t0)]:null)||{};
   let tipo=m.title?mealTipo(m):(t0||mealGuess(d));
   const rs=[...S.recipes].sort((a,b)=>(a.name||'').localeCompare(b.name||'','pt'));
-  let pick=null;
   const f=sheet((m.title?'Editar refeição':'Nova refeição')+' · '+niceDate(d),`
     <div class="field"><span>Refeição</span><div class="seg meal-seg" role="group" aria-label="Tipo de refeição">${MEALT.map(([k,l,ic])=>`<button type="button" data-mt="${k}" aria-pressed="${tipo===k}">${ic} ${l}</button>`).join('')}</div></div>
     ${rs.length?`<label class="field"><span>Do livro de receitas</span><select id="m-recipe" name="recipe"><option value="">Escolher…</option>${rs.map(r=>`<option value="${r.id}" ${m.recipeId===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select></label>`:''}
     <label class="field"><span>${rs.length?'Ou escreve o prato':'Prato'}</span><input id="m-title" name="title" value="${esc(m.title)}" placeholder="Ex.: Sopa e bacalhau à Brás"></label>
     <label class="field"><span>Quem cozinha</span><select id="m-cook" name="cook"><option value="">—</option>${S.members.map(p=>`<option value="${p.id}" ${m.cook===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
-    ${m.recipeId&&S.recipes.find(r=>r.id===m.recipeId)?`<button type="button" class="ghost" data-seer>Ver receita</button>`:''}
-    <details class="mi-box"${m.title?'':' open'}><summary>💡 Ideias de pratos</summary>
-      <div class="mi-bar"><button type="button" class="chip" data-mi="pt">🇵🇹 Portuguesas</button><button type="button" class="chip" data-mi="tipo">Para esta refeição</button><button type="button" class="chip" data-mi="rand">🎲 Surpresa</button></div>
-      <div class="mi-search"><input type="search" id="mi-q" placeholder="Procurar (ex.: bacalhau, chicken, soup)" enterkeyhint="search"><button type="button" class="ghost" data-mi="q">Procurar</button></div>
-      <div id="mi-res" class="mi-res"><p class="muted small">Escolhe uma opção acima para ver ideias.</p></div>
-      <label class="row mi-keep" hidden><input type="checkbox" name="keep" checked> Guardar a receita (ingredientes e preparação) no livro de receitas</label>
-      <p class="muted small" style="margin:6px 0 0">Ideias de TheMealDB, uma base de receitas de todo o mundo. Os nomes e a preparação vêm em inglês.</p>
-    </details>`,
+    ${m.recipeId&&S.recipes.find(r=>r.id===m.recipeId)?`<button type="button" class="ghost" data-seer>Ver receita</button>`:''}`,
   {onSave:async f=>{const rid=val(f,'recipe');const rec=S.recipes.find(r=>r.id===rid);
       const title=val(f,'title')||(rec&&rec.name)||'';const nid=mealId(d,tipo);
       if(!title){if(m.title)remove('meals',m.id);return}
       let recipeId=rec&&(!val(f,'title')||val(f,'title')===rec.name)?rid:(m.recipeId&&title===m.title?m.recipeId:'');
-      if(pick&&title===pick.name&&f.elements.keep&&f.elements.keep.checked){try{recipeId=await mdbImport(pick.id)}catch(e){toast('Não consegui guardar a receita: '+e.message)}}
       if(m.id&&m.id!==nid)remove('meals',m.id);
-      save('meals',nid,{title,recipeId,cook:val(f,'cook'),date:d,tipo,img:pick&&title===pick.name?pick.img:(title===m.title?m.img||'':'')})},
+      save('meals',nid,{title,recipeId,cook:val(f,'cook'),date:d,tipo,img:title===m.title?m.img||'':''})},
    onDelete:m.title&&!S.readOnly?()=>remove('meals',m.id):null});
   f.querySelectorAll('[data-mt]').forEach(b=>b.addEventListener('click',()=>{tipo=b.dataset.mt;f.querySelectorAll('[data-mt]').forEach(x=>x.setAttribute('aria-pressed',x===b))}));
   const sel=f.querySelector('[name=recipe]');
   sel?.addEventListener('change',()=>{const rec=S.recipes.find(r=>r.id===sel.value);if(rec)f.elements.title.value=rec.name});
   f.querySelector('[data-seer]')?.addEventListener('click',()=>{const r=S.recipes.find(x=>x.id===m.recipeId);if(r){closeSheet();recipeView(r)}});
-  const res=f.querySelector('#mi-res');
-  const show=async(kind)=>{res.innerHTML='<p class="muted small">A procurar ideias…</p>';
-    try{let list=[];
-      if(kind==='pt')list=await mdb('filter.php?a=Portuguese');
-      else if(kind==='tipo'){const cat={pequeno:'Breakfast',lanche:'Dessert',almoco:'',jantar:''}[tipo];
-        if(cat)list=await mdb('filter.php?c='+cat);else{const [a,b]=await Promise.all([mdb('filter.php?a=Portuguese'),mdb('filter.php?a=Spanish')]);list=[...a,...b]}}
-      else if(kind==='rand'){const xs=await Promise.all(Array.from({length:6},()=>mdb('random.php')));list=xs.flat()}
-      else{const q=f.querySelector('#mi-q').value.trim();if(!q){res.innerHTML='<p class="muted small">Escreve o que procuras.</p>';return}list=await mdb('search.php?s='+encodeURIComponent(q))}
-      const seen=new Set();list=list.filter(x=>x&&!seen.has(x.idMeal)&&seen.add(x.idMeal));
-      if(kind!=='rand')list=list.sort(()=>Math.random()-.5);
-      list=list.slice(0,12);
-      res.innerHTML=list.length?list.map(x=>`<button type="button" class="mi-card" data-mid="${esc(x.idMeal)}" data-mn="${esc(x.strMeal)}" data-mimg="${esc(x.strMealThumb||'')}"><img src="${esc((x.strMealThumb||'')+'/preview')}" alt="" loading="lazy"><span>${esc(x.strMeal)}</span></button>`).join('')
-        :'<p class="muted small">Não encontrei nada. Experimenta outra palavra (em inglês funciona melhor).</p>'}
-    catch(e){res.innerHTML='<p class="muted small">Não consegui ligar ao banco de receitas. Verifica a internet e tenta de novo.</p>'}};
-  f.querySelectorAll('[data-mi]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.mi)));
-  f.querySelector('#mi-q').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();show('q')}});
-  res.addEventListener('click',e=>{const c=e.target.closest('[data-mid]');if(!c)return;pick={id:c.dataset.mid,name:c.dataset.mn,img:c.dataset.mimg};
-    f.elements.title.value=pick.name;if(sel)sel.value='';res.querySelectorAll('.mi-card').forEach(x=>x.classList.toggle('on',x===c));f.querySelector('.mi-keep').hidden=false});
 }
 function familyForm(){
   const u=window.famBackend&&window.famBackend.user;
@@ -2708,10 +2681,4 @@ function mealsOn(d){const o=k=>MEALT.findIndex(x=>x[0]===k);return Object.values
 function mealGuess(d){if(d!==TODAY)return 'almoco';const h=new Date().getHours();return h<10?'pequeno':h<15?'almoco':h<18?'lanche':'jantar'}
 function mealNext(d){const ms=mealsOn(d);if(!ms.length)return null;if(d!==TODAY)return ms[0];const h=new Date().getHours(),lim={pequeno:10,almoco:15,lanche:18,jantar:24};return ms.find(m=>h<lim[mealTipo(m)])||ms[ms.length-1]}
 function mealRows(d,cls){const ms=mealsOn(d);return ms.length?ms.map(m=>{const [k,l,ic]=mealT(m);return `<button type="button" class="${cls||'ml-row'}" data-open-meal="${d}|${k}|${esc(m.id)}"><span class="ml-ic">${ic}</span><span class="ml-tx"><small>${l}</small><b>${esc(m.title)}</b></span></button>`}).join(''):''}
-// banco de receitas TheMealDB (gratuito, sem chave)
-var MDB='https://www.themealdb.com/api/json/v1/1/';
-async function mdb(q){const r=await fetch(MDB+q);if(!r.ok)throw new Error('erro '+r.status);const j=await r.json();return j.meals||[]}
-async function mdbImport(id){const x=(await mdb('lookup.php?i='+encodeURIComponent(id)))[0];if(!x)throw new Error('receita não encontrada');
-  const ex=S.recipes.find(r=>r.mdb===String(id));if(ex)return ex.id;
-  const ing=[];for(let i=1;i<=20;i++){const n=(x['strIngredient'+i]||'').trim();if(n)ing.push(((x['strMeasure'+i]||'').trim()+' '+n).trim())}
-  const rid='mdb'+id;save('recipes',rid,{name:x.strMeal,mins:'',serves:'',tag:[x.strArea,x.strCategory].filter(Boolean).join(' · '),ingredients:ing.join('\n'),steps:(x.strInstructions||'').trim(),img:x.strMealThumb||'',src:x.strSource||x.strYoutube||'',mdb:String(id)});return rid}
+
