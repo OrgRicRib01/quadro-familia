@@ -862,3 +862,21 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .w-shopit .shop-img{width:52px;height:52px}
 
 .ghost.danger{color:#B91C1C;border-color:#FCA5A5}
+
+/* topo do ecrã de parede: hora/dia/tempo à esquerda, pessoas em cima, vista + hoje junto ao calendário */
+.fd-top2{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 24px;align-items:stretch}
+.fd-top2 .fd-now{gap:2px}
+.fd-top2 .fd-now .fd-wx{padding:2px 0 0;margin-top:2px}
+.fd-top2 .fd-now .fd-wx b{font-size:1.25rem}
+.fd-top2 .fd-now .fd-wx .wx-ic{font-size:1.4rem}
+.fd-main{display:flex;flex-direction:column;justify-content:space-between;gap:10px;min-width:0}
+.fd-row1,.fd-row2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.fd-sp{flex:1}
+.fd-top2 .fd-view{padding-left:0;border-left:0}
+.fd-todaypill{display:inline-flex;align-items:baseline;gap:8px;min-height:40px;padding:6px 14px;border:0;border-radius:999px;background:var(--accent-soft);color:var(--fg)}
+.fd-todaypill span{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.fd-todaypill b{font-weight:700}
+.fd-todaypill em{font-style:normal;font-size:.8rem;color:var(--accent);font-weight:700}
+.fd-todaypill.off{background:var(--accent);color:var(--accent-ink)}.fd-todaypill.off span,.fd-todaypill.off em{color:var(--accent-ink)}
+@media (max-width:700px){.fd-top2{grid-template-columns:1fr}}
+.fd-row1>*{margin-left:0!important}

@@ -975,14 +975,23 @@ function wallLabel(){
 }
 function wallHead(){
   const nav=!['rotinas','compras','avisos','inicio','relogio','educacao','casa'].includes(S.wallView);
+  const cal=['semana','mes','hoje','linha','pessoas'].includes(S.wallView);
   const n=new Date();
   const lbl=S.wallView==='inicio'?'Família '+esc(familyName())+'<small>Início</small>':wallLabel();
-  return `<div class="fd-top"><div class="fd-now"><div class="fd-clock" id="wClock">${nowHM()}</div><div class="fd-today">${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</div></div>
-    ${wxNow()}<div class="fd-date fd-view"><b>${lbl.replace(/<small>[\s\S]*$/,'')}</b>${(lbl.match(/<small>[\s\S]*$/)||[''])[0]}</div>
-    ${whoBar()}
-    <div class="fd-ctl">${nav?`<button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button>`:''}
-      ${clockChip()}<button class="fd-btn urg-top" data-urgent aria-label="Mensagem urgente">⚠</button><button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn fd-gear" data-wset aria-label="Configuração">${GEAR}</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div>`;
+  const off=cal&&S.wallDate&&!wallShows(TODAY);
+  // hora, dia de hoje e tempo empilhados à esquerda; seleção de pessoas e calendários em cima; a vista e a data de hoje junto ao calendário
+  return `<div class="fd-top fd-top2"><div class="fd-now"><div class="fd-clock" id="wClock">${nowHM()}</div><div class="fd-today">${esc(DOW[dowMon(n)]+', '+n.getDate()+' '+MONTHS[n.getMonth()])}</div>${wxNow()}</div>
+    <div class="fd-main"><div class="fd-row1">${whoBar()}</div>
+    <div class="fd-row2"><div class="fd-date fd-view"><b>${lbl.replace(/<small>[\s\S]*$/,'')}</b>${(lbl.match(/<small>[\s\S]*$/)||[''])[0]}</div>
+      ${cal?`<button class="fd-todaypill${off?' off':''}" data-wtoday title="Voltar a hoje"><span>Hoje</span><b>${esc(DOW[dowMon(n)]+' '+n.getDate()+' '+MONTHS[n.getMonth()].slice(0,3))}</b>${off?'<em>voltar</em>':''}</button>`:''}
+      <span class="fd-sp"></span>${nav?`<div class="fd-ctl"><button class="fd-btn" data-wshift="-1" aria-label="Anterior">‹</button>${S.wallDate!==TODAY&&!cal?'<button class="fd-btn" data-wtoday>Hoje</button>':''}<button class="fd-btn" data-wshift="1" aria-label="Seguinte">›</button></div>`:''}
+      <div class="fd-ctl">${clockChip()}<button class="fd-btn urg-top" data-urgent aria-label="Mensagem urgente">⚠</button><button class="fd-btn" data-wgoogle>Google</button><button class="fd-btn fd-gear" data-wset aria-label="Configuração">${GEAR}</button><button class="fd-btn" data-wfs aria-label="Ecrã inteiro">⛶</button></div></div></div></div>`;
 }
+// a vista atual inclui o dia de hoje?
+function wallShows(d){const v=S.wallView,w=S.wallDate||TODAY;
+  if(v==='semana')return weekStartOf(w)===weekStartOf(d);
+  if(v==='mes')return w.slice(0,7)===d.slice(0,7);
+  return w===d}
 function familyName(){const last=S.members.map(m=>(m.name||'').trim().split(/\s+/).slice(-1)[0]).filter(x=>x&&x.length>2);return S.familyName||'Ribeiro'}
 function homeItems(d){
   const D=wallData(d),its=[],sc={};
