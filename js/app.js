@@ -1842,7 +1842,7 @@ setInterval(clockTick,250);
 function srcOf(id){const m=member(id);return (m&&m.src)||'ambos'}
 function localShown(e){const w=whoList(e.who);if(w.includes('all'))return true;return !w.length||w.some(id=>srcOf(id)!=='google')}
 
-function galleryRadio(){const now=S.radioNow,rs=myRadios().slice(0,4);
+function galleryRadio(){const now=S.radioNow,rs=myRadios().slice(0,1);
   if(!now&&!rs.length)return '';
   return `<div class="g-radio">${now?`<span class="ml-eq big" aria-hidden="true"><i></i><i></i><i></i></span><span class="g-rn"><small>A ouvir</small><b>${esc(now.n)}</b></span><button class="g-rb" data-mstop="radio">Parar</button>`
     :`<span class="g-rn"><small>Rádio</small></span>${rs.map(r=>`<button class="g-rb" data-radio="${esc(r.u)}" data-ralt="${esc(r.a||'')}" data-rname="${esc(r.n)}">▶ ${esc(r.n)}</button>`).join('')}`}</div>`}
@@ -2439,6 +2439,7 @@ function wallCasa(){
   const nmOf=d=>(SH.names&&(SH.names[d.id+'|'+(+d.channel||0)]||SH.names[d.id+'|0']))||{};
   const roomOf=d=>d.room||nmOf(d).room||'Casa';
   const roomNames=[...new Set(all.map(roomOf))];
+  const mode=S.shMode||(S.shMode=lsGet('fam.shMode')||'cards');
   const fr=S.shRoom&&roomNames.includes(S.shRoom)?S.shRoom:'';
   const devs=fr?all.filter(d=>roomOf(d)===fr):all;
   // resumo
@@ -2454,10 +2455,11 @@ function wallCasa(){
     <div class="sh-acts">
       ${lightsOn?`<button class="sh-act" data-shall="off">⏻ Desligar tudo</button>`:''}
       ${st.some(([d])=>d.type==='cover')?`<button class="sh-act" data-shallcv="open">▲ Abrir estores</button><button class="sh-act" data-shallcv="close">▼ Fechar estores</button>`:''}
-      <button class="sh-act${S.shEdit?' on':''}" data-shedit aria-pressed="${!!S.shEdit}">${S.shEdit?'✓ Concluído':'✥ Organizar'}</button>
+      <div class="sh-mode" role="group" aria-label="Vista"><button data-shmode="cards" aria-pressed="${mode==='cards'}">▦ Cartões</button><button data-shmode="house" aria-pressed="${mode==='house'}">🏡 Casa</button></div>
+      ${mode==='cards'?`<button class="sh-act${S.shEdit?' on':''}" data-shedit aria-pressed="${!!S.shEdit}">${S.shEdit?'✓ Concluído':'✥ Organizar'}</button>`:''}
       <button class="sh-act ic" data-shcfg aria-label="Configurar">${GEAR}</button>
     </div></div>
-    ${roomNames.length>1?`<div class="sh-rooms" role="group" aria-label="Divisões"><button data-shroom="" aria-pressed="${!fr}">Todas</button>${roomNames.map(r=>`<button data-shroom="${esc(r)}" aria-pressed="${fr===r}">${esc(r)}</button>`).join('')}</div>`:''}`;
+    ${mode==='cards'&&roomNames.length>1?`<div class="sh-rooms" role="group" aria-label="Divisões"><button data-shroom="" aria-pressed="${!fr}">Todas</button>${roomNames.map(r=>`<button data-shroom="${esc(r)}" aria-pressed="${fr===r}">${esc(r)}</button>`).join('')}</div>`:''}`;
   const sub=(s,off,txt)=>!s?'<span class="sh-dim">a carregar…</span>':off?'<span class="sh-off">Sem ligação</span>':txt;
   const tile=d=>{const s=shState(d),k=esc(shKey(d)),nm=esc(d.name||nmOf(d).name||d.id),off=s&&s.online===false;
     const head=(ic,cls='')=>`<div class="sh-h"><span class="sh-ic${cls}">${ic}</span><span class="sh-nm"><b>${nm}</b><small>${d.type==='switch'?'Luz / tomada':d.type==='cover'?'Estore':'Sensor'}</small></span></div>`;
@@ -2487,8 +2489,9 @@ function wallCasa(){
   const body=devs.length?Object.entries(groups).map(([r,ds])=>`${fr?'':`<h3 class="sh-room">${esc(r)}<small>${ds.length}</small></h3>`}<div class="sh-grid${S.shEdit?' editing':''}" data-shgrid="${esc(r)}">${ds.map(tile).join('')}</div>`).join('')
     :'<div class="sh-empty"><p>Ainda não escolheste dispositivos.</p><button class="addbtn" data-shcfg>Escolher dispositivos</button></div>';
   return `<section class="casa">${summary}${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin:0 0 12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
-    ${S.shEdit?'<p class="sh-hint">Arrasta os cartões para os reorganizar. Larga-os noutra divisão para os mudar de divisão.</p>':''}
-    ${body}<p class="small muted sh-upd">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5):''}</p></section>`}
+    ${mode==='house'?wallCasaHouse(all,roomOf,nmOf)+'<p class="small muted sh-upd">Cada aparelho aparece no andar da sua divisão. Para mudar, vai a Configurar → Zona na casa.</p>':''}
+    ${mode==='cards'&&S.shEdit?'<p class="sh-hint">Arrasta os cartões para os reorganizar. Larga-os noutra divisão para os mudar de divisão.</p>':''}
+    ${mode==='cards'?body:''}<p class="small muted sh-upd">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5):''}</p></section>`}
 function shSaveOrder(){const c=shCfg();const devs=[...(c.devices||[])];const byK={};devs.forEach(d=>byK[shKey(d)]=d);
   const seen=new Set(),out=[];
   document.querySelectorAll('[data-shgrid]').forEach(g=>{const room=g.dataset.shgrid;g.querySelectorAll('.sh-tile[data-k]').forEach(t=>{const d=byK[t.dataset.k];if(!d||seen.has(t.dataset.k))return;seen.add(t.dataset.k);
@@ -2502,7 +2505,7 @@ function shInitSort(){if(!S.shEdit)return;const gs=[...document.querySelectorAll
       onStart:()=>{S.dragging=true},onEnd:()=>{S.dragging=false;S.dragAt=Date.now();shSaveOrder();setTimeout(()=>{if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()},250)}})})).catch(()=>{})}
 function shSheet(){const c=shCfg();let found=null;
   let names={};const devRows=list=>list.map((d,i)=>{const nm=names[d.id+'|'+(+d.channel||0)]||names[d.id+'|0']||{};const cur0=(c.devices||[]).find(x=>shKey(x)===shKey(d))||{};const cur={...cur0,name:cur0.name||nm.name||'',room:cur0.room||nm.room||''};return `<div class="sh-row"><label class="prof-chk"><input type="checkbox" name="on_${i}" ${cur0.id?(cur0.on!==false?'checked':''):'checked'}></label>
-    <span class="sh-ty">${d.type==='switch'?'💡':d.type==='cover'?'🪟':'🌡️'}</span><input name="nm_${i}" value="${esc(cur.name||'')}" placeholder="${esc(d.id)}${d.channel?' · canal '+d.channel:''}" style="flex:2;min-width:120px"><input name="rm_${i}" value="${esc(cur.room||'')}" placeholder="Divisão" list="sh-rooms" style="flex:1;min-width:90px"></div>`}).join('');
+    <span class="sh-ty">${d.type==='switch'?'💡':d.type==='cover'?'🪟':'🌡️'}</span><input name="nm_${i}" value="${esc(cur.name||'')}" placeholder="${esc(d.id)}${d.channel?' · canal '+d.channel:''}" style="flex:2;min-width:120px"><input name="rm_${i}" value="${esc(cur.room||'')}" placeholder="Divisão" list="sh-rooms" style="flex:1;min-width:90px"><select name="zn_${i}" aria-label="Zona na casa" style="flex:1;min-width:110px">${SH_ZONES.map(([v,l])=>`<option value="${v}"${(cur0.zone||'')===v?' selected':''}>${v?l:'Zona: automática'}</option>`).join('')}</select></div>`}).join('');
   const f=sheet('Casa · Shelly Cloud',`
     <p class="muted small" style="margin:0">Na app <b>Shelly Smart Control</b>: <b>Definições do utilizador → Chave de autorização na cloud</b> → <b>Obter chave</b>. Copia o <b>servidor</b> (ex.: shelly-123-eu.shelly.cloud) e a <b>chave</b>.</p>
     <label class="field"><span>Servidor</span><input name="host" value="${esc(c.host||'')}" placeholder="shelly-123-eu.shelly.cloud" spellcheck="false"></label>
@@ -2510,7 +2513,7 @@ function shSheet(){const c=shCfg();let found=null;
     <div class="field"><span>Dispositivos</span><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="ghost" data-shfind style="flex:1">Procurar dispositivos</button><button type="button" class="ghost" data-shclear style="flex:1">Limpar todos</button></div><div id="sh-list" class="sh-list">${c.devices&&c.devices.length?devRows(c.devices):''}</div>
       <datalist id="sh-rooms">${['Sala','Cozinha','Quarto','Escritório','Casa de banho','Entrada','Garagem','Jardim','Exterior'].map(x=>`<option value="${x}">`).join('')}</datalist></div>
     <div id="sh-msg" class="small muted"></div>`,
-  {saveLabel:'Guardar',onSave:f=>{const list=found||c.devices||[];const devices=list.map((d,i)=>({id:d.id,channel:+d.channel||0,type:d.type,name:val(f,'nm_'+i),room:val(f,'rm_'+i),on:!!(f.elements['on_'+i]&&f.elements['on_'+i].checked)}));
+  {saveLabel:'Guardar',onSave:f=>{const list=found||c.devices||[];const devices=list.map((d,i)=>({id:d.id,channel:+d.channel||0,type:d.type,name:val(f,'nm_'+i),room:val(f,'rm_'+i),zone:val(f,'zn_'+i),on:!!(f.elements['on_'+i]&&f.elements['on_'+i].checked)}));
     const nc={host:val(f,'host').replace(/^https?:\/\//,'').replace(/\/.*$/,''),key:val(f,'key'),devices};S.shelly=nc;SH.st=null;SH.err='';if(S.db)S.db.doc('config/shelly').set(nc).catch(handleWriteError);toast('Casa configurada');if(S.wall){S.wallView='casa';lsSet('fam.wallView','casa');renderWall()}}});
   f.querySelector('[data-shclear]').addEventListener('click',()=>{c.devices=[];found=[];names={};SH.names=null;SH.namesTried=false;
     const nc={...c,devices:[]};S.shelly=nc;if(S.db)S.db.doc('config/shelly').set(nc).catch(handleWriteError);
@@ -2522,18 +2525,101 @@ function shSheet(){const c=shCfg();let found=null;
     catch(e){msg.textContent=e.net?'A Shelly Cloud não respondeu ao browser. Confirma o servidor; se estiver certo, ela pode estar a bloquear pedidos de páginas web — diz-me e eu monto um intermediário.':'Erro: '+e.message}
     finally{S.shelly=old}});
 }
-document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[data-shre],[data-shsw],[data-shcv],[data-shpre],[data-shedit],[data-shroom],[data-shall],[data-shallcv]');if(!b)return;const d=b.dataset;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-shcfg],[data-shre],[data-shsw],[data-shcv],[data-shpre],[data-shedit],[data-shroom],[data-shall],[data-shallcv],[data-shmode],[data-shpulse],[data-shcvsheet]');if(!b)return;const d=b.dataset;
   if(S.shEdit&&(d.shsw||d.shcv||d.shpre))return;
   const rw=()=>{if(S.wall)renderWall();else render()};
+  const find=k=>(shCfg().devices||[]).find(x=>shKey(x)===k);
+  if(d.shmode){S.shMode=d.shmode;S.shEdit=false;lsSet('fam.shMode',d.shmode);rw();return}
+  if(d.shpulse){const dev=find(d.shpulse);if(!dev)return;
+    if(S.shArm!==d.shpulse){S.shArm=d.shpulse;clearTimeout(SH.armT);SH.armT=setTimeout(()=>{S.shArm=null;rw()},4000);rw();return}
+    S.shArm=null;clearTimeout(SH.armT);shPost('/device/relay/control',{id:dev.id,channel:String(+dev.channel||0),turn:'on'}).then(()=>{toast('Enviado');setTimeout(()=>shRefresh(true),1500)}).catch(er=>toast(er.message));rw();return}
+  if(d.shcvsheet){const dev=find(d.shcvsheet);if(!dev)return;const k=esc(d.shcvsheet);const s=shState(dev)||{};
+    sheet(esc(dev.name||dev.id),`<div class="sh-btns" style="margin-bottom:12px"><button type="button" data-shcv="${k}|open">▲<small>Abrir</small></button><button type="button" data-shcv="${k}|stop">■<small>Parar</small></button><button type="button" data-shcv="${k}|close">▼<small>Fechar</small></button></div>
+      ${s.pos!=null?`<div class="sh-pre">${[0,25,50,75,100].map(p=>`<button type="button" data-shpre="${k}|${p}" aria-pressed="${Math.abs(s.pos-p)<5}">${p}%</button>`).join('')}</div>`:''}`,{});return}
   if(d.shedit!==undefined){S.shEdit=!S.shEdit;rw();return}
   if(d.shroom!==undefined){S.shRoom=d.shroom;rw();return}
   if(d.shall){const devs=(shCfg().devices||[]).filter(x=>x.on!==false&&x.type==='switch'&&(shState(x)||{}).on);shBatch(devs,x=>shPost('/device/relay/control',{id:x.id,channel:String(+x.channel||0),turn:'off'}));return}
   if(d.shallcv){const devs=(shCfg().devices||[]).filter(x=>x.on!==false&&x.type==='cover');shBatch(devs,x=>shPost('/device/relay/roller/control',{id:x.id,channel:String(+x.channel||0),direction:d.shallcv}));return}
   if(d.shpre){const p=d.shpre.split('|'),pos=+p.pop(),dev=(shCfg().devices||[]).find(x=>shKey(x)===p.join('|'));if(dev)shCover(dev,null,pos);return}
-  const find=k=>(shCfg().devices||[]).find(x=>shKey(x)===k);
   if(d.shcfg!==undefined){shSheet();return}
   if(d.shre!==undefined){shRefresh(true);return}
   if(d.shsw){const dev=find(d.shsw);if(!dev)return;const s=shState(dev);const on=!(s&&s.on);const t=b.closest('.sh-tile');if(t)t.classList.toggle('on',on);shSwitch(dev,on);return}
   if(d.shcv){const p=d.shcv.split('|'),dir=p.pop(),dev=find(p.join('|'));if(dev)shCover(dev,dir);return}
 });
 document.addEventListener('change',e=>{const r=e.target.closest('[data-shpos]');if(!r)return;const dev=(shCfg().devices||[]).find(x=>shKey(x)===r.dataset.shpos);if(dev)shCover(dev,null,+r.value)});
+
+/* ---------- Casa: vista ilustrada (moradia de dois andares, portão e garagem) ---------- */
+var SH_ZONES=[['','Automático'],['rc','Rés-do-chão'],['andar1','1.º andar'],['garagem','Garagem'],['portao','Portão da rua'],['exterior','Jardim / exterior']];
+function shZone(d,room){if(d.zone)return d.zone;const r=(room||'').toLowerCase();
+  if(/garag/.test(r))return 'garagem';if(/port[ãa]o|rua|gate/.test(r))return 'portao';if(/jardim|exterior|quintal|terra[çc]o|piscina|varanda|alpendre/.test(r))return 'exterior';
+  if(/quarto|suite|suíte|escrit|wc|banho|1\.?º|primeiro|andar|sót[ãa]o|cima/.test(r))return 'andar1';return 'rc'}
+function shImpulse(d,zone){return d.type==='switch'&&(zone==='portao'||zone==='garagem')}
+function wallCasaHouse(all,roomOf,nmOf){
+  const items=all.map(d=>{const room=roomOf(d);return {d,s:shState(d),room,zone:shZone(d,room),nm:d.name||nmOf(d).name||d.id}});
+  const z=k=>items.filter(x=>x.zone===k);
+  const h=new Date().getHours();const cur=(typeof WX!=='undefined'&&WX&&WX.cur)||null;
+  const night=cur?!cur.day:(h<7||h>=20);const code=cur?cur.c:0;
+  const rain=[51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99].includes(code),cloudy=rain||[2,3,45,48].includes(code);
+  // janelas: cada divisão de um andar fica com uma janela
+  const floorRooms=k=>[...new Set(z(k).map(x=>x.room))];
+  const winsRc=[[350,395],[470,395]],winsUp=[[340,215],[470,215],[640,215]];
+  const winData=(k,slots)=>{const rooms=floorRooms(k);return slots.map((p,i)=>{const rs=rooms.filter((r,j)=>j===i||(i===slots.length-1&&j>i));
+    const its=z(k).filter(x=>rs.includes(x.room));const lit=its.some(x=>x.d.type==='switch'&&x.s&&x.s.on);
+    const cv=its.find(x=>x.d.type==='cover'&&x.s&&x.s.pos!=null);const open=its.some(x=>x.s&&x.s.open===true);
+    return {x:p[0],y:p[1],rooms:rs,lit,closed:cv?100-cv.s.pos:0,open,its}})};
+  const W=[...winData('rc',winsRc),...winData('andar1',winsUp)];
+  const anyOn=k=>z(k).some(x=>x.d.type==='switch'&&!shImpulse(x.d,k)&&x.s&&x.s.on);
+  const garCv=z('garagem').find(x=>x.d.type==='cover'&&x.s&&x.s.pos!=null);
+  const garOpen=garCv?garCv.s.pos:(z('garagem').some(x=>x.s&&x.s.open===true)?100:0);
+  const gateOpen=z('portao').some(x=>(x.s&&x.s.open===true)||(x.d.type==='cover'&&x.s&&x.s.pos>0));
+  const extLit=anyOn('exterior')||anyOn('portao');
+  const win=w=>`<g class="hs-win${w.lit?' lit':''}">
+      <rect x="${w.x}" y="${w.y}" width="90" height="80" rx="4" class="hs-glass"/>
+      ${w.lit?`<rect x="${w.x-30}" y="${w.y-25}" width="150" height="130" class="hs-halo" />`:''}
+      <rect x="${w.x}" y="${w.y}" width="90" height="${(80*w.closed/100).toFixed(1)}" class="hs-shut"/>
+      <path d="M${w.x+45} ${w.y}v80M${w.x} ${w.y+40}h90" class="hs-mull"/>
+      <rect x="${w.x}" y="${w.y}" width="90" height="80" rx="4" class="hs-frame"/>
+      <rect x="${w.x-6}" y="${w.y+80}" width="102" height="7" rx="2" class="hs-sill"/>
+      ${w.rooms.length?`<text x="${w.x+45}" y="${w.y+104}" class="hs-lbl">${esc(w.rooms.join(' · ')).slice(0,40)}</text>`:''}
+      ${w.open?`<text x="${w.x+82}" y="${w.y+14}" class="hs-warn">!</text>`:''}</g>`;
+  const drops=rain?Array.from({length:40},(_,i)=>`<line x1="${(i*53)%1000}" y1="${(i*97)%300}" x2="${(i*53)%1000-6}" y2="${(i*97)%300+18}" class="hs-drop" style="animation-delay:${(i%10)/10}s"/>`).join(''):'';
+  const stars=night&&!cloudy?Array.from({length:24},(_,i)=>`<circle cx="${(i*137)%1000}" cy="${(i*71)%200+10}" r="${i%3?1.2:2}" class="hs-star"/>`).join(''):'';
+  const svg=`<svg viewBox="0 0 1000 620" preserveAspectRatio="xMidYMax slice" class="hs-svg${night?' night':''}${rain?' rain':''}" role="img" aria-label="Casa: ${W.filter(w=>w.lit).length} janelas com luz, portão ${gateOpen?'aberto':'fechado'}, garagem ${garOpen>0?'aberta':'fechada'}">
+    <defs><linearGradient id="hsSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="hs-sky1"/><stop offset="1" class="hs-sky2"/></linearGradient>
+      <radialGradient id="hsGlow"><stop offset="0" stop-color="#FDBA4D" stop-opacity=".55"/><stop offset="1" stop-color="#FDBA4D" stop-opacity="0"/></radialGradient></defs>
+    <rect width="1000" height="620" fill="url(#hsSky)"/>${stars}
+    ${night?'<circle cx="860" cy="80" r="30" class="hs-moon"/><circle cx="874" cy="70" r="26" class="hs-moonc"/>':cloudy?'':'<circle cx="860" cy="85" r="36" class="hs-sun"/>'}
+    ${cloudy?'<g class="hs-cloud"><ellipse cx="200" cy="90" rx="70" ry="26"/><ellipse cx="250" cy="74" rx="50" ry="30"/><ellipse cx="700" cy="70" rx="80" ry="26"/><ellipse cx="760" cy="56" rx="46" ry="26"/></g>':''}
+    <rect y="520" width="1000" height="100" class="hs-ground"/><rect y="555" width="1000" height="65" class="hs-street"/><path d="M0 588h1000" class="hs-lane"/>
+    <!-- árvore e jardim -->
+    <rect x="120" y="390" width="14" height="130" class="hs-trunk"/><circle cx="127" cy="370" r="58" class="hs-tree"/><circle cx="95" cy="400" r="38" class="hs-tree"/>
+    ${extLit?'<circle cx="250" cy="430" r="80" fill="url(#hsGlow)"/>':''}<rect x="246" y="430" width="8" height="90" class="hs-post"/><circle cx="250" cy="430" r="11" class="hs-lamp${extLit?' on':''}"/>
+    <!-- muro e portão -->
+    <rect x="0" y="500" width="40" height="40" class="hs-wall"/><rect x="200" y="500" width="100" height="40" class="hs-wall"/>
+    <g class="hs-gate${gateOpen?' open':''}"><path d="M40 505h160v35H40z" class="hs-gatebg"/>${Array.from({length:9},(_,i)=>`<rect x="${44+i*18}" y="505" width="6" height="35" class="hs-bar"/>`).join('')}<path d="M40 505h160M40 522h160" class="hs-rail"/></g>
+    <!-- casa -->
+    <path d="M290 175 L550 40 L810 175 Z" class="hs-roof"/><rect x="700" y="70" width="34" height="70" class="hs-chim"/>
+    <rect x="300" y="170" width="500" height="350" class="hs-house"/><path d="M300 345h500" class="hs-floor"/>
+    ${anyOn('andar1')?'':''}
+    ${W.map(win).join('')}
+    <rect x="590" y="395" width="74" height="125" rx="6" class="hs-door"/><circle cx="650" cy="460" r="4" class="hs-knob"/>
+    ${extLit?'<circle cx="627" cy="385" r="50" fill="url(#hsGlow)"/>':''}<rect x="620" y="378" width="14" height="10" rx="3" class="hs-lamp${extLit?' on':''}"/>
+    <!-- garagem -->
+    <path d="M800 330 L880 300 L960 330 Z" class="hs-roof"/><rect x="800" y="328" width="160" height="192" class="hs-house"/>
+    <rect x="815" y="380" width="130" height="140" class="hs-garin"/>
+    ${anyOn('garagem')?'<rect x="815" y="380" width="130" height="140" class="hs-garlit"/>':''}
+    <g><rect x="815" y="380" width="130" height="${(140*(100-garOpen)/100).toFixed(1)}" class="hs-gardoor"/>${Array.from({length:Math.max(0,Math.floor((100-garOpen)*7/100))},(_,i)=>`<path d="M815 ${400+i*20}h130" class="hs-garline"/>`).join('')}</g>
+    ${drops}
+  </svg>`;
+  // chips por zona
+  const zl={andar1:'1.º andar',rc:'Rés-do-chão',garagem:'Garagem',portao:'Portão',exterior:'Jardim'};
+  const chip=x=>{const k=esc(shKey(x.d)),s=x.s,off=s&&s.online===false;let st='…',cls='';
+    if(s&&!off){if(x.d.type==='switch'){st=shImpulse(x.d,x.zone)?(S.shArm===shKey(x.d)?'Toca de novo':'Acionar'):(s.on?'Ligado':'Desligado');cls=s.on&&!shImpulse(x.d,x.zone)?' on':''}
+      else if(x.d.type==='cover')st=s.pos!=null?s.pos+'%':'—';else st=s.t!=null?(Math.round(s.t*10)/10).toLocaleString('pt-PT')+'°'+(s.h!=null?' · '+Math.round(s.h)+'%':''):s.open!=null?(s.open?'Aberta':'Fechada'):s.w!=null?Math.round(s.w)+' W':'—';
+      if(s.open===true)cls=' warn'}else if(off)st='Sem ligação';
+    const ic=x.d.type==='cover'?'🪟':x.d.type==='switch'?(shImpulse(x.d,x.zone)?(x.zone==='portao'?'🚧':'🚗'):'💡'):(s&&s.open!=null?'🚪':'🌡️');
+    const act=x.d.type==='switch'?(shImpulse(x.d,x.zone)?`data-shpulse="${k}"`:`data-shsw="${k}"`):x.d.type==='cover'?`data-shcvsheet="${k}"`:'';
+    return `<button class="hs-chip${cls}${S.shArm===shKey(x.d)?' armed':''}" ${act} ${act?'':'disabled'}><span>${ic}</span><b>${esc(x.nm)}</b><small>${st}</small></button>`};
+  const order=['andar1','rc','garagem','portao','exterior'];
+  const zones=order.filter(k=>z(k).length).map(k=>`<div class="hs-zone"><span class="hs-zl">${zl[k]}</span>${z(k).map(chip).join('')}</div>`).join('');
+  return `<div class="hs-wrap"><div class="hs-pic">${svg}</div><div class="hs-side">${zones}</div></div>`}

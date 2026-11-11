@@ -768,3 +768,49 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .sh-ty{font-size:1.2rem}
 @media (max-width:520px){.sh-cv{grid-column:1/-1}.sh-grid{grid-template-columns:repeat(2,1fr)}}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .casa{--sh-amber-soft:#3A2E0B;--sh-amber-ink:#FCD34D}:root:not([data-theme="light"]) .sh-sum.warn,:root:not([data-theme="light"]) .sh-door.open{background:#3B0F1A}}
+/* Casa: vista ilustrada */
+.sh-mode{display:inline-flex;padding:3px;border-radius:999px;background:var(--sunk)}
+.sh-mode button{min-height:38px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--fg);font-weight:600;font-size:.9rem}
+.sh-mode button[aria-pressed="true"]{background:var(--surface);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
+.hs-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,320px);gap:16px;align-items:start;margin-top:4px}
+.hs-pic{border-radius:24px;overflow:hidden;box-shadow:0 8px 30px rgb(0 0 0 / .08)}
+.hs-svg{display:block;width:100%;height:calc(100vh - 330px);min-height:340px}
+.hs-side{display:flex;flex-direction:column;gap:14px;max-height:calc(100vh - 330px);overflow:auto}
+.hs-sky1{stop-color:#7DD3FC}.hs-sky2{stop-color:#E0F2FE}
+.hs-svg.rain .hs-sky1{stop-color:#94A3B8}.hs-svg.rain .hs-sky2{stop-color:#CBD5E1}
+.hs-svg.night .hs-sky1{stop-color:#0B1430}.hs-svg.night .hs-sky2{stop-color:#273A6B}
+.hs-sun{fill:#FCD34D;filter:drop-shadow(0 0 18px #FDE68A)}
+.hs-moon{fill:#F1F5F9}.hs-moonc{fill:#0F1B3D}.hs-star{fill:#fff;opacity:.8}
+.hs-cloud ellipse{fill:#fff;opacity:.85}.night .hs-cloud ellipse{fill:#475569}
+.hs-ground{fill:#86B26B}.night .hs-ground{fill:#2E4426}
+.hs-street{fill:#6B7280}.night .hs-street{fill:#2B2F36}.hs-lane{stroke:#F8FAFC;stroke-width:3;stroke-dasharray:28 22;opacity:.7}
+.hs-trunk{fill:#7C5A3A}.hs-tree{fill:#4D7C3A}.night .hs-tree{fill:#1F3A1A}
+.hs-post{fill:#334155}.hs-lamp{fill:#64748B}.hs-lamp.on{fill:#FDE68A;filter:drop-shadow(0 0 10px #FDBA4D)}
+.hs-wall{fill:#D6CFC4}.night .hs-wall{fill:#5B5650}
+.hs-gatebg{fill:transparent}.hs-bar{fill:#334155}.hs-rail{stroke:#334155;stroke-width:4}
+.hs-gate{transform-origin:40px 520px;transition:transform .8s ease}.hs-gate.open{transform:scaleX(.15)}
+.hs-roof{fill:#B4533A}.night .hs-roof{fill:#5C2A1E}.hs-chim{fill:#8A3E2B}
+.hs-house{fill:#F5EFE6;stroke:#D9CFC1;stroke-width:2}.night .hs-house{fill:#4A4640;stroke:#3A3632}
+.hs-floor{stroke:#D9CFC1;stroke-width:3}.night .hs-floor{stroke:#3A3632}
+.hs-glass{fill:#BFDBFE}.night .hs-glass{fill:#1E293B}
+.hs-win.lit .hs-glass{fill:#FCD34D}.hs-halo{fill:url(#hsGlow)}
+.hs-shut{fill:#64748B;transition:height .6s ease}
+.hs-mull{stroke:#fff;stroke-width:4}.hs-frame{fill:none;stroke:#fff;stroke-width:5}.night .hs-frame,.night .hs-mull{stroke:#CBD5E1}
+.hs-sill{fill:#CFC6B8}
+.hs-lbl{font:600 15px var(--body,system-ui);fill:#5E6A63;text-anchor:middle}.night .hs-lbl{fill:#CBD5E1}
+.hs-warn{font:800 18px system-ui;fill:#E11D48}
+.hs-door{fill:#7C4A2D}.hs-knob{fill:#FCD34D}
+.hs-garin{fill:#1F2937}.hs-garlit{fill:#FCD34D;opacity:.55}
+.hs-gardoor{fill:#E2E8F0;transition:height .8s ease}.night .hs-gardoor{fill:#94A3B8}.hs-garline{stroke:#94A3B8;stroke-width:2}
+.hs-drop{stroke:#E2E8F0;stroke-width:2;opacity:.7;animation:hsrain .9s linear infinite}
+@keyframes hsrain{from{transform:translateY(-40px)}to{transform:translateY(320px)}}
+@media (prefers-reduced-motion:reduce){.hs-drop{animation:none}.hs-gate,.hs-gardoor,.hs-shut{transition:none}}
+.hs-zone{display:flex;flex-direction:column;gap:6px}
+.hs-zl{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hs-chip{display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 14px;border:0;border-radius:14px;background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .05);font-size:.95rem;text-align:left}
+.hs-chip span{font-size:1.2rem}.hs-chip b{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hs-chip small{color:var(--muted);white-space:nowrap}
+.hs-chip.on{background:var(--sh-amber-soft);box-shadow:0 0 0 2px #F59E0B,0 3px 14px rgb(245 158 11 / .45)}
+.hs-chip.warn{background:#FFE4E6;color:#1C2420}.hs-chip.armed{background:#1C2420;color:#fff}.hs-chip.armed small{color:#FCD34D}
+.hs-chip:disabled{opacity:1;cursor:default}
+@media (max-width:820px){.hs-wrap{grid-template-columns:1fr}.hs-svg{height:auto;min-height:0}.hs-side{max-height:none}}
