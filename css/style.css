@@ -854,3 +854,9 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .fd-now{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .fd-today{font-family:var(--display);font-weight:700;font-size:clamp(.95rem,1.4vw,1.15rem);line-height:1.1;white-space:nowrap}
 .fd-view{padding-left:16px;border-left:2px solid var(--line)}
+
+/* fotografias dos artigos */
+.shop-img{flex:none;width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line)}
+.sug.has-img{display:flex;align-items:center;gap:10px;text-align:left}
+.sug.has-img span{display:flex;flex-direction:column;min-width:0}
+.w-shopit .shop-img{width:52px;height:52px}

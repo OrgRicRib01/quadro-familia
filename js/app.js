@@ -559,9 +559,13 @@ function shopSuggestions(store){
                      :(h.count||0)>=2||since<=60?{h,score:since/21,why:`comprado há ${dd(since)}`}:null;
   }).filter(x=>x&&x.score>=0.85).sort((a,b)=>b.score-a.score||(b.h.count||0)-(a.h.count||0)).slice(0,10);
 }
+// fotografia do artigo (catálogo Auchan)
+function shopImg(h,size){if(!h||!h.img)return '';const s=size||96;const u=/^https?:/.test(h.img)?h.img:'https://www.auchan.pt/dw/image/v2/BFRC_PRD/on/demandware.static/-/Sites-auchan-pt-master-catalog/default/images/hi-res/'+h.img+'.jpg?sw='+s+'&sh='+s+'&sm=fit&bgcolor=FFFFFF';
+  return `<img class="shop-img" src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()">`}
+function shopHistOf(text){const id=slugify(text);return S.shopHistory.find(x=>x.id===id)}
 function recordPurchase(t){const id=slugify(t.text);if(!id)return;const h=S.shopHistory.find(x=>x.id===id)||{};
   const dates=[...new Set([...(h.dates||[]),TODAY])].sort().slice(-12);
-  save('shopHistory',id,{name:t.text,count:(h.count||0)+1,last:TODAY,dates,store:storeOf(t)})}
+  const {id:_x,...hh}=h;save('shopHistory',id,{...hh,name:h.name||t.text,count:(h.count||0)+1,last:TODAY,dates,store:h.store||storeOf(t)})}
 function saveShopLists(lists){if(S.db)S.db.doc('config/shopLists').set({lists}).catch(handleWriteError);else{S.shopLists=lists;render()}}
 function addShopItem(text,store){save('tasks',null,{text,list:'Compras',store:store||curShop(),due:'',who:['all'],done:false,doneAt:'',repeat:'',part:'',doneDates:[]})}
 function shopBody(big){
@@ -572,11 +576,11 @@ function shopBody(big){
     ${S.readOnly?'':'<button class="chip" data-shopnew>+ Lista</button>'}<button class="chip" data-shophist aria-pressed="${!!S.shopShowHist}">Histórico</button></div>`;
   const dl=`<datalist id="shophist">${S.shopHistory.map(h=>`<option value="${esc(h.name)}"></option>`).join('')}</datalist>`;
   const sug=S.readOnly?[]:shopSuggestions(store);
-  const sugHtml=sug.length?`<div class="field"><span>Sugestões pelo histórico</span><div class="sugs">${sug.map(x=>`<button class="sug" data-shopsug="${esc(x.h.id)}"><b>+ ${esc(x.h.name)}</b><small>${esc(x.why)}</small></button>`).join('')}</div></div>`:'';
+  const sugHtml=sug.length?`<div class="field"><span>Sugestões pelo histórico</span><div class="sugs">${sug.map(x=>`<button class="sug${x.h.img?' has-img':''}" data-shopsug="${esc(x.h.id)}">${shopImg(x.h,80)}<span><b>+ ${esc(x.h.name)}</b><small>${esc(x.why)}</small></span></button>`).join('')}</div></div>`:'';
   const nline=t=>`<div class="item ${t.done?'done':''}"><button class="check" role="checkbox" aria-checked="${!!t.done}" data-toggle-task="${t.id}" aria-label="Comprado"></button>
-    <span class="body"><div class="t">${esc(t.text)}</div>${whoList(t.who).includes('all')?'':`<div class="people">${peopleTags(t.who)}</div>`}</span>
+    ${shopImg(shopHistOf(t.text),80)}<span class="body"><div class="t">${esc(t.text)}</div>${whoList(t.who).includes('all')?'':`<div class="people">${peopleTags(t.who)}</div>`}</span>
     <button class="edit" data-edit-task="${t.id}">Editar</button></div>`;
-  const wline=t=>`<button class="w-rtask w-shopit${t.done?' ok':''}" data-toggle-task="${t.id}" role="checkbox" aria-checked="${!!t.done}" style="--c:var(--accent)"><span class="box">${t.done?'✓':''}</span><span class="tt">${esc(t.text)}</span></button>`;
+  const wline=t=>`<button class="w-rtask w-shopit${t.done?' ok':''}" data-toggle-task="${t.id}" role="checkbox" aria-checked="${!!t.done}" style="--c:var(--accent)"><span class="box">${t.done?'✓':''}</span>${shopImg(shopHistOf(t.text),80)}<span class="tt">${esc(t.text)}</span></button>`;
   const wrapOpen=big?`<div class="w-shop">${open.map(wline).join('')||'<div class="empty">Nada em falta nesta lista. Escreve acima o que acabar.</div>'}</div>`
                    :`<div class="list">${open.map(nline).join('')||'<div class="empty">A lista está vazia.<br>Escreve acima o que falta. Podes pôr vários de uma vez, separados por vírgulas.</div>'}</div>`;
   const wrapGot=got.length?`<div class="row" style="margin-top:6px"><span class="kind">No carrinho (${got.length})</span><span class="spacer"></span><button class="edit" data-clearshop>Limpar comprados</button></div>
@@ -592,7 +596,7 @@ function shopBody(big){
       <input type="search" id="shop-hq" value="${esc(S.shopQ||'')}" placeholder="Procurar nos artigos (ex.: leite, queijo)" autocomplete="off" aria-label="Procurar nos artigos">
       ${cats.length?`<div class="who sh-cats" style="flex-wrap:wrap;margin-top:6px"><button class="chip" data-shopcat="" aria-pressed="${!cf}">Todos</button>${cats.map(x=>`<button class="chip" data-shopcat="${esc(x)}" aria-pressed="${cf===x}">${esc(x)}</button>`).join('')}</div>`:''}
       <div class="list">${hs.slice(0,lim).map(h=>{const {since,avg}=shopStats(h);
-      return `<div class="item"><span class="body"><div class="t">${esc(h.name)}</div><div class="sub">${h.count||0} ${h.count===1?'vez':'vezes'} · última ${since===0?'hoje':'há '+since+' dias'}${avg?` · a cada ~${Math.max(1,Math.round(avg))} dias`:''}${h.price?' · '+esc(h.price):''}</div></span>
+      return `<div class="item">${shopImg(h,96)}<span class="body"><div class="t">${esc(h.name)}</div><div class="sub">${h.cat?esc(h.cat)+' · ':''}${h.count||0} ${h.count===1?'vez':'vezes'} · última ${since===0?'hoje':'há '+since+' dias'}${avg?` · a cada ~${Math.max(1,Math.round(avg))} dias`:''}${h.price?' · '+esc(h.price):''}</div></span>
       ${S.readOnly?'':`<button class="edit" data-shopsug="${esc(h.id)}">Adicionar</button>`}</div>`}).join('')||(all.length?'<div class="empty">Nenhum artigo encontrado.</div>':'<div class="empty">Ainda sem histórico. Fica registado cada vez que marcas um artigo como comprado.</div>')}
       ${hs.length>lim?`<button class="ghost" data-shophall>Mostrar todos (${hs.length})</button>`:''}</div></div>`;
   }
@@ -853,7 +857,7 @@ async function importData(j){
       if(!row||!row.id)continue;let {id,...data}=row;
       // artigos de compras: junta ao histórico que já existe em vez de o substituir
       if(c==='shopHistory'){const h=S.shopHistory.find(x=>x.id===id);if(h){const ds=[...new Set([...(h.dates||[]),...(data.dates||[])])].sort().slice(-12);
-        data={...h,...data,count:(h.count||0)+(data.count||0),dates:ds,last:[h.last||'',data.last||''].sort().pop()};delete data.id}}
+        data={...h,...data,count:h.src&&h.src===data.src?Math.max(h.count||0,data.count||0):(h.count||0)+(data.count||0),dates:ds,last:[h.last||'',data.last||''].sort().pop()};delete data.id}}
       await put(c+'/'+String(id).replace(/\//g,'_'),data);
     }
   }
