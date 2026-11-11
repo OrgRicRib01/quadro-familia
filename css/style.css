@@ -880,3 +880,17 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .fd-todaypill.off{background:var(--accent);color:var(--accent-ink)}.fd-todaypill.off span,.fd-todaypill.off em{color:var(--accent-ink)}
 @media (max-width:700px){.fd-top2{grid-template-columns:1fr}}
 .fd-row1>*{margin-left:0!important}
+
+/* Spotify na Moldura */
+.fr-drag.fr-sp{right:20px;top:96px;align-items:flex-start}
+.sp-w{width:360px;max-width:42vw;padding:10px;border-radius:18px;background:rgb(0 0 0 / .45);backdrop-filter:blur(8px);color:#fff}
+.sp-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0}
+.sp-logo{font-weight:800;color:#1DB954;white-space:nowrap}
+.sp-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.sp-tab{flex:none;min-height:34px;padding:0 12px;border:0;border-radius:999px;background:rgb(255 255 255 / .15);color:#fff;font-weight:600;font-size:.85rem}
+.sp-tab.on{background:#1DB954;color:#04170b}
+.sp-slot{height:152px;border-radius:12px;background:rgb(0 0 0 / .3)}
+.sp-slot.big{height:352px}
+#spLayer{position:fixed;z-index:4;display:none;border-radius:12px;overflow:hidden}
+#spLayer iframe{width:100%;height:100%;border:0;display:block}

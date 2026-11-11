@@ -87,6 +87,7 @@ function handleWriteError(e){
   db.doc('config/gonly').onSnapshot(s=>{const d=s.exists?s.data():{};S.gOnly=!!d.on;S.famCal=d.famCal||'';render()},()=>{});
   db.doc('config/youversion').onSnapshot(s=>{S.yv=s.exists?s.data():{};votdLoad(false)},()=>{});
   db.doc('config/frame').onSnapshot(s=>{S.fw=s.exists?s.data():{};if(S.wall)renderWall()},()=>{});
+  db.doc('config/spotify').onSnapshot(s=>{S.spotify=s.exists?s.data():{items:[]};if(S.wall&&!overlay.innerHTML)renderWall()},()=>{});
   db.doc('config/shelly').onSnapshot(s=>{S.shelly=s.exists?s.data():{};if(S.wall&&S.wallView==='casa')renderWall()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
@@ -1112,7 +1113,7 @@ function renderWall(){
   const navSafe=()=>safe(navBar,'o menu');
   html=(v==='moldura'?safe(wallFrame,'a Moldura'):safe(wallHead,'o topo')+safe(body,'esta vista')+fab)+navSafe();
   document.getElementById('wall').innerHTML=html;
-  refocus();dockVideo();initSort();if(v==='casa')shInitSort();if(ytFocus){const q=document.getElementById(ytFocus);if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
+  refocus();dockVideo();initSort();spSync();if(v==='casa')shInitSort();if(ytFocus){const q=document.getElementById(ytFocus);if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}if(v==='moldura'&&S.frameMode==='radio')loadStations(false);
 }
 function wallShopping(){return shopBody(true)}
 function toMin(hm){const[h,m]=String(hm).split(':').map(Number);return h*60+(m||0)}
@@ -1205,7 +1206,7 @@ function wallFrame(){
   const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio'],['tv','NOS TV ↗']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
   if(fm!=='galeria')return `<div class="w-frame"><div class="w-photo fm-${fm}">${tabs}${fm==='video'?frameVideo():fm==='tv'?frameTV():frameRadio()}</div>${frameSide(today,tomorrow,row,up,pend)}</div>`;
   return `<div class="w-frame"><div class="w-photo${p?' has':''}"${p?` style="background-image:url('${photoUrl(p)}')"`:''}>
-      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${fw('wx')?dragBox('wx',frameWx(true)):''}${fw('radio')?dragBox('radio',galleryRadio()):''}${fw('votd')?dragBox('votd',votdWidget()):''}
+      ${tabs}${p?'':'<button class="w-btn" data-wset style="position:absolute;top:24px;right:24px">Adicionar fotografias</button>'}${fw('wx')?dragBox('wx',frameWx(true)):''}${fw('radio')?dragBox('radio',galleryRadio()):''}${fw('votd')?dragBox('votd',votdWidget()):''}${fw('spotify')?dragBox('sp',spotifyWidget()):''}${fw('spotify')?dragBox('sp',spotifyWidget()):''}
       <div class="ov"${fw('clock')?'':' hidden'}><div class="big" id="wClock">${now}</div><div style="font-family:var(--display);font-weight:600;font-size:1.6rem">${niceDate(TODAY)}</div>
       ${meal?`<div class="w-chipb">${mealT(meal)[1]}: ${esc(meal.title)}</div>`:''}</div>
       </div>
@@ -2418,19 +2419,20 @@ function yvSheet(){const c=yvCfg();
 document.addEventListener('click',e=>{if(e.target.closest('[data-votd]')){if(VOTD)sheet(VOTD.ref,`<p style="font-size:1.25rem;line-height:1.5;margin:0">“${esc(VOTD.text)}”</p><p class="muted">${esc(VOTD.bible||'')} · YouVersion</p>`)}});
 
 /* ---------- Configuração da Moldura ---------- */
-var FW=[['clock','Relógio e data','A hora grande e a data'],['wx','Tempo','Temperatura, chuva, nascer e pôr do sol'],['radio','Rádio','As 4 primeiras das tuas rádios'],['votd','Versículo do dia','YouVersion']];
+var FW=[['clock','Relógio e data','A hora grande e a data'],['wx','Tempo','Temperatura, chuva, nascer e pôr do sol'],['radio','Rádio','A primeira das tuas rádios'],['votd','Versículo do dia','YouVersion'],['spotify','Spotify','Playlists, álbuns e podcasts']];
 function fw(k){const v=(S.fw||{})[k];return v!==false}
 function frameSheet(){
   const f=sheet('Moldura',`<div class="field"><span>Widgets</span>
     ${FW.map(([k,l,s])=>`<label class="cfg-tog"><span><b>${l}</b><small>${s}${k==='votd'&&!yvCfg().key?' · ainda não configurado':''}</small></span><input type="checkbox" role="switch" name="fw_${k}" ${fw(k)?'checked':''}></label>`).join('')}</div>
     <div class="cfg">
       <button type="button" class="cfg-it" data-fcfg="votd"><span class="cfg-ic">📖</span><span style="flex:1;min-width:0"><b>Versículo do dia</b><small>Chave da YouVersion e versão da Bíblia${yvCfg().key?' · ligado':''}</small></span><span class="fd-chev">›</span></button>
+      <button type="button" class="cfg-it" data-fcfg="spotify"><span class="cfg-ic">♫</span><span style="flex:1;min-width:0"><b>Spotify</b><small>${(spCfg().items||[]).length?(spCfg().items.length)+' guardados':'Juntar playlists, álbuns ou podcasts'}</small></span><span class="fd-chev">›</span></button>
       <button type="button" class="cfg-it" data-fcfg="fotos"><span class="cfg-ic">🖼︎</span><span style="flex:1;min-width:0"><b>Fotografias e tempo entre fotografias</b><small>${S.photos.length} fotografias · ${photoSec()} s</small></span><span class="fd-chev">›</span></button>
       <button type="button" class="cfg-it" data-fcfg="tempo"><span class="cfg-ic">⛅</span><span style="flex:1;min-width:0"><b>Localidade do tempo</b><small>${esc(wxPlace().name)}</small></span><span class="fd-chev">›</span></button>
       <button type="button" class="cfg-it" data-fcfg="pos"><span class="cfg-ic">↺</span><span style="flex:1;min-width:0"><b>Repor a posição dos widgets</b><small>Voltam ao sítio original neste ecrã</small></span></button>
     </div>`,{saveLabel:'Guardar',onSave:f=>{const o={};FW.forEach(([k])=>o[k]=!!f.elements['fw_'+k].checked);S.fw=o;if(S.db)S.db.doc('config/frame').set(o).catch(handleWriteError);if(S.wall)renderWall();toast('Moldura atualizada')}});
   f.addEventListener('click',e=>{const b=e.target.closest('[data-fcfg]');if(!b)return;const k=b.dataset.fcfg;
-    if(k==='votd')yvSheet();else if(k==='fotos')wallSettings();else if(k==='tempo')wxSheet();else if(k==='pos'){lsSet('fam.wpos','{}');toast('Widgets repostos');if(S.wall)renderWall()}});
+    if(k==='votd')yvSheet();else if(k==='spotify')spSheet();else if(k==='fotos')wallSettings();else if(k==='tempo')wxSheet();else if(k==='pos'){lsSet('fam.wpos','{}');toast('Widgets repostos');if(S.wall)renderWall()}});
 }
 
 /* ---------- Casa: Shelly Cloud ---------- */
@@ -2753,3 +2755,38 @@ function shopArchView(a){
     S.shopList=a.store;lsSet('fam.shopList',a.store);toast(n+' artigos repostos em '+a.store);closeSheet()});
   f.querySelector('[data-sadel]')?.addEventListener('click',e=>{const b=e.currentTarget;if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para apagar';return}remove('shopArchive',a.id);toast('Apagado do arquivo');closeSheet()});
 }
+
+/* ---------- Spotify na Moldura ---------- */
+// O leitor do Spotify fica numa camada fixa fora do ecrã de parede, para a música não parar quando o ecrã se redesenha.
+function spCfg(){return S.spotify||{items:[]}}
+function spParse(u){u=String(u||'').trim();let m=u.match(/^spotify:(playlist|album|artist|track|show|episode):([A-Za-z0-9]+)/);
+  if(!m)m=u.match(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(playlist|album|artist|track|show|episode)\/([A-Za-z0-9]+)/);
+  return m?{t:m[1],id:m[2]}:null}
+function spCur(){const c=spCfg(),it=c.items||[];return it.find(x=>x.id===c.cur)||it[0]||null}
+function spotifyWidget(){const c=spCfg(),it=c.items||[];if(!it.length)return '';const cur=spCur();
+  return `<div class="sp-w"><div class="sp-bar"><span class="sp-logo">♫ Spotify</span>${it.length>1?`<div class="sp-tabs">${it.map(x=>`<button class="sp-tab${x.id===cur.id?' on':''}" data-sppick="${esc(x.id)}">${esc(x.n||x.t)}</button>`).join('')}</div>`:`<span class="sp-name">${esc(cur.n||'')}</span>`}</div>
+    <div class="sp-slot${c.big?' big':''}" id="spSlot"></div></div>`}
+var SPL={el:null,src:'',raf:0};
+function spSync(){const slot=document.getElementById('spSlot');const cur=spCur();
+  if(!slot||!cur||!S.wall){if(SPL.el)SPL.el.style.display='none';return}
+  if(!SPL.el){SPL.el=document.createElement('div');SPL.el.id='spLayer';document.body.appendChild(SPL.el)}
+  const src='https://open.spotify.com/embed/'+cur.t+'/'+cur.id+'?utm_source=generator&theme=0';
+  if(SPL.src!==src){SPL.src=src;SPL.el.innerHTML=`<iframe src="${esc(src)}" title="Spotify" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`}
+  const r=slot.getBoundingClientRect(),vis=(overlay&&overlay.innerHTML)?'hidden':'visible',k=[r.left,r.top,r.width,r.height,vis].join(',');
+  if(SPL.k!==k||SPL.el.style.display!=='block'){SPL.k=k;Object.assign(SPL.el.style,{display:'block',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',visibility:vis})}
+  if(!SPL.raf){const loop=()=>{SPL.raf=0;if(document.getElementById('spSlot')){spSync()}else if(SPL.el)SPL.el.style.display='none'};SPL.raf=requestAnimationFrame(loop)}}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-sppick]');if(!b)return;const c={...spCfg(),cur:b.dataset.sppick};S.spotify=c;if(S.db)S.db.doc('config/spotify').set(c).catch(handleWriteError);if(S.wall)renderWall()});
+function spSheet(){const c=spCfg();let items=[...(c.items||[])];
+  const rows=()=>items.map((x,i)=>`<div class="item"><span class="body"><div class="t">${esc(x.n||'Sem nome')}</div><div class="sub">${esc({playlist:'Playlist',album:'Álbum',artist:'Artista',track:'Música',show:'Podcast',episode:'Episódio'}[x.t]||x.t)}</div></span><button type="button" class="edit" data-spdel="${i}">Remover</button></div>`).join('')||'<div class="empty">Ainda sem nada. Cola em baixo um link do Spotify.</div>';
+  const f=sheet('Spotify na Moldura',`<p class="muted small" style="margin:0">No Spotify, abre uma playlist, álbum, artista ou podcast → <b>Partilhar → Copiar link</b> e cola-o aqui. Para ouvir as músicas completas, entra na tua conta Spotify neste aparelho (sem conta o Spotify só deixa ouvir 30 segundos).</p>
+    <div class="field"><span>Guardados</span><div class="list" id="sp-list">${rows()}</div></div>
+    <label class="field"><span>Link do Spotify</span><input id="sp-url" placeholder="https://open.spotify.com/playlist/…" autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>Nome (opcional)</span><input id="sp-name" placeholder="Ex.: Louvor da manhã" autocomplete="off"></label>
+    <button type="button" class="ghost" data-spadd>Adicionar</button>
+    <label class="cfg-tog" style="margin-top:10px"><span><b>Leitor grande</b><small>Mostra a lista de músicas</small></span><input type="checkbox" role="switch" name="big" ${c.big?'checked':''}></label>`,
+  {saveLabel:'Guardar',onSave:f=>{const nc={items,cur:items.some(x=>x.id===c.cur)?c.cur:(items[0]&&items[0].id)||'',big:!!f.elements.big.checked};S.spotify=nc;if(S.db)S.db.doc('config/spotify').set(nc).catch(handleWriteError);toast('Spotify guardado');if(S.wall)renderWall()}});
+  f.querySelector('[data-spadd]').addEventListener('click',()=>{const u=f.querySelector('#sp-url').value,p=spParse(u);if(!p){toast('Esse link não parece ser do Spotify.');return}
+    if(items.some(x=>x.id===p.id)){toast('Já está na lista.');return}items.push({...p,n:f.querySelector('#sp-name').value.trim()});f.querySelector('#sp-url').value='';f.querySelector('#sp-name').value='';f.querySelector('#sp-list').innerHTML=rows()});
+  f.querySelector('#sp-list').addEventListener('click',e=>{const b=e.target.closest('[data-spdel]');if(!b)return;items.splice(+b.dataset.spdel,1);f.querySelector('#sp-list').innerHTML=rows()});
+}
+window.addEventListener('resize',()=>spSync());
