@@ -424,7 +424,7 @@ function breakForm(b){
    onDelete:b.id&&!S.readOnly?()=>remove('schoolBreaks',b.id):null});
 }
 function viewBirthdays(seg){
-  const rows=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n);
+  const rows=allBdays().map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n);
   return `<section class="panel">${seg}
     <div class="row"><h2>Aniversários</h2><span class="spacer"></span><button class="addbtn" data-new="birthday">+ Aniversário</button></div>
     <div class="list">${rows.map(b=>{const age=ageOn(b,b.date);
@@ -1010,7 +1010,7 @@ function railReminders(d){
   const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d&&wMatch(r)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,5);
   return `<div class="w-card"><h4>Lembretes</h4>${pend.map(r=>`<div class="w-it"><button class="check" role="checkbox" aria-checked="false" data-toggle-rem="${r.id}" aria-label="Marcar como feito"></button><span style="flex:1;min-width:0"><div class="tt">${esc(r.text)}</div><div class="ss"${r.date<TODAY?' style="color:var(--danger)"':''}>${rel(r.date)}${r.time?' · '+esc(r.time):''}</div></span></div>`).join('')||'<div class="empty">Sem lembretes pendentes</div>'}</div>`}
 function railBirthdays(){
-  const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n).slice(0,3);
+  const up=allBdays().map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n).slice(0,3);
   return `<div class="w-card"><h4>Próximos aniversários</h4>${up.map(b=>`<button class="w-it" data-edit-bday="${b.id}"><span class="tm">${+b.md.slice(3)}/${+b.md.slice(0,2)}</span><span style="flex:1;min-width:0"><div class="tt">${esc(b.name)}</div><div class="ss">${b.n===0?'Hoje!':b.n===1?'Amanhã':'Daqui a '+b.n+' dias'}</div></span></button>`).join('')||'<div class="empty">Sem aniversários registados</div>'}</div>`}
 function wallDay(d){
   const D=wallData(d,true);
@@ -1027,7 +1027,7 @@ function wallDay(d){
       ${its.map(x=>wItem(x,d)).join('')||'<div class="empty">Dia livre</div>'}</div>`}).join('');
   const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d&&wMatch(r)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,8);
   const tasks=S.tasks.filter(t=>!isDone(t)&&taskActive(t,TODAY)&&wMatch(t)).sort((a,b)=>(a.due||'9').localeCompare(b.due||'9')).slice(0,8);
-  const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n).slice(0,3);
+  const up=allBdays().map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n).slice(0,3);
   const dots=who=>dotsFor(who).map(c=>`<span class="dot" style="--c:${c}"></span>`).join('');
   const meal=D.meal;
   return `${band.length?`<div class="w-band">${band.join('')}</div>`:''}
@@ -1158,7 +1158,7 @@ function wallFrame(){
   const now=nowHM();
   const row=(x,today)=>`<div class="w-fr${today&&x.end&&x.end<=now?' past':''}"><span class="tm">${x.k||'Dia'}</span><span class="dot" style="--c:${x.c}"></span><span class="tt" style="min-width:0">${esc(x.t)}</span></div>`;
   const meal=S.meals[TODAY],pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=TODAY&&wMatch(r)).length;
-  const up=S.birthdays.map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n)[0];
+  const up=allBdays().map(b=>({...b,...daysUntil(b.md)})).sort((a,b)=>a.n-b.n)[0];
   const today=frameList(wallData(TODAY),TODAY),tomorrow=frameList(wallData(td),td).slice(0,5);
   const fm=S.frameMode||'galeria';
   const tabs=`<div class="fm-tabs" role="group" aria-label="Moldura">${[['galeria','Galeria'],['video','Vídeo'],['radio','Rádio'],['tv','NOS TV ↗']].map(([k,l])=>`<button data-fmode="${k}" aria-pressed="${fm===k}">${l}</button>`).join('')}</div>`;
@@ -1355,7 +1355,7 @@ document.addEventListener('click',e=>{
   if(d.alm){S.almView=d.alm;render();return}
   if(d.ag){S.agView=d.ag;render();return}
   if(d.gsetup!==undefined){googleSheet();return}
-  if(d.editBday){birthdayForm(S.birthdays.find(x=>x.id===d.editBday));return}
+  if(d.editBday){if(d.editBday.startsWith('g:')){gBdaySheet(d.editBday);return}birthdayForm(S.birthdays.find(x=>x.id===d.editBday));return}
   if(d.editVac){vacationForm(S.vacations.find(x=>x.id===d.editVac));return}
   if(d.editBreak){breakForm(S.schoolBreaks.find(x=>x.id===d.editBreak));return}
   if(d.schoolpreset!==undefined){if(S.readOnly)return;const who=schoolMembers().length?schoolMembers():['all'];
@@ -2635,3 +2635,21 @@ function wallCasaHouse(all,roomOf,nmOf){
   const order=['andar1','rc','garagem','portao','exterior'];
   const zones=order.filter(k=>z(k).length).map(k=>`<div class="hs-zone"><span class="hs-zl">${zl[k]}</span>${z(k).map(chip).join('')}</div>`).join('');
   return `<div class="hs-wrap"><div class="hs-pic">${svg}</div><div class="hs-side">${zones}</div></div>`}
+
+/* ---------- Aniversários guardados no Google (modo só Google) ---------- */
+var GBD=null,gbdBusy=false;
+function allBdays(){if(!gOnly())return S.birthdays;if(!GBD){try{GBD=JSON.parse(localStorage.getItem('fam.gbd')||'null')}catch(e){GBD=null}}setTimeout(()=>gbdLoad(false),0);return [...S.birthdays,...((GBD&&GBD.list)||[])]}
+async function gbdLoad(force){const cal=famCal();if(!S.mcp||!cal||gbdBusy)return;if(!force&&GBD&&GBD.cal===cal&&Date.now()-GBD.at<6*3600000)return;gbdBusy=true;
+  try{const t=new Date(),e=new Date(t.getFullYear()+1,t.getMonth(),t.getDate()+1);const seen={},list=[];let tok,n=0;
+    do{const r=await S.mcp.callTool(GSERVER,'list_events',{calendarId:cal,startTime:iso(t)+'T00:00:00',endTime:iso(e)+'T00:00:00',pageSize:250,...(tok?{pageToken:tok}:{})},{cache:false});const pl=r.payload||{};
+      (pl.events||[]).forEach(ev=>{const s=ev.summary||'';const isB=/^\s*🎂/.test(s)||((ev.extendedProperties||{}).private||{}).quadro==='aniv';if(!isB||ev.status==='cancelled')return;
+        const d=(ev.start&&(ev.start.date||(ev.start.dateTime||'').slice(0,10)))||'';if(!d)return;const sid=ev.recurringEventId||ev.id;if(seen[sid])return;seen[sid]=1;
+        const m=s.replace(/^\s*🎂\uFE0F?\s*/,'').match(/^(.*?)(?:\s*\((\d{4})\))?\s*$/);
+        list.push({id:'g:'+cal+'|'+sid,name:(m&&m[1])||s,year:(m&&m[2])||'',md:d.slice(5),note:'',g:1})});
+      tok=pl.nextPageToken;n++}while(tok&&n<6);
+    GBD={cal,at:Date.now(),list};try{localStorage.setItem('fam.gbd',JSON.stringify(GBD))}catch(e){}
+    if(S.wall){if(!overlay.innerHTML)renderWall()}else render()}catch(e){console.warn('Aniversários Google',e)}finally{gbdBusy=false}}
+function gBdaySheet(id){const b=allBdays().find(x=>x.id===id);if(!b)return;const [cal,eid]=id.slice(2).split('|');
+  const f=sheet('🎂 '+esc(b.name),`<p style="margin:0">${+b.md.slice(3)} de ${MONTHS[+b.md.slice(0,2)-1]}${b.year?' · nasceu em '+esc(b.year):''}</p>
+    <p class="muted small">Guardado no calendário Família do Google. Repete todos os anos.</p>`,
+  {onDelete:S.readOnly?null:async()=>{try{await S.mcp.callTool(GSERVER,'delete_event',{calendarId:cal,eventId:eid},{cache:false});GBD.list=GBD.list.filter(x=>x.id!==id);try{localStorage.setItem('fam.gbd',JSON.stringify(GBD))}catch(e){}toast('Aniversário apagado');S.gbusy=0;syncGoogle(null,false);if(S.wall)renderWall();else render()}catch(e){toast(gErr(e))}}})}
