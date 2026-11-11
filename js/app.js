@@ -554,8 +554,9 @@ function shopSuggestions(store){
   return S.shopHistory.filter(h=>!open.has(h.id)&&(h.store||DEF_SHOP)===store).map(h=>{
     const {since,avg}=shopStats(h);if(since===null)return null;
     const dd=n=>n+' '+(n===1?'dia':'dias');
+    if(since>Math.max(120,(avg||30)*4))return null; // já não se compra há muito tempo
     return avg&&avg>0?{h,score:since/avg,why:`costuma ser a cada ${dd(Math.max(1,Math.round(avg)))} · última há ${dd(since)}`}
-                     :{h,score:since/21,why:`comprado há ${dd(since)}`};
+                     :(h.count||0)>=2||since<=60?{h,score:since/21,why:`comprado há ${dd(since)}`}:null;
   }).filter(x=>x&&x.score>=0.85).sort((a,b)=>b.score-a.score||(b.h.count||0)-(a.h.count||0)).slice(0,10);
 }
 function recordPurchase(t){const id=slugify(t.text);if(!id)return;const h=S.shopHistory.find(x=>x.id===id)||{};
@@ -582,10 +583,18 @@ function shopBody(big){
     ${big?`<div class="w-shop">${got.map(wline).join('')}</div>`:`<div class="list">${got.slice(0,40).map(nline).join('')}</div>`}`:'';
   let hist='';
   if(S.shopShowHist){
-    const hs=S.shopHistory.filter(h=>(h.store||DEF_SHOP)===store).sort((a,b)=>(b.last||'').localeCompare(a.last||''));
-    hist=`<div class="field"><span>Histórico · ${esc(store)}</span><div class="list">${hs.map(h=>{const {since,avg}=shopStats(h);
-      return `<div class="item"><span class="body"><div class="t">${esc(h.name)}</div><div class="sub">${h.count||0} ${h.count===1?'vez':'vezes'} · última ${since===0?'hoje':'há '+since+' dias'}${avg?` · a cada ~${Math.max(1,Math.round(avg))} dias`:''}</div></span>
-      ${S.readOnly?'':`<button class="edit" data-shopsug="${esc(h.id)}">Adicionar</button>`}</div>`}).join('')||'<div class="empty">Ainda sem histórico. Fica registado cada vez que marcas um artigo como comprado.</div>'}</div></div>`;
+    const all=S.shopHistory.filter(h=>(h.store||DEF_SHOP)===store);
+    const cats=[...new Set(all.map(h=>h.cat).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt'));
+    const q=slugify(S.shopQ||''),cf=cats.includes(S.shopCat)?S.shopCat:'';
+    const hs=all.filter(h=>(!cf||h.cat===cf)&&(!q||h.id.includes(q))).sort((a,b)=>(b.count||0)-(a.count||0)||(b.last||'').localeCompare(a.last||''));
+    const lim=S.shopHistAll?hs.length:60;
+    hist=`<div class="field"><span>Os meus artigos · ${esc(store)} (${all.length})</span>
+      <input type="search" id="shop-hq" value="${esc(S.shopQ||'')}" placeholder="Procurar nos artigos (ex.: leite, queijo)" autocomplete="off" aria-label="Procurar nos artigos">
+      ${cats.length?`<div class="who sh-cats" style="flex-wrap:wrap;margin-top:6px"><button class="chip" data-shopcat="" aria-pressed="${!cf}">Todos</button>${cats.map(x=>`<button class="chip" data-shopcat="${esc(x)}" aria-pressed="${cf===x}">${esc(x)}</button>`).join('')}</div>`:''}
+      <div class="list">${hs.slice(0,lim).map(h=>{const {since,avg}=shopStats(h);
+      return `<div class="item"><span class="body"><div class="t">${esc(h.name)}</div><div class="sub">${h.count||0} ${h.count===1?'vez':'vezes'} · última ${since===0?'hoje':'há '+since+' dias'}${avg?` · a cada ~${Math.max(1,Math.round(avg))} dias`:''}${h.price?' · '+esc(h.price):''}</div></span>
+      ${S.readOnly?'':`<button class="edit" data-shopsug="${esc(h.id)}">Adicionar</button>`}</div>`}).join('')||(all.length?'<div class="empty">Nenhum artigo encontrado.</div>':'<div class="empty">Ainda sem histórico. Fica registado cada vez que marcas um artigo como comprado.</div>')}
+      ${hs.length>lim?`<button class="ghost" data-shophall>Mostrar todos (${hs.length})</button>`:''}</div></div>`;
   }
   return `${lists}${S.readOnly?'':shopAddForm(big)}${dl}${sugHtml}${wrapOpen}${wrapGot}${hist}`;
 }
@@ -841,7 +850,10 @@ async function importData(j){
   const put=async(path,data)=>{try{await S.db.doc(path).set(data);n++}catch(e){fail++}};
   for(const c of ['events','reminders','tasks','recipes','birthdays','vacations','meals','shopHistory','schoolBreaks','tests','edu']){
     for(const row of (Array.isArray(j[c])?j[c]:[])){
-      if(!row||!row.id)continue;const {id,...data}=row;
+      if(!row||!row.id)continue;let {id,...data}=row;
+      // artigos de compras: junta ao histórico que já existe em vez de o substituir
+      if(c==='shopHistory'){const h=S.shopHistory.find(x=>x.id===id);if(h){const ds=[...new Set([...(h.dates||[]),...(data.dates||[])])].sort().slice(-12);
+        data={...h,...data,count:(h.count||0)+(data.count||0),dates:ds,last:[h.last||'',data.last||''].sort().pop()};delete data.id}}
       await put(c+'/'+String(id).replace(/\//g,'_'),data);
     }
   }
@@ -852,7 +864,7 @@ async function importData(j){
     await put('config/family',{members:merged})}
   if(j.config&&j.config.gonly){let cur={};try{const s=await S.db.doc('config/gonly').get();cur=s.exists?s.data():{}}catch(e){}await put('config/gonly',{...cur,...j.config.gonly})}
   if(j.config&&j.config.prize)await put('config/prize',j.config.prize);
-  if(j.config&&Array.isArray(j.config.shopLists)&&j.config.shopLists.length)await put('config/shopLists',{lists:j.config.shopLists});
+  if(j.config&&Array.isArray(j.config.shopLists)&&j.config.shopLists.length)await put('config/shopLists',{lists:[...new Set([...shopLists(),...j.config.shopLists])]});
   if(j.profile&&S.uid){const me=S.me||{},p=j.profile;
     const ex=[...(me.extra||[]).filter(x=>!(p.extra||[]).some(y=>y.id===x.id)),...(p.extra||[])];
     await put('data/users/'+S.uid+'/profile',{...me,...p,cals:{...(me.cals||{}),...(p.cals||{})},calMember:{...(me.calMember||{}),...(p.calMember||{})},calNames:{...(me.calNames||{}),...(p.calNames||{})},extra:ex,hidden:(me.hidden||[]).filter(x=>!(p.cals&&p.cals[x]))});S.autoSynced=false}
@@ -1396,6 +1408,8 @@ document.addEventListener('click',e=>{
     else{save('tasks',id,{...rest,done:!r.done,doneAt:!r.done?TODAY:''});if(r.list==='Compras'&&!r.done)recordPurchase(r)}}return}
   if(d.shoplist){S.shopList=d.shoplist;lsSet('fam.shopList',d.shoplist);render();return}
   if(d.shophist!==undefined){S.shopShowHist=!S.shopShowHist;render();return}
+  if(d.shopcat!==undefined){S.shopCat=d.shopcat;S.shopHistAll=false;if(S.wall)renderWall();else render();return}
+  if(d.shophall!==undefined){S.shopHistAll=true;if(S.wall)renderWall();else render();return}
   if(d.shopsug){if(S.readOnly)return;const h=S.shopHistory.find(x=>x.id===d.shopsug);if(h){addShopItem(h.name);toast(h.name+' adicionado a '+curShop())}return}
   if(d.shopnew!==undefined){if(S.readOnly)return;shopListsSheet();return}
   if(d.dellist){if(S.readOnly)return;if(shopItems(d.dellist).length){toast('Essa lista ainda tem artigos. Limpa-a primeiro.');return}
@@ -2682,3 +2696,5 @@ function mealGuess(d){if(d!==TODAY)return 'almoco';const h=new Date().getHours()
 function mealNext(d){const ms=mealsOn(d);if(!ms.length)return null;if(d!==TODAY)return ms[0];const h=new Date().getHours(),lim={pequeno:10,almoco:15,lanche:18,jantar:24};return ms.find(m=>h<lim[mealTipo(m)])||ms[ms.length-1]}
 function mealRows(d,cls){const ms=mealsOn(d);return ms.length?ms.map(m=>{const [k,l,ic]=mealT(m);return `<button type="button" class="${cls||'ml-row'}" data-open-meal="${d}|${k}|${esc(m.id)}"><span class="ml-ic">${ic}</span><span class="ml-tx"><small>${l}</small><b>${esc(m.title)}</b></span></button>`}).join(''):''}
 
+
+document.addEventListener('input',e=>{if(e.target.id!=='shop-hq')return;S.shopQ=e.target.value;S.shopHistAll=false;S.refocusId='shop-hq';S.refocusUntil=Date.now()+1500;clearTimeout(S.shopQT);S.shopQT=setTimeout(()=>{if(S.wall)renderWall();else render();const el=document.getElementById('shop-hq');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)});
