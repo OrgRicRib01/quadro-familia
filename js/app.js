@@ -2198,7 +2198,10 @@ function gInput(o){const allDay=!o.time;const inp={summary:o.title,calendarId:o.
   if(allDay){const e=parse(o.endDate||o.date);e.setDate(e.getDate()+1);inp.startTime=o.date+'T00:00:00';inp.endTime=iso(e)+'T00:00:00'}
   else{const end=o.end&&o.end>o.time?o.end:addMinutes(o.time,o.dur||60);inp.startTime=o.date+'T'+o.time+':00';inp.endTime=(o.endDate||o.date)+'T'+end+':00'}
   if(o.place)inp.location=o.place;if(o.rrule)inp.recurrenceData=[o.rrule];if(o.noRem)inp.noReminders=true;if(o.props)inp.props=o.props;return inp}
-async function gCreate(o){const r=await S.mcp.callTool(GSERVER,'create_event',gInput(o));const p=r.payload||{};return p.id||''}
+// Eventos em calendários partilhados (Família, calendário de outra pessoa…) ficam sempre sem notificações.
+// Só o calendário principal de quem está a usar o Quadro mantém as notificações normais.
+function gShared(cal){if(!cal||cal==='primary')return false;const me=myEmail();return !(me&&normMail(cal)===me)}
+async function gCreate(o){if(gShared(o.cal))o={...o,noRem:true};const r=await S.mcp.callTool(GSERVER,'create_event',gInput(o));const p=r.payload||{};return p.id||''}
 async function gCreateSafe(o,who){ // tenta no calendário da pessoa; se não tiver acesso, usa o calendário Família
   {const w=whoList(who).filter(x=>member(x));if(o.cal===famCal()&&w.length===1&&!whoList(who).includes('all'))o={...o,desc:'Para: '+member(w[0]).name+(o.desc?'\n'+o.desc:'')}}
   try{return {id:await gCreate(o),cal:o.cal}}catch(e){const fc=famCal();if(!fc||fc===o.cal)throw e;
