@@ -2792,9 +2792,12 @@ function spSheet(){const c=spCfg();let items=[...(c.items||[])];
     <label class="field"><span>Nome (opcional)</span><input id="sp-name" placeholder="Ex.: Louvor da manhã" autocomplete="off"></label>
     <button type="button" class="ghost" data-spadd>Adicionar</button>
     <label class="cfg-tog" style="margin-top:10px"><span><b>Leitor grande</b><small>Mostra a lista de músicas</small></span><input type="checkbox" role="switch" name="big" ${c.big?'checked':''}></label>`,
-  {saveLabel:'Guardar',onSave:f=>{const nc={items,cur:items.some(x=>x.id===c.cur)?c.cur:(items[0]&&items[0].id)||'',big:!!f.elements.big.checked};S.spotify=nc;if(S.db)S.db.doc('config/spotify').set(nc).catch(handleWriteError);toast('Spotify guardado');if(S.wall)renderWall()}});
-  f.querySelector('[data-spadd]').addEventListener('click',()=>{const u=f.querySelector('#sp-url').value,p=spParse(u);if(!p){toast('Esse link não parece ser do Spotify.');return}
-    if(items.some(x=>x.id===p.id)){toast('Já está na lista.');return}items.push({...p,n:f.querySelector('#sp-name').value.trim()});f.querySelector('#sp-url').value='';f.querySelector('#sp-name').value='';f.querySelector('#sp-list').innerHTML=rows()});
-  f.querySelector('#sp-list').addEventListener('click',e=>{const b=e.target.closest('[data-spdel]');if(!b)return;items.splice(+b.dataset.spdel,1);f.querySelector('#sp-list').innerHTML=rows()});
+  {saveLabel:'Guardar',onSave:f=>{const p=spParse(f.querySelector('#sp-url').value);if(p&&!items.some(x=>x.id===p.id))items.push({...p,n:f.querySelector('#sp-name').value.trim()});
+    persist(!!f.elements.big.checked);toast(items.length?'Spotify guardado':'Spotify sem links');if(S.wall)renderWall()}});
+  // cada alteração fica logo guardada (não é preciso carregar em Guardar)
+  function persist(big){const cur=spCfg();const nc={items,cur:items.some(x=>x.id===cur.cur)?cur.cur:(items[0]&&items[0].id)||'',big:big!==undefined?big:!!cur.big};S.spotify=nc;if(S.db)S.db.doc('config/spotify').set(nc).catch(handleWriteError);if(S.wall&&!overlay.innerHTML)renderWall()}
+  f.querySelector('[data-spadd]').addEventListener('click',()=>{const u=f.querySelector('#sp-url').value,p=spParse(u);if(!p){toast(u.trim()?'Esse link não parece ser do Spotify.':'Cola primeiro o link do Spotify.');return}
+    if(items.some(x=>x.id===p.id)){toast('Já está na lista.');return}items.push({...p,n:f.querySelector('#sp-name').value.trim()});f.querySelector('#sp-url').value='';f.querySelector('#sp-name').value='';f.querySelector('#sp-list').innerHTML=rows();persist();toast('Adicionado e guardado')});
+  f.querySelector('#sp-list').addEventListener('click',e=>{const b=e.target.closest('[data-spdel]');if(!b)return;items.splice(+b.dataset.spdel,1);f.querySelector('#sp-list').innerHTML=rows();persist();toast('Removido')});
 }
 window.addEventListener('resize',()=>spSync());
