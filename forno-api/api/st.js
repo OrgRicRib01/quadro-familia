@@ -107,6 +107,7 @@ export default async function handler(req, res) {
   const a = String((req.query && req.query.a) || '');
   try {
     // regresso da Samsung depois de autorizar
+    if (a === 'hook') return res.status(200).json({ ok: true });
     if (a === 'cb') {
       const back = (process.env.RETURN_URL || '/') + '#forno=';
       if (req.query.error) return res.redirect(302, back + 'recusado');
@@ -128,14 +129,26 @@ export default async function handler(req, res) {
     // 1.ª vez: cria a app "Quadro da Família" na conta Samsung com um token pessoal (usado só aqui e descartado)
     if (a === 'setup') {
       const pat = String(body.pat || '').trim(); if (!pat) throw httpErr(400, 'Falta o token pessoal da Samsung');
-      const appBody = { appName: 'quadro-familia-' + crypto.randomBytes(4).toString('hex'), displayName: 'Quadro da Família', description: 'Painel da família (forno)',
+      const base = { appName: 'quadro-familia-' + crypto.randomBytes(4).toString('hex'), displayName: 'Quadro da Familia', description: 'Painel da familia (forno)',
         singleInstance: true, appType: 'API_ONLY', classifications: ['CONNECTED_SERVICE'],
-        apiOnly: { targetUrl: null }, oauth: { clientName: 'Quadro da Família', scope: SCOPES, redirectUris: [callback(req)] } };
-      const r = await fetch(ST + '/apps?signatureType=ST_PADLOCK&requireConfirmation=false', { method: 'POST',
-        headers: { Authorization: 'Bearer ' + pat, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(appBody) });
-      const j = await r.json().catch(() => ({}));
+        oauth: { clientName: 'Quadro da Familia', scope: SCOPES, redirectUris: [callback(req)] } };
+      // algumas contas pedem o bloco apiOnly, outras recusam-no vazio: tenta as duas formas
+      // a forma usada pela SmartThings CLI (sem parâmetros) primeiro; depois variantes
+      const variants = [['', base], ['', { ...base, apiOnly: {} }], ['?signatureType=ST_PADLOCK&requireConfirmation=false', base],
+        ['', { ...base, apiOnly: { targetUrl: 'https://' + req.headers.host + '/api/st?a=hook' } }]];
+      let r, j, why = [];
+      for (const [qs, appBody] of variants) {
+        r = await fetch(ST + '/apps' + qs, { method: 'POST',
+          headers: { Authorization: 'Bearer ' + pat, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(appBody) });
+        j = await r.json().catch(() => ({}));
+        if (r.ok && j.oauthClientId) break;
+        const det = j.error ? [j.error.code, j.error.message, ...((j.error.details || []).map(d => (d.target ? d.target + ': ' : '') + (d.message || d.code)))].filter(Boolean).join(' · ') : '';
+        why.push(r.status + (det ? ' ' + det : ''));
+        console.warn('forno setup: SmartThings respondeu', r.status, det.slice(0, 400));
+        if (r.status === 401) break; // token inválido: não vale a pena tentar outras formas
+      }
       if (!r.ok || !j.oauthClientId) throw httpErr(r.status === 401 || r.status === 403 ? 400 : 502,
-        'A Samsung não aceitou criar a ligação: ' + ((j.error && (j.error.message || j.error.code)) || r.status) + '. Confirma que o token tem as permissões pedidas.');
+        'A Samsung não aceitou criar a ligação (' + why.join(' | ').slice(0, 300) + ').' + (r.status === 401 || r.status === 403 ? ' O token não tem permissão para criar apps.' : ''));
       const v = { cid: j.oauthClientId, csec: j.oauthClientSecret, appId: j.app && j.app.appId };
       const cur = await vaultGet(idToken);
       await vaultPut(idToken, v, cur.updateTime);
@@ -171,7 +184,7 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: 'Ação desconhecida' });
   } catch (e) {
     const status = e.status || 500;
-    if (status >= 500) console.error('forno', a, e.message);
+    console.warn('forno', a, status, e.message);
     return res.status(status).json({ error: e.message || 'Erro', setup: !!e.setup, reauth: !!e.reauth });
   }
 }
