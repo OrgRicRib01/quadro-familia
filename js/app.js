@@ -2556,7 +2556,7 @@ function wallCasa(){
   const groups={};devs.forEach(d=>{const r=roomOf(d);(groups[r]=groups[r]||[]).push(d)});
   const body=devs.length?Object.entries(groups).map(([r,ds])=>`${fr?'':`<h3 class="sh-room">${esc(r)}<small>${ds.length}</small></h3>`}<div class="sh-grid${S.shEdit?' editing':''}" data-shgrid="${esc(r)}">${ds.map(tile).join('')}</div>`).join('')
     :'<div class="sh-empty"><p>Ainda não escolheste dispositivos.</p><button class="addbtn" data-shcfg>Escolher dispositivos</button></div>';
-  return `<section class="casa">${summary}${fnApi()?`<div class="fn-wrap">${fnSection()}</div>`:''}${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin:0 0 12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
+  return `<section class="casa">${summary}${fnCfg().linked?`<div class="fn-wrap">${fnSection()}</div>`:''}${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin:0 0 12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
     ${mode==='house'?wallCasaHouse(all,roomOf,nmOf)+'<p class="small muted sh-upd">Cada aparelho aparece no andar da sua divisão. Para mudar, vai a Configurar → Zona na casa.</p>':''}
     ${mode==='cards'&&S.shEdit?'<p class="sh-hint">Arrasta os cartões para os reorganizar. Larga-os noutra divisão para os mudar de divisão.</p>':''}
     ${mode==='cards'?body:''}<p class="small muted sh-upd">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5):''}</p></section>`}
@@ -2837,7 +2837,8 @@ async function fnRefresh(force){if(FN.busy||!fnApi()||!fnCfg().linked)return;if(
   catch(e){FN.err=e.message;if(e.reauth||e.setup){fnSave({linked:false})}}
   FN.busy=false;if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall();else if(!S.wall&&S.tab==='casa')render()}
 function fnSection(){if(!fnApi())return '';const c=fnCfg();
-  if(!c.linked)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small" style="margin:6px 0">Falta autorizar o Quadro na conta Samsung.</p><button class="addbtn" data-fncfg>Ligar o forno</button></div>`;
+  if(!c.linked)return ''; // enquanto não estiver ligado, o forno só aparece em Configuração
+  if(false)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small" style="margin:6px 0">Falta autorizar o Quadro na conta Samsung.</p><button class="addbtn" data-fncfg>Ligar o forno</button></div>`;
   if(!FN.poll){FN.poll=setInterval(()=>{if((S.wall&&S.wallView==='casa')||(!S.wall&&S.tab==='casa'))fnRefresh(false);else{clearInterval(FN.poll);FN.poll=null}},15000)}
   if(!FN.at&&!FN.busy&&!FN.err)fnRefresh(true);
   if(!FN.devs)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small">${FN.err?esc(FN.err):'A ler o forno…'}</p></div>`;
