@@ -2808,7 +2808,7 @@ window.addEventListener('resize',()=>spSync());
 
 /* ---------- Forno Samsung (SmartThings, através do servidor do forno) ---------- */
 function fnCfg(){return S.forno||{}}
-function fnApi(){return String(fnCfg().api||'').trim().replace(/\/+$/,'')}
+function fnApi(){return String(fnCfg().api||(window.QUADRO_CONFIG||{}).fornoApi||'').trim().replace(/\/+$/,'')}
 async function fnCall(a,body){const api=fnApi();if(!api)throw Object.assign(new Error('Falta o endereço do servidor do forno'),{setup:true});
   const t=window.famBackend&&window.famBackend.idToken?await window.famBackend.idToken():'';
   let r;try{r=await fetch(api+'/api/st?a='+a,{method:'POST',headers:{Authorization:'Bearer '+t,'Content-Type':'application/json'},body:JSON.stringify(body||{})})}
@@ -2880,11 +2880,11 @@ function fnDiag(id){const d=(FN.devs||[]).find(x=>x.id===id),s=FN.st[id]||{};
 function fnSheet(){const c=fnCfg();
   const f=sheet('Forno Samsung',`
     <p class="muted small" style="margin:0">O forno liga-se através do servidor do Quadro (na tua conta Vercel), que guarda a autorização da Samsung cifrada.</p>
-    <label class="field"><span>Endereço do servidor</span><input name="api" value="${esc(c.api||'')}" placeholder="https://quadro-forno.vercel.app" spellcheck="false" autocomplete="off" inputmode="url"></label>
-    <div id="fn-state" class="small muted">${c.api?'A verificar…':'Cola o endereço e carrega em Guardar.'}</div>
+    <label class="field"><span>Endereço do servidor</span><input name="api" value="${esc(c.api||fnApi())}" placeholder="https://quadro-forno.vercel.app" spellcheck="false" autocomplete="off" inputmode="url"></label>
+    <div id="fn-state" class="small muted">${fnApi()?'A verificar…':'Cola o endereço e carrega em Guardar.'}</div>
     <div id="fn-steps"></div>`,
   {saveLabel:'Guardar',onSave:f=>{fnSave({api:val(f,'api').replace(/\/+$/,'')});FN.devs=null;FN.at=0;FN.err='';toast('Guardado');setTimeout(fnSheet,200);return true}});
-  const stEl=f.querySelector('#fn-state'),steps=f.querySelector('#fn-steps');if(!c.api)return;
+  const stEl=f.querySelector('#fn-state'),steps=f.querySelector('#fn-steps');if(!fnApi())return;
   fnCall('ping').then(p=>{
     if(p.linked){fnSave({linked:true});stEl.textContent='✅ Ligado à conta Samsung.';
       steps.innerHTML=`<button type="button" class="ghost" data-fnreauth>Autorizar de novo</button> <button type="button" class="ghost danger" data-fnoff>Desligar o forno do Quadro</button>`}

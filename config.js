@@ -11,5 +11,7 @@ window.QUADRO_CONFIG = {
     appId: "1:795731136759:web:29adec8778847d4a4ec3f2"
   },
   // Opcional, para ligar o Google Calendar (passo 6 do README).
+  // Servidor do forno Samsung (pasta forno-api, publicado na Vercel)
+  fornoApi: "https://quadro-forno.vercel.app",
   googleClientId: "795731136759-dsr97bd7o275s5tpicsin34pl90chkh0.apps.googleusercontent.com"
 };
