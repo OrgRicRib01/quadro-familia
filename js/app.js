@@ -2832,15 +2832,16 @@ function fnRead(comp){
   if(ct){const end=Date.parse(ct.value);if(end&&end>Date.now())o.left=Math.round((end-Date.now())/60000)}
   o.any=[o.op,o.sp,o.temp,o.mode].some(x=>x!=null&&x!=='');return o}
 async function fnRefresh(force){if(FN.busy||!fnApi()||!fnCfg().linked)return;if(!force&&Date.now()-FN.at<40000)return;FN.busy=true;
-  try{if(!FN.devs){const d=await fnCall('devices');FN.devs=(d.devices||[]).filter(x=>x.oven||(fnCfg().devices||[]).includes(x.id))}
+  try{FN.patExpired=false;if(!FN.devs){const d=await fnCall('devices');FN.devs=(d.devices||[]).filter(x=>x.oven||(fnCfg().devices||[]).includes(x.id))}
     for(const d of FN.devs){const s=await fnCall('status',{id:d.id});FN.st[d.id]=s}FN.at=Date.now();FN.err=''}
-  catch(e){FN.err=e.message;if(e.reauth||e.setup){fnSave({linked:false})}}
+  catch(e){FN.err=e.message;FN.patExpired=!!e.patExpired;if(e.reauth||e.setup){fnSave({linked:false})}}
   FN.busy=false;if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall();else if(!S.wall&&S.tab==='casa')render()}
 function fnSection(){if(!fnApi())return '';const c=fnCfg();
   if(!c.linked)return ''; // enquanto não estiver ligado, o forno só aparece em Configuração
   if(false)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small" style="margin:6px 0">Falta autorizar o Quadro na conta Samsung.</p><button class="addbtn" data-fncfg>Ligar o forno</button></div>`;
   if(!FN.poll){FN.poll=setInterval(()=>{if((S.wall&&S.wallView==='casa')||(!S.wall&&S.tab==='casa'))fnRefresh(false);else{clearInterval(FN.poll);FN.poll=null}},15000)}
   if(!FN.at&&!FN.busy&&!FN.err)fnRefresh(true);
+  if(FN.patExpired)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="small" style="margin:6px 0">O token da Samsung expirou (só dura 24 horas).</p><button class="addbtn" data-fncfg>Colar novo token</button></div>`;
   if(!FN.devs)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small">${FN.err?esc(FN.err):'A ler o forno…'}</p></div>`;
   if(!FN.devs.length)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small">Não encontrei nenhum forno na conta Samsung.</p></div>`;
   return FN.devs.map(d=>{const s=FN.st[d.id]||{},comps=(s.status&&s.status.components)||{},off=s.health==='OFFLINE';
@@ -2857,7 +2858,7 @@ function fnSection(){if(!fnApi())return '';const c=fnCfg();
         ${o.prog!=null&&running?`<div class="fn-bar"><i style="width:${Math.max(0,Math.min(100,o.prog))}%"></i></div>`:''}${ctl}</div>`}).join('')
       :`<p class="muted small">${s.status?'O forno não envia temperatura nem estado.':'A ler o forno…'}</p>`;
     return `<div class="fn-card${off?' offline':''}"><div class="fn-h"><span class="fn-ic">🔥</span><b>${esc(d.label||'Forno')}</b><span class="spacer"></span><button class="edit" data-fndiag="${esc(d.id)}">Detalhes</button></div>${body}
-      <p class="small muted" style="margin:6px 0 0">${FN.err?esc(FN.err)+' · ':''}${FN.at?'Atualizado às '+new Date(FN.at).toTimeString().slice(0,5):''}</p></div>`}).join('')}
+      <p class="small muted" style="margin:6px 0 0">${FN.err?esc(FN.err)+' · ':''}${FN.at?'Atualizado às '+new Date(FN.at).toTimeString().slice(0,5):''}${c.mode==='pat'&&c.patExp?` · token válido até ${new Date(c.patExp).toTimeString().slice(0,5)}${new Date(c.patExp).toDateString()!==new Date().toDateString()?' de amanhã':''} <button class="edit" data-fncfg>Renovar</button>`:''}</p></div>`}).join('')}
 async function fnCmd(key){const p=key.split('|'),act=p.pop(),cid=p.pop(),id=p.join('|');const s=FN.st[id];const comp=s&&s.status&&s.status.components&&s.status.components[cid];if(!comp)return;
   const has=c=>!!comp[c];const opCap=has('samsungce.ovenOperatingState')?'samsungce.ovenOperatingState':'ovenOperatingState';
   let cmd;
@@ -2886,7 +2887,13 @@ function fnSheet(){const c=fnCfg();
     <div id="fn-steps"></div>`,
   {saveLabel:'Guardar',onSave:f=>{fnSave({api:val(f,'api').replace(/\/+$/,'')});FN.devs=null;FN.at=0;FN.err='';toast('Guardado');setTimeout(fnSheet,200);return true}});
   const stEl=f.querySelector('#fn-state'),steps=f.querySelector('#fn-steps');if(!fnApi())return;
+  const patBox=(t)=>`<p class="small" style="margin:8px 0 4px">${t}</p><label class="field"><span>Token pessoal da Samsung</span><input id="fn-pat2" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-…"></label>
+      <button type="button" class="addbtn" data-fnpat>Usar este token (24 horas)</button>
+      <p class="muted small">Cria-o em <a href="https://account.smartthings.com/tokens" target="_blank" rel="noopener">account.smartthings.com/tokens</a> com as permissões de <b>Devices</b>. A Samsung só o deixa válido 24 horas, e a partir de 15 de dezembro de 2026 só com plano pago.</p>`;
   fnCall('ping').then(p=>{
+    if(p.mode==='pat'){fnSave({linked:true,mode:'pat',patExp:p.patExp});
+      stEl.textContent=p.linked?'✅ Ligado com token pessoal, válido até '+new Date(p.patExp).toLocaleString('pt-PT',{weekday:'short',hour:'2-digit',minute:'2-digit'})+'.':'⚠ O token pessoal expirou.';
+      steps.innerHTML=patBox(p.linked?'Para renovar antes de expirar, cola um token novo:':'Cola um token novo:')+`<button type="button" class="ghost danger" data-fnoff>Desligar o forno do Quadro</button>`;return}
     if(p.linked){fnSave({linked:true});stEl.textContent='✅ Ligado à conta Samsung.';
       steps.innerHTML=`<button type="button" class="ghost" data-fnreauth>Autorizar de novo</button> <button type="button" class="ghost danger" data-fnoff>Desligar o forno do Quadro</button>`}
     else if(p.setup){stEl.textContent='Falta autorizar na Samsung.';steps.innerHTML=`<button type="button" class="addbtn" data-fnreauth>Autorizar na Samsung</button>`}
@@ -2895,13 +2902,16 @@ function fnSheet(){const c=fnCfg();
         <li>Carrega em <b>Generate new token</b>, dá-lhe um nome e marca todas as permissões de <b>Apps</b>, <b>Devices</b> e <b>Locations</b>.</li>
         <li>Copia o token, cola-o aqui e carrega em <b>Ligar</b>. Só é usado agora, para criar a ligação "Quadro da Família", e não fica guardado.</li></ol>
         <label class="field"><span>Token pessoal da Samsung</span><input id="fn-pat" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-…"></label>
-        <button type="button" class="addbtn" data-fnsetup>Ligar</button>`}
+        <button type="button" class="addbtn" data-fnsetup>Ligar (permanente)</button> <button type="button" class="ghost" data-fnpatsame>Usar só este token (24 horas)</button>
+        <p class="muted small">"Ligar (permanente)" precisa do plano de programador da Samsung, que ainda não existe em Portugal. Sem ele, usa "Usar só este token": funciona 24 horas e depois colas um novo.</p>`}
   }).catch(e=>{stEl.textContent='⚠ '+e.message});
   steps.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
     try{if(b.dataset.fnsetup!==undefined){const pat=f.querySelector('#fn-pat').value.trim();if(!pat){toast('Cola o token primeiro.');return}b.disabled=true;b.textContent='A ligar…';
         const r=await fnCall('setup',{pat});f.querySelector('#fn-pat').value='';location.href=r.authUrl}
+      else if(b.dataset.fnpat!==undefined||b.dataset.fnpatsame!==undefined){const inp=f.querySelector(b.dataset.fnpat!==undefined?'#fn-pat2':'#fn-pat');const pat=(inp&&inp.value||'').trim();if(!pat){toast('Cola o token primeiro.');return}
+        b.disabled=true;const r=await fnCall('usepat',{pat});inp.value='';fnSave({linked:true,mode:'pat',patExp:r.patExp});FN.devs=null;FN.at=0;FN.err='';FN.patExpired=false;toast('Forno ligado por 24 horas ✅');closeSheet();if(S.wall){S.wallView='casa';renderWall()}else render()}
       else if(b.dataset.fnreauth!==undefined){const r=await fnCall('authurl');location.href=r.authUrl}
-      else if(b.dataset.fnoff!==undefined){if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para desligar';return}await fnCall('disconnect');fnSave({linked:false});FN.devs=null;toast('Forno desligado do Quadro');closeSheet()}}
+      else if(b.dataset.fnoff!==undefined){if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para desligar';return}await fnCall('disconnect');fnSave({linked:false,mode:'',patExp:0});FN.devs=null;toast('Forno desligado do Quadro');closeSheet()}}
     catch(err){toast(err.message);b.disabled=false}});
 }
 // regresso da Samsung (…#forno=ok)

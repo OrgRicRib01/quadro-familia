@@ -71,6 +71,8 @@ async function tokenReq(v, params) {
 async function access(idToken) {
   for (let i = 0; i < 3; i++) {
     const { data: v, updateTime } = await vaultGet(idToken);
+    // modo token pessoal: a Samsung só o deixa válido 24 horas
+    if (v && v.mode === 'pat') { if (Date.now() < v.patExp) return v.pat; throw httpErr(409, 'O token da Samsung expirou. Cola um novo.', { patExpired: true }); }
     if (!v || !v.cid) throw httpErr(409, 'O forno ainda não está ligado', { setup: true });
     if (!v.rt) throw httpErr(409, 'Falta autorizar na Samsung', { reauth: true });
     if (v.exp - Date.now() > 10 * 60 * 1000) return v.at;
@@ -124,7 +126,20 @@ export default async function handler(req, res) {
     await family(idToken);
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
-    if (a === 'ping') { const { data: v } = await vaultGet(idToken); return res.json({ ok: true, setup: !!(v && v.cid), linked: !!(v && v.rt) }); }
+    if (a === 'ping') { const { data: v } = await vaultGet(idToken);
+      if (v && v.mode === 'pat') return res.json({ ok: true, mode: 'pat', linked: Date.now() < v.patExp, patExp: v.patExp });
+      return res.json({ ok: true, setup: !!(v && v.cid), linked: !!(v && v.rt) }); }
+
+    // alternativa sem app: guarda o token pessoal (cifrado) e usa-o enquanto for válido (24 h)
+    if (a === 'usepat') {
+      const pat = String(body.pat || '').trim(); if (!/^[0-9a-f-]{30,}$/i.test(pat)) throw httpErr(400, 'Esse token não parece válido');
+      const r = await fetch(ST + '/devices', { headers: { Authorization: 'Bearer ' + pat, Accept: 'application/json' } });
+      if (!r.ok) throw httpErr(400, 'A Samsung recusou o token (' + r.status + ').');
+      const { updateTime } = await vaultGet(idToken);
+      const exp = Date.now() + 23.5 * 3600 * 1000;
+      await vaultPut(idToken, { mode: 'pat', pat, patExp: exp }, updateTime);
+      return res.json({ ok: true, patExp: exp });
+    }
 
     // 1.ª vez: cria a app "Quadro da Família" na conta Samsung com um token pessoal (usado só aqui e descartado)
     if (a === 'setup') {
@@ -185,6 +200,6 @@ export default async function handler(req, res) {
   } catch (e) {
     const status = e.status || 500;
     console.warn('forno', a, status, e.message);
-    return res.status(status).json({ error: e.message || 'Erro', setup: !!e.setup, reauth: !!e.reauth });
+    return res.status(status).json({ error: e.message || 'Erro', setup: !!e.setup, reauth: !!e.reauth, patExpired: !!e.patExpired });
   }
 }
