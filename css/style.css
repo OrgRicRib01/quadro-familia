@@ -894,3 +894,28 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .sp-slot.big{height:352px}
 #spLayer{position:fixed;z-index:4;display:none;border-radius:12px;overflow:hidden}
 #spLayer iframe{width:100%;height:100%;border:0;display:block}
+
+/* Forno Samsung */
+.fn-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin:6px 0 10px}
+.fn-card{padding:16px;border-radius:20px;background:var(--surface);box-shadow:0 1px 2px rgb(0 0 0 / .04),0 6px 20px rgb(0 0 0 / .05)}
+.fn-card.offline{opacity:.6}
+.fn-h{display:flex;align-items:center;gap:10px}.fn-h b{font-size:1.05rem}
+.fn-ic{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#FFEDD5;font-size:1.3rem}
+.fn-zone{margin-top:12px;padding:12px;border-radius:14px;background:var(--sunk)}
+.fn-zone.on{background:linear-gradient(160deg,#FFEDD5,var(--sunk) 80%)}
+.fn-zl{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.fn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fn-st{font-weight:700;padding:3px 10px;border-radius:999px;background:var(--surface);font-size:.85rem}
+.fn-st.running{background:#EA580C;color:#fff}.fn-st.paused{background:#FDE68A}
+.fn-mode{font-size:.85rem;color:var(--muted)}
+.fn-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.fn-nums small{display:block;font-size:.72rem;color:var(--muted)}
+.fn-nums b{font-family:var(--display);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.fn-bar{height:6px;border-radius:999px;background:var(--surface);margin-top:8px;overflow:hidden}.fn-bar i{display:block;height:100%;background:#EA580C}
+.fn-ctl{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.fn-b{min-height:44px;padding:0 14px;border:0;border-radius:12px;background:var(--surface);color:var(--fg);font-weight:700}
+.fn-b.armed{background:#EA580C;color:#fff}
+.fn-note{margin:8px 0 0}
+.fn-pre{max-height:50vh;overflow:auto;font-size:.72rem;background:var(--sunk);padding:10px;border-radius:10px;white-space:pre-wrap;word-break:break-word}
+.fn-ol{padding-left:18px;margin:6px 0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .fn-ic{background:#431407}:root:not([data-theme="light"]) .fn-zone.on{background:linear-gradient(160deg,#431407,var(--sunk) 80%)}}

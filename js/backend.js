@@ -328,6 +328,8 @@ if (configured) {
     justAuthorized: retAuth,
     authError: retErr,
     signOut: () => signOut(auth),
+    // token de sessão (Firebase) para o servidor do forno confirmar que é alguém da família
+    idToken: () => auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve(''),
     async use(name) {
       await ready;
       if (name === 'db') return db;

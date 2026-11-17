@@ -10,6 +10,8 @@ var IC_GARAGE='<svg class="ic-gate" viewBox="0 0 24 24" aria-hidden="true"><path
 var SH_ZONES=[['','Automático'],['rc','Rés-do-chão'],['andar1','1.º andar'],['garagem','Garagem'],['portao','Portão da rua'],['exterior','Jardim / exterior']];
 var GBD=null,gbdBusy=false;
 var SPL={el:null,src:'',raf:0};
+var FN={devs:null,st:{},err:'',at:0,busy:false,poll:null,arm:''};
+var FN_OP={ready:'Pronto',running:'A funcionar',paused:'Em pausa',finished:'Terminado',idle:'Desligado',off:'Desligado'};
 var TKIND={teste:['📝','Teste'],exame:['🎓','Exame'],trabalho:['📂','Trabalho'],apresentacao:['🎤','Apresentação']};
 var GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 // Estado do leitor de vídeo/rádio (declarado no início para estar pronto no primeiro desenho do ecrã).
@@ -99,6 +101,7 @@ function handleWriteError(e){
   db.doc('config/youversion').onSnapshot(s=>{S.yv=s.exists?s.data():{};votdLoad(false)},()=>{});
   db.doc('config/frame').onSnapshot(s=>{S.fw=s.exists?s.data():{};if(S.wall)renderWall()},()=>{});
   db.doc('config/spotify').onSnapshot(s=>{S.spotify=s.exists?s.data():{items:[]};if(S.wall&&!overlay.innerHTML)renderWall()},()=>{});
+  db.doc('config/forno').onSnapshot(s=>{S.forno=s.exists?s.data():{};if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()},()=>{});
   db.doc('config/shelly').onSnapshot(s=>{S.shelly=s.exists?s.data():{};if(S.wall&&S.wallView==='casa')renderWall()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
   db.doc('config/family').onSnapshot(s=>{
@@ -1946,6 +1949,7 @@ function configHub(){
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
     ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
+    ${it('data-fncfg','🔥','Forno Samsung','SmartThings'+(fnCfg().linked?' · ligado':''))}
     ${it('data-shcfg','🏠','Casa (Shelly)','Luzes, tomadas, estores e sensores'+(shCfg().key?' · ligado':''))}
     ${it('data-cfg="moldura"','🖼︎','Moldura','Ligar e desligar widgets, fotografias, versículo do dia')}
     ${it('data-cfg="escola"','🎒︎','Férias escolares','Períodos sem aulas')}
@@ -2491,7 +2495,7 @@ async function shBatch(devs,fn){if(!devs.length)return;toast('A enviar para '+de
 function shKey(d){return d.id+'|'+d.type+'|'+(+d.channel||0)}
 function wallCasa(){
   const c=shCfg(),all=(c.devices||[]).filter(d=>d.on!==false);
-  if(!c.key||!shHost())return `<section class="casa"><div class="sh-empty"><span class="sh-empty-ic">🏠</span><h3>Casa</h3><p>Liga a tua conta Shelly para controlar luzes, tomadas e estores e ver os sensores.</p><button class="addbtn" data-shcfg>Ligar Shelly Cloud</button></div></section>`;
+  if(!c.key||!shHost())return `<section class="casa">${fnSection()?`<div class="fn-wrap">${fnSection()}</div>`:''}<div class="sh-empty"><span class="sh-empty-ic">🏠</span><h3>Casa</h3><p>Liga a tua conta Shelly para controlar luzes, tomadas e estores e ver os sensores.</p><button class="addbtn" data-shcfg>Ligar Shelly Cloud</button></div></section>`;
   if(!SH.poll){SH.poll=setInterval(()=>{if((S.wall&&S.wallView==='casa')||(!S.wall&&S.tab==='casa'))shRefresh(false);else{clearInterval(SH.poll);SH.poll=null}},10000)}
   if(!SH.st&&!SH.busy&&!SH.err)shRefresh(true);
   if(!SH.namesTried&&all.some(d=>!d.name||!d.room)){SH.namesTried=true;shNames({}).then(n=>{SH.names=n;if(Object.keys(n).length&&S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()})}
@@ -2552,7 +2556,7 @@ function wallCasa(){
   const groups={};devs.forEach(d=>{const r=roomOf(d);(groups[r]=groups[r]||[]).push(d)});
   const body=devs.length?Object.entries(groups).map(([r,ds])=>`${fr?'':`<h3 class="sh-room">${esc(r)}<small>${ds.length}</small></h3>`}<div class="sh-grid${S.shEdit?' editing':''}" data-shgrid="${esc(r)}">${ds.map(tile).join('')}</div>`).join('')
     :'<div class="sh-empty"><p>Ainda não escolheste dispositivos.</p><button class="addbtn" data-shcfg>Escolher dispositivos</button></div>';
-  return `<section class="casa">${summary}${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin:0 0 12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
+  return `<section class="casa">${summary}${fnApi()?`<div class="fn-wrap">${fnSection()}</div>`:''}${SH.err?`<div class="w-card w-err" style="padding:12px 16px;margin:0 0 12px">${esc(SH.err)} <button class="ghost" data-shre>Tentar de novo</button></div>`:''}
     ${mode==='house'?wallCasaHouse(all,roomOf,nmOf)+'<p class="small muted sh-upd">Cada aparelho aparece no andar da sua divisão. Para mudar, vai a Configurar → Zona na casa.</p>':''}
     ${mode==='cards'&&S.shEdit?'<p class="sh-hint">Arrasta os cartões para os reorganizar. Larga-os noutra divisão para os mudar de divisão.</p>':''}
     ${mode==='cards'?body:''}<p class="small muted sh-upd">${SH.at?'Atualizado às '+new Date(SH.at).toTimeString().slice(0,5):''}</p></section>`}
@@ -2801,3 +2805,105 @@ function spSheet(){const c=spCfg();let items=[...(c.items||[])];
   f.querySelector('#sp-list').addEventListener('click',e=>{const b=e.target.closest('[data-spdel]');if(!b)return;items.splice(+b.dataset.spdel,1);f.querySelector('#sp-list').innerHTML=rows();persist();toast('Removido')});
 }
 window.addEventListener('resize',()=>spSync());
+
+/* ---------- Forno Samsung (SmartThings, através do servidor do forno) ---------- */
+function fnCfg(){return S.forno||{}}
+function fnApi(){return String(fnCfg().api||'').trim().replace(/\/+$/,'')}
+async function fnCall(a,body){const api=fnApi();if(!api)throw Object.assign(new Error('Falta o endereço do servidor do forno'),{setup:true});
+  const t=window.famBackend&&window.famBackend.idToken?await window.famBackend.idToken():'';
+  let r;try{r=await fetch(api+'/api/st?a='+a,{method:'POST',headers:{Authorization:'Bearer '+t,'Content-Type':'application/json'},body:JSON.stringify(body||{})})}
+  catch(e){throw new Error('O servidor do forno não respondeu.')}
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.error||('Erro '+r.status)),{setup:j.setup,reauth:j.reauth,status:r.status});return j}
+function fnSave(o){const nc={...fnCfg(),...o};S.forno=nc;if(S.db)S.db.doc('config/forno').set(nc).catch(handleWriteError)}
+// leitura do estado (só os valores que o forno envia; o resto fica "não disponível")
+function fnAttr(comp,caps,attr){for(const c of caps){const x=comp&&comp[c]&&comp[c][attr];if(x&&x.value!==undefined&&x.value!==null)return x}return null}
+function fnRead(comp){
+  const op=fnAttr(comp,['samsungce.ovenOperatingState','ovenOperatingState'],'operatingState')||fnAttr(comp,['ovenOperatingState','samsungce.ovenOperatingState'],'machineState');
+  const sp=fnAttr(comp,['ovenSetpoint','samsungce.ovenSetpoint'],'ovenSetpoint');
+  const tm=fnAttr(comp,['temperatureMeasurement'],'temperature');
+  const md=fnAttr(comp,['samsungce.ovenMode','ovenMode'],'ovenMode');
+  const ct=fnAttr(comp,['samsungce.ovenOperatingState','ovenOperatingState'],'completionTime');
+  const pg=fnAttr(comp,['samsungce.ovenOperatingState','ovenOperatingState'],'progress');
+  const job=fnAttr(comp,['samsungce.ovenOperatingState','ovenOperatingState'],'ovenJobState');
+  const rc=fnAttr(comp,['remoteControlStatus'],'remoteControlEnabled');
+  const sw=fnAttr(comp,['switch'],'switch');
+  const o={op:op&&String(op.value),sp:sp&&+sp.value,spU:sp&&sp.unit,temp:tm&&+tm.value,tU:tm&&tm.unit,mode:md&&String(md.value),job:job&&String(job.value),
+    prog:pg&&+pg.value,remote:rc?String(rc.value)==='true':null,sw:sw&&String(sw.value)};
+  if(ct){const end=Date.parse(ct.value);if(end&&end>Date.now())o.left=Math.round((end-Date.now())/60000)}
+  o.any=[o.op,o.sp,o.temp,o.mode].some(x=>x!=null&&x!=='');return o}
+async function fnRefresh(force){if(FN.busy||!fnApi()||!fnCfg().linked)return;if(!force&&Date.now()-FN.at<40000)return;FN.busy=true;
+  try{if(!FN.devs){const d=await fnCall('devices');FN.devs=(d.devices||[]).filter(x=>x.oven||(fnCfg().devices||[]).includes(x.id))}
+    for(const d of FN.devs){const s=await fnCall('status',{id:d.id});FN.st[d.id]=s}FN.at=Date.now();FN.err=''}
+  catch(e){FN.err=e.message;if(e.reauth||e.setup){fnSave({linked:false})}}
+  FN.busy=false;if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall();else if(!S.wall&&S.tab==='casa')render()}
+function fnSection(){if(!fnApi())return '';const c=fnCfg();
+  if(!c.linked)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small" style="margin:6px 0">Falta autorizar o Quadro na conta Samsung.</p><button class="addbtn" data-fncfg>Ligar o forno</button></div>`;
+  if(!FN.poll){FN.poll=setInterval(()=>{if((S.wall&&S.wallView==='casa')||(!S.wall&&S.tab==='casa'))fnRefresh(false);else{clearInterval(FN.poll);FN.poll=null}},15000)}
+  if(!FN.at&&!FN.busy&&!FN.err)fnRefresh(true);
+  if(!FN.devs)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small">${FN.err?esc(FN.err):'A ler o forno…'}</p></div>`;
+  if(!FN.devs.length)return `<div class="fn-card"><div class="fn-h"><span class="fn-ic">🔥</span><b>Forno Samsung</b></div><p class="muted small">Não encontrei nenhum forno na conta Samsung.</p></div>`;
+  return FN.devs.map(d=>{const s=FN.st[d.id]||{},comps=(s.status&&s.status.components)||{},off=s.health==='OFFLINE';
+    const parts=Object.entries(comps).map(([cid,comp])=>[cid,fnRead(comp)]).filter(([cid,o])=>o.any);
+    const body=parts.length?parts.map(([cid,o])=>{const running=o.op==='running';const k=d.id+'|'+cid;
+      const ctl=o.remote===false?'<p class="small muted fn-note">Para controlar daqui, ativa o <b>Controlo remoto</b> no painel do forno.</p>'
+        :`<div class="fn-ctl">${running||o.op==='paused'?`<button class="fn-b${FN.arm===k+'|stop'?' armed':''}" data-fncmd="${esc(k)}|stop">${FN.arm===k+'|stop'?'Confirmar parar':'■ Parar'}</button>`:''}
+          ${running?`<button class="fn-b${FN.arm===k+'|pause'?' armed':''}" data-fncmd="${esc(k)}|pause">${FN.arm===k+'|pause'?'Confirmar pausa':'❚❚ Pausar'}</button>`:''}
+          ${o.op==='paused'?`<button class="fn-b${FN.arm===k+'|start'?' armed':''}" data-fncmd="${esc(k)}|start">${FN.arm===k+'|start'?'Confirmar retomar':'▶ Retomar'}</button>`:''}
+          ${o.sp!=null&&(running||o.op==='paused')?`<button class="fn-b" data-fncmd="${esc(k)}|sp-5" aria-label="Baixar 5 graus">−5°</button><button class="fn-b" data-fncmd="${esc(k)}|sp+5" aria-label="Subir 5 graus">+5°</button>`:''}</div>`;
+      return `<div class="fn-zone${running?' on':''}">${parts.length>1||cid!=='main'?`<div class="fn-zl">${esc(cid==='main'?'Forno':cid.replace(/^cavity-?0?/,'Zona '))}</div>`:''}
+        <div class="fn-row"><span class="fn-st ${esc(o.op||'')}">${off?'Sem ligação':esc(FN_OP[o.op]||o.op||'Estado não disponível')}</span>${o.mode?`<span class="fn-mode">${esc(o.mode)}</span>`:''}</div>
+        <div class="fn-nums"><div><small>Atual</small><b>${o.temp!=null?Math.round(o.temp)+'°':'—'}</b></div><div><small>Objetivo</small><b>${o.sp!=null&&o.sp>0?Math.round(o.sp)+'°':'—'}</b></div><div><small>Falta</small><b>${o.left!=null?(o.left>=60?Math.floor(o.left/60)+'h'+String(o.left%60).padStart(2,'0'):o.left+' min'):'—'}</b></div></div>
+        ${o.prog!=null&&running?`<div class="fn-bar"><i style="width:${Math.max(0,Math.min(100,o.prog))}%"></i></div>`:''}${ctl}</div>`}).join('')
+      :`<p class="muted small">${s.status?'O forno não envia temperatura nem estado.':'A ler o forno…'}</p>`;
+    return `<div class="fn-card${off?' offline':''}"><div class="fn-h"><span class="fn-ic">🔥</span><b>${esc(d.label||'Forno')}</b><span class="spacer"></span><button class="edit" data-fndiag="${esc(d.id)}">Detalhes</button></div>${body}
+      <p class="small muted" style="margin:6px 0 0">${FN.err?esc(FN.err)+' · ':''}${FN.at?'Atualizado às '+new Date(FN.at).toTimeString().slice(0,5):''}</p></div>`}).join('')}
+async function fnCmd(key){const p=key.split('|'),act=p.pop(),cid=p.pop(),id=p.join('|');const s=FN.st[id];const comp=s&&s.status&&s.status.components&&s.status.components[cid];if(!comp)return;
+  const has=c=>!!comp[c];const opCap=has('samsungce.ovenOperatingState')?'samsungce.ovenOperatingState':'ovenOperatingState';
+  let cmd;
+  if(act==='stop')cmd={capability:opCap,command:'stop',args:[]};
+  else if(act==='pause')cmd={capability:'samsungce.ovenOperatingState',command:'pause',args:[]};
+  else if(act==='start')cmd={capability:opCap,command:'start',args:[]};
+  else{const o=fnRead(comp);if(o.sp==null)return;const nv=Math.max(30,Math.min(300,Math.round(o.sp)+(act==='sp+5'?5:-5)));cmd={capability:has('ovenSetpoint')?'ovenSetpoint':'samsungce.ovenSetpoint',command:'setOvenSetpoint',args:[nv]}}
+  try{await fnCall('cmd',{id,component:cid,...cmd});toast('Pedido enviado ao forno. A confirmar…');setTimeout(()=>fnRefresh(true),3000)}catch(e){toast(e.message)}}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-fncmd],[data-fncfg],[data-fndiag]');if(!b)return;const d=b.dataset;
+  if(d.fncfg!==undefined){fnSheet();return}
+  if(d.fndiag){fnDiag(d.fndiag);return}
+  if(d.fncmd){const k=d.fncmd;const sp=/\|sp[+-]5$/.test(k);
+    // tudo o que mexe no forno pede confirmação com um segundo toque
+    if(FN.arm!==k){FN.arm=k;clearTimeout(FN.armT);FN.armT=setTimeout(()=>{FN.arm='';if(S.wall)renderWall();else render()},4000);if(sp)toast('Toca de novo para confirmar a nova temperatura');if(S.wall)renderWall();else render();return}
+    FN.arm='';fnCmd(k)}});
+function fnDiag(id){const d=(FN.devs||[]).find(x=>x.id===id),s=FN.st[id]||{};
+  const txt=JSON.stringify({device:d&&{label:d.label,components:d.components},health:s.health||null,status:s.status||null},null,1);
+  const f=sheet('Detalhes do forno',`<p class="muted small" style="margin:0">O que o forno envia à Samsung. Serve para perceber que funções estão disponíveis.</p>
+    <pre class="fn-pre">${esc(txt.slice(0,20000))}</pre><button type="button" class="ghost" data-fncopy>Copiar</button>`,{});
+  f.querySelector('[data-fncopy]').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(txt);toast('Copiado')}catch(e){toast('Não foi possível copiar')}})}
+function fnSheet(){const c=fnCfg();
+  const f=sheet('Forno Samsung',`
+    <p class="muted small" style="margin:0">O forno liga-se através do servidor do Quadro (na tua conta Vercel), que guarda a autorização da Samsung cifrada.</p>
+    <label class="field"><span>Endereço do servidor</span><input name="api" value="${esc(c.api||'')}" placeholder="https://quadro-forno.vercel.app" spellcheck="false" autocomplete="off" inputmode="url"></label>
+    <div id="fn-state" class="small muted">${c.api?'A verificar…':'Cola o endereço e carrega em Guardar.'}</div>
+    <div id="fn-steps"></div>`,
+  {saveLabel:'Guardar',onSave:f=>{fnSave({api:val(f,'api').replace(/\/+$/,'')});FN.devs=null;FN.at=0;FN.err='';toast('Guardado');setTimeout(fnSheet,200);return true}});
+  const stEl=f.querySelector('#fn-state'),steps=f.querySelector('#fn-steps');if(!c.api)return;
+  fnCall('ping').then(p=>{
+    if(p.linked){fnSave({linked:true});stEl.textContent='✅ Ligado à conta Samsung.';
+      steps.innerHTML=`<button type="button" class="ghost" data-fnreauth>Autorizar de novo</button> <button type="button" class="ghost danger" data-fnoff>Desligar o forno do Quadro</button>`}
+    else if(p.setup){stEl.textContent='Falta autorizar na Samsung.';steps.innerHTML=`<button type="button" class="addbtn" data-fnreauth>Autorizar na Samsung</button>`}
+    else{stEl.textContent='Ainda não ligado à Samsung.';
+      steps.innerHTML=`<ol class="fn-ol small"><li>Abre <a href="https://account.smartthings.com/tokens" target="_blank" rel="noopener">account.smartthings.com/tokens</a> e entra com a conta Samsung.</li>
+        <li>Carrega em <b>Generate new token</b>, dá-lhe um nome e marca todas as permissões de <b>Apps</b>, <b>Devices</b> e <b>Locations</b>.</li>
+        <li>Copia o token, cola-o aqui e carrega em <b>Ligar</b>. Só é usado agora, para criar a ligação "Quadro da Família", e não fica guardado.</li></ol>
+        <label class="field"><span>Token pessoal da Samsung</span><input id="fn-pat" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-…"></label>
+        <button type="button" class="addbtn" data-fnsetup>Ligar</button>`}
+  }).catch(e=>{stEl.textContent='⚠ '+e.message});
+  steps.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
+    try{if(b.dataset.fnsetup!==undefined){const pat=f.querySelector('#fn-pat').value.trim();if(!pat){toast('Cola o token primeiro.');return}b.disabled=true;b.textContent='A ligar…';
+        const r=await fnCall('setup',{pat});f.querySelector('#fn-pat').value='';location.href=r.authUrl}
+      else if(b.dataset.fnreauth!==undefined){const r=await fnCall('authurl');location.href=r.authUrl}
+      else if(b.dataset.fnoff!==undefined){if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Toca de novo para desligar';return}await fnCall('disconnect');fnSave({linked:false});FN.devs=null;toast('Forno desligado do Quadro');closeSheet()}}
+    catch(err){toast(err.message);b.disabled=false}});
+}
+// regresso da Samsung (…#forno=ok)
+(function(){const m=location.hash.match(/^#forno=(\w+)/);if(!m)return;history.replaceState(null,'',location.pathname+location.search);
+  setTimeout(()=>{const msg={ok:'Forno ligado ao Quadro ✅',recusado:'A autorização foi recusada na Samsung.',expirou:'A autorização demorou demasiado. Tenta outra vez.',erro:'Não foi possível ligar o forno. Tenta outra vez.'}[m[1]]||'';
+    if(m[1]==='ok')fnSave({linked:true});if(msg)toast(msg);if(S.wall){S.wallView='casa';renderWall()}},1500)})();
