@@ -1180,8 +1180,14 @@ function wallLine(){
   const d=S.wallDate,D=wallData(d,true),H0=7,H1=23;
   const pos=hm=>{const[h,m]=hm.split(':').map(Number);return Math.max(0,Math.min(100,((h+m/60)-H0)/(H1-H0)*100))};
   const now=d===TODAY?nowHM():null;
-  const blk=(a,b,t,c,act)=>{const l=pos(a),w=Math.max(pos(b)-l,2.5),past=now&&b<=now,tag=act?'button':'div';
-    return `<${tag} class="w-blk${past?' past':''}" style="left:${l.toFixed(2)}%;width:calc(${w.toFixed(2)}% - 3px);--c:${c}" ${act||''}><b>${esc(t)}</b><span>${a}–${b}</span></${tag}>`};
+  const blk=(a,b,t,c,act)=>({a,b,t,c,act});
+  // Eventos sobrepostos na mesma pessoa vão para linhas diferentes dentro da faixa
+  const pack=list=>{list.sort((x,y)=>x.a<y.a?-1:x.a>y.a?1:(x.b<y.b?1:-1));const ends=[];
+    list.forEach(o=>{let r=ends.findIndex(e=>e<=o.a);if(r<0){r=ends.length;ends.push(o.b)}else ends[r]=o.b;o.r=r});return Math.max(1,ends.length)};
+  const ROWH=56;
+  const draw=(o,n)=>{const l=pos(o.a),w=Math.max(pos(o.b)-l,2.5),past=now&&o.b<=now,tag=o.act?'button':'div';
+    const vt=n>1?`top:${8+o.r*ROWH}px;bottom:auto;height:${ROWH-6}px;`:'';
+    return `<${tag} class="w-blk${past?' past':''}" style="${vt}left:${l.toFixed(2)}%;width:calc(${w.toFixed(2)}% - 3px);--c:${o.c}" ${o.act||''}><b>${esc(o.t)}</b><span>${o.a}–${o.b}</span></${tag}>`};
   const lanes=[{id:'all',name:'Família',c:'var(--accent)'},...wallMembers().map(m=>({id:m.id,name:m.name,c:`var(--${m.color})`}))].map(L=>{
     const isF=L.id==='all',bl=[],allDay=[];
     D.ev.filter(e=>isF?isAll(e):forM(e,L.id)).forEach(e=>{if(e.time)bl.push(blk(e.time,schoolEnd(e)||addMin(e.time,60),e.title,L.c,`data-edit-event="${e.id}"`));else allDay.push(e.title)});
@@ -1189,7 +1195,7 @@ function wallLine(){
     D.vac.filter(v=>isF?isAll(v):forM(v,L.id)).forEach(v=>allDay.push('Férias · '+v.title));
     if(isF)D.bd.forEach(b=>allDay.push('Aniversário · '+b.name));
     return `<div class="w-lane"><div class="lab"><span class="row" style="gap:8px"><span class="dot" style="--c:${L.c}"></span>${esc(L.name)}</span>${allDay.length?`<small>${esc(allDay.join(' · '))}</small>`:''}</div>
-      <div class="w-track">${bl.join('')}${now?`<i class="w-now" style="left:${pos(now).toFixed(2)}%"></i>`:''}</div></div>`}).join('');
+      <div class="w-track"${(n=>n>1?` style="min-height:${n*ROWH+10}px"`:'')(bl.n=pack(bl))}>${bl.map(o=>draw(o,bl.n)).join('')}${now?`<i class="w-now" style="left:${pos(now).toFixed(2)}%"></i>`:''}</div></div>`}).join('');
   const hrs=[];for(let h=H0;h<=H1;h+=2)hrs.push(`<span class="w-hr" style="left:${((h-H0)/(H1-H0)*100).toFixed(2)}%${h===H0?';transform:none':h===H1?';transform:translateX(-100%)':''}">${pad(h)}h</span>`);
   return `<div class="w-tl" data-swipe="wall"><div class="w-tlh"><div class="lab"></div><div class="w-track" style="height:20px">${hrs.join('')}</div></div>${lanes}</div>
     <div class="w-grid3">${railMeal(d)}${railReminders(d)}${railBirthdays()}</div>${syncLine()}`;
