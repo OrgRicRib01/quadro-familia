@@ -919,3 +919,31 @@ body.wall-mode .edu .panel,body.wall-mode section.edu{background:transparent;bor
 .fn-pre{max-height:50vh;overflow:auto;font-size:.72rem;background:var(--sunk);padding:10px;border-radius:10px;white-space:pre-wrap;word-break:break-word}
 .fn-ol{padding-left:18px;margin:6px 0}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .fn-ic{background:#431407}:root:not([data-theme="light"]) .fn-zone.on{background:linear-gradient(160deg,#431407,var(--sunk) 80%)}}
+
+/* Trabalho remoto / presencial */
+.wm-b{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:999px;padding:2px 8px 2px 6px;font:inherit;font-size:.72rem;font-weight:600;line-height:1.3;color:var(--fg);background:var(--surface);cursor:pointer;vertical-align:middle;white-space:nowrap;margin-left:6px}
+span.wm-b{cursor:default}
+.wm-b.wm-R{background:color-mix(in srgb,#2e9e6b 16%,var(--surface));border-color:color-mix(in srgb,#2e9e6b 45%,transparent)}
+.wm-b.wm-P{background:color-mix(in srgb,#3b6fd8 16%,var(--surface));border-color:color-mix(in srgb,#3b6fd8 45%,transparent)}
+.wm-b .wm-i{font-size:.85rem}
+.wm-b .av{width:18px;height:18px;font-size:.6rem}
+.wm-b .dot{width:7px;height:7px}
+.wm-row{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 4px}
+.wm-row .wm-b{margin-left:0;padding:1px 6px 1px 3px}
+.w-mc .wm-row{margin:2px 0 0;gap:2px}
+.w-mc .wm-b{padding:0 4px;font-size:.62rem;gap:2px;border-width:0}
+.w-mc .wm-b .wm-i{font-size:.72rem}
+.item .people .wm-b{margin:0 4px 0 0}
+.wm-p{border-top:1px solid var(--line);padding:12px 0 6px}
+.wm-p select{max-width:56%}
+.wm-grid{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.wm-wl{display:block;font-size:.75rem;color:var(--muted);margin-bottom:4px}
+.wm-days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.wm-d{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:10px;border:1px solid var(--line);background:var(--surface);font:inherit;cursor:pointer;color:var(--fg)}
+.wm-d small{font-size:.68rem;color:var(--muted)}
+.wm-d span{font-size:1.05rem;min-height:1.3em}
+.wm-d.wm-R{background:color-mix(in srgb,#2e9e6b 18%,var(--surface))}
+.wm-d.wm-P{background:color-mix(in srgb,#3b6fd8 18%,var(--surface))}
+.wm-exc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.wm-x{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:1px 4px 1px 10px}
+.w-lane .lab .wm-b{margin:2px 0 0;align-self:flex-start}

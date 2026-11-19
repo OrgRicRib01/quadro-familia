@@ -101,6 +101,7 @@ function handleWriteError(e){
   db.doc('config/youversion').onSnapshot(s=>{S.yv=s.exists?s.data():{};votdLoad(false)},()=>{});
   db.doc('config/frame').onSnapshot(s=>{S.fw=s.exists?s.data():{};if(S.wall)renderWall()},()=>{});
   db.doc('config/spotify').onSnapshot(s=>{S.spotify=s.exists?s.data():{items:[]};if(S.wall&&!overlay.innerHTML)renderWall()},()=>{});
+  db.doc('config/workmode').onSnapshot(s=>{S.workmode=s.exists?s.data():{};render()},()=>{});
   db.doc('config/forno').onSnapshot(s=>{S.forno=s.exists?s.data():{};if(S.wall&&S.wallView==='casa'&&!overlay.innerHTML)renderWall()},()=>{});
   db.doc('config/shelly').onSnapshot(s=>{S.shelly=s.exists?s.data():{};if(S.wall&&S.wallView==='casa')renderWall()},()=>{});
   db.doc('config/prize').onSnapshot(s=>{S.prize=s.exists?s.data():null;render()},()=>{});
@@ -494,6 +495,7 @@ function viewCalendar(seg){
   let items='';
   {const w=wxDay(S.sel);if(w)items+=`<button class="item wx-item" data-wxinfo><span class="time" style="font-size:1.4rem">${wxIc(w.c)}</span><span class="body"><span class="kind">Tempo · ${esc(wxPlace().name)}</span><div class="t">${esc(wxTxt(w.c))} · ${w.mx}° / ${w.mn}°</div><div class="sub">${w.pp!=null?'Chuva '+w.pp+'%'+(w.ps?' ('+w.ps+' mm)':'')+' · ':''}Nascer do sol ${w.sr} · Pôr do sol ${w.ss}</div></span></button>`}
   items+=birthdaysOn(S.sel).map(b=>{const a=ageOn(b,S.sel);return `<button class="item" data-edit-bday="${b.id}"><span class="time">🎂︎</span><span class="body"><span class="kind">Aniversário</span><div class="t">${esc(b.name)}${a!==null&&a>0?' · '+a+' anos':''}</div></span></button>`}).join('');
+  {const ms=wmPeople().filter(m=>S.filter==='all'||S.filter===m.id);['R','P'].forEach(v=>{const who=ms.filter(m=>workMode(m.id,S.sel)===v);if(who.length)items+=`<div class="item"><span class="time">${wmLab(v)[0]}</span><span class="body"><span class="kind">Trabalho ${v==='R'?'remoto':'presencial'}</span><div class="t">${who.map(m=>esc(m.name)).join(', ')}</div><div class="people">${who.map(m=>wmBadge(m.id,S.sel,{av:true})).join('')}</div></span></div>`})}
   if(holidayOn(S.sel))items+=`<div class="item"><span class="time">Dia</span><span class="body"><span class="kind" style="color:var(--danger)">Feriado nacional</span><div class="t">${esc(holidayOn(S.sel))}</div></span></div>`;
   items+=breaksOn(S.sel).filter(b=>matches(b)).map(b=>`<button class="item" data-edit-break="${b.id}"><span class="time">Dia</span><span class="body"><span class="kind">Sem aulas</span><div class="t">${esc(b.title)}</div><div class="people">${peopleTags(b.who)}</div></span></button>`).join('');
   items+=vacationsOn(S.sel).map(v=>`<button class="item" data-edit-vac="${v.id}"><span class="time">✈︎</span><span class="body"><span class="kind">Férias${v.place?' · '+esc(v.place):''}</span><div class="t">${esc(v.title)}</div><div class="sub">Até ${niceDate(v.end||v.start)}</div><div class="people">${peopleTags(v.who)}</div></span></button>`).join('');
@@ -855,7 +857,7 @@ function familyForm(){
   const out=f.querySelector('#btnOut');if(out)out.addEventListener('click',()=>window.famBackend.signOut());
 }
 function exportData(){
-  const out={app:'quadro-familia',version:1,exportedAt:new Date().toISOString(),config:{family:{members:S.members},prize:S.prize||null},profile:S.me||null};
+  const out={app:'quadro-familia',version:1,exportedAt:new Date().toISOString(),config:{family:{members:S.members},prize:S.prize||null,workmode:S.workmode||{}},profile:S.me||null};
   ['events','reminders','tasks','recipes','birthdays','vacations','shopHistory','schoolBreaks','tests','edu'].forEach(c=>{out[c]=S[c]});out.config.shopLists=S.shopLists||[];
   out.meals=Object.values(S.meals);
   const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
@@ -883,6 +885,7 @@ async function importData(j){
     await put('config/family',{members:merged})}
   if(j.config&&j.config.gonly){let cur={};try{const s=await S.db.doc('config/gonly').get();cur=s.exists?s.data():{}}catch(e){}await put('config/gonly',{...cur,...j.config.gonly})}
   if(j.config&&j.config.prize)await put('config/prize',j.config.prize);
+  if(j.config&&j.config.workmode&&Object.keys(j.config.workmode).length){let cur={};try{const s=await S.db.doc('config/workmode').get();cur=s.exists?s.data():{}}catch(e){}await put('config/workmode',{...j.config.workmode,...cur})}
   if(j.config&&Array.isArray(j.config.shopLists)&&j.config.shopLists.length)await put('config/shopLists',{lists:[...new Set([...shopLists(),...j.config.shopLists])]});
   if(j.profile&&S.uid){const me=S.me||{},p=j.profile;
     const ex=[...(me.extra||[]).filter(x=>!(p.extra||[]).some(y=>y.id===x.id)),...(p.extra||[])];
@@ -1079,7 +1082,7 @@ function wallDay(d){
     ...D.ev.filter(isAll).map(e=>`<button class="w-pill" data-edit-event="${e.id}"><b>${e.time?esc(e.time):'Dia'}</b> ${esc(e.title)}</button>`)
   ];
   const cols=wallMembers().map(m=>{const its=colItems(m.id,D,d);
-    return `<div class="w-col" style="--c:var(--${m.color})"><h3><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}<span class="spacer"></span><span class="small muted">${its.length||''}</span></h3>
+    return `<div class="w-col" style="--c:var(--${m.color})"><h3><span class="dot" style="--c:var(--${m.color})"></span>${esc(m.name)}${wmBadge(m.id,d)}<span class="spacer"></span><span class="small muted">${its.length||''}</span></h3>
       ${its.map(x=>wItem(x,d)).join('')||'<div class="empty">Dia livre</div>'}</div>`}).join('');
   const pend=S.reminders.filter(r=>!r.done&&r.date&&r.date<=d&&wMatch(r)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,8);
   const tasks=S.tasks.filter(t=>!isDone(t)&&taskActive(t,TODAY)&&wMatch(t)).sort((a,b)=>(a.due||'9').localeCompare(b.due||'9')).slice(0,8);
@@ -1109,7 +1112,7 @@ function wallWeek(){
     Object.entries(school).forEach(([m,s])=>its.push({k:s.k,c:colorOf(m),t:'Escola'+(member(m)?' · '+member(m).name:''),s:s.end?'até '+s.end:'',a:`data-wday="${d}"`,ms:[m]}));
     D.g.forEach(g=>its.push({ms:[g.mid],k:g.h&&g.d===d?g.h:'',c:colorOf(g.mid),t:g.t,s:gName(g.mid),a:(g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:g.t==='Escola'?`data-wday="${g.d}"`:'')}));
     its.sort((p,q)=>(p.k||'').localeCompare(q.k||''));
-    cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b>${wxLine(d)}</button>
+    cols+=`<div class="w-day${d===TODAY?' today':''}"><button class="w-dh" data-wday="${d}"><span class="kind">${DOW[i]}</span><b>${x.getDate()}</b>${wxLine(d)}</button>${wmRow(d,null,{av:true,short:true})}
       ${its.map(z=>{const tag=z.a?'button':'div';const ms=(z.ms||[]).filter(id=>id==='all'||member(id));const av=ms.length?`<span class="w-av">${(ms.includes('all')?['all']:ms.slice(0,3)).map(id=>avatar(id,true)).join('')}</span>`:'';return `<${tag} class="w-wi${av?' has-av':''}" style="--c:${z.c}" ${z.a||''}>${av}${z.k?`<span class="tm">${esc(z.k)}</span>`:''}<span class="tt">${esc(z.t)}</span>${z.s?`<span class="ss">${esc(z.s)}</span>`:''}</${tag}>`}).join('')}
       ${(D.meals||[]).map(m=>{const [k,l,ic]=mealT(m);return `<button class="w-wi meal" data-open-meal="${d}|${k}|${esc(m.id)}" style="--c:var(--line)"><span class="ss">${ic} ${l}</span><span class="tt">${esc(m.title)}</span></button>`}).join('')}</div>`;
   }
@@ -1169,7 +1172,7 @@ function wallMonth(){
   const start=new Date(first);start.setDate(1-dowMon(first));let cells='';
   for(let i=0;i<weeks*7;i++){
     const c=new Date(start);c.setDate(start.getDate()+i);const d=iso(c);const ch=dayChips(d,wallData(d));
-    cells+=`<button class="w-mc${c.getMonth()!==mo?' out':''}${d===TODAY?' today':''}" data-wday="${d}" aria-label="${niceDate(d)}"><span class="n">${c.getDate()}</span>${(()=>{const w=wxDay(d);return w?`<span class="w-mwx">${wxIc(w.c)} ${w.mx}°</span>`:''})()}${ch.slice(0,3).map(z=>`<span class="w-chip" style="--c:${z.c}">${esc(z.t)}</span>`).join('')}${ch.length>3?`<span class="w-more">+${ch.length-3}</span>`:''}</button>`;
+    cells+=`<button class="w-mc${c.getMonth()!==mo?' out':''}${d===TODAY?' today':''}" data-wday="${d}" aria-label="${niceDate(d)}"><span class="n">${c.getDate()}</span>${(()=>{const w=wxDay(d);return w?`<span class="w-mwx">${wxIc(w.c)} ${w.mx}°</span>`:''})()}${wmRow(d,null,{span:true,short:true,dot:true})}${ch.slice(0,3).map(z=>`<span class="w-chip" style="--c:${z.c}">${esc(z.t)}</span>`).join('')}${ch.length>3?`<span class="w-more">+${ch.length-3}</span>`:''}</button>`;
   }
   const tl=dayChips(TODAY,wallData(TODAY));
   return `<div class="w-mwrap"><div data-swipe="wall"><div class="w-mg">${DOW.map(d=>`<div class="w-mdow">${d}</div>`).join('')}</div>
@@ -1194,7 +1197,7 @@ function wallLine(){
     D.g.filter(g=>isF?g.mid==='all':g.mid===L.id).forEach(g=>{if(g.h&&g.d===d&&g.d===g.e)bl.push(blk(g.h,g.he&&g.he>g.h?g.he:addMin(g.h,60),g.t,L.c,g.i?`data-gev="${esc(g.src+'|'+g.i+'|'+g.d)}"`:''));else allDay.push(g.t)});
     D.vac.filter(v=>isF?isAll(v):forM(v,L.id)).forEach(v=>allDay.push('Férias · '+v.title));
     if(isF)D.bd.forEach(b=>allDay.push('Aniversário · '+b.name));
-    return `<div class="w-lane"><div class="lab"><span class="row" style="gap:8px"><span class="dot" style="--c:${L.c}"></span>${esc(L.name)}</span>${allDay.length?`<small>${esc(allDay.join(' · '))}</small>`:''}</div>
+    return `<div class="w-lane"><div class="lab"><span class="row" style="gap:8px"><span class="dot" style="--c:${L.c}"></span>${esc(L.name)}</span>${isF?'':wmBadge(L.id,d,{short:innerWidth<860})}${allDay.length?`<small>${esc(allDay.join(' · '))}</small>`:''}</div>
       <div class="w-track"${(n=>n>1?` style="min-height:${n*ROWH+10}px"`:'')(bl.n=pack(bl))}>${bl.map(o=>draw(o,bl.n)).join('')}${now?`<i class="w-now" style="left:${pos(now).toFixed(2)}%"></i>`:''}</div></div>`}).join('');
   const hrs=[];for(let h=H0;h<=H1;h+=2)hrs.push(`<span class="w-hr" style="left:${((h-H0)/(H1-H0)*100).toFixed(2)}%${h===H0?';transform:none':h===H1?';transform:translateX(-100%)':''}">${pad(h)}h</span>`);
   return `<div class="w-tl" data-swipe="wall"><div class="w-tlh"><div class="lab"></div><div class="w-track" style="height:20px">${hrs.join('')}</div></div>${lanes}</div>
@@ -1955,6 +1958,7 @@ function configHub(){
     ${it('data-cfg="google"','📅︎','O meu Google Calendar','Ligar, adicionar e remover calendários')}
     ${it('data-cfg="ecra"','🖼︎','Ecrã de parede e moldura','Ecrã em repouso, fotografias, tempo entre fotografias, prémio')}
     ${it('data-cfg="tempo"','⛅','Tempo','Localidade da previsão: '+esc(wxPlace().name))}
+    ${it('data-wmcfg','💼','Trabalho remoto ou presencial','Frequência semanal ou ciclos'+(Object.values(wmCfg()).some(c=>c&&c.on)?' · ativo':''))}
     ${it('data-fncfg','🔥','Forno Samsung','SmartThings'+(fnCfg().linked?' · ligado':''))}
     ${it('data-shcfg','🏠','Casa (Shelly)','Luzes, tomadas, estores e sensores'+(shCfg().key?' · ligado':''))}
     ${it('data-cfg="moldura"','🖼︎','Moldura','Ligar e desligar widgets, fotografias, versículo do dia')}
@@ -1962,7 +1966,7 @@ function configHub(){
     ${it('data-migrate','🔄','Só calendários do Google',gOnly()?'Ativo · calendário Família e de cada pessoa':'Passar tudo do Quadro para o Google')}
     ${it('data-cfg="dados"','💾︎','Dados','Exportar ou importar uma cópia')}
     ${u?it('data-cfg="sair"','↩︎','Sair da conta',esc(u.email||'')):''}</div>`);
-  f.addEventListener('click',e=>{const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
+  f.addEventListener('click',e=>{if(e.target.closest('[data-wmcfg]')){wmSheet();return}const b=e.target.closest('[data-cfg]');if(!b)return;const k=b.dataset.cfg;
     if(k==='pessoas')familyForm();else if(k==='google')googleSheet();else if(k==='ecra')wallSettings();
     else if(k==='escola'){closeSheet();if(S.wall)exitWall();S.tab='agenda';render();setTimeout(()=>{const x=document.querySelector('[data-ag="escola"]');if(x)x.click()},60)}
     else if(k==='dados'){if(!isAdmin()){toast('Só a conta principal pode importar ou exportar os dados.');return}dataSheet()}else if(k==='tempo')wxSheet();else if(k==='votd')yvSheet();else if(k==='moldura')frameSheet();else if(k==='sair')window.famBackend.signOut()});
@@ -2924,3 +2928,59 @@ function fnSheet(){const c=fnCfg();
 (function(){const m=location.hash.match(/^#forno=(\w+)/);if(!m)return;history.replaceState(null,'',location.pathname+location.search);
   setTimeout(()=>{const msg={ok:'Forno ligado ao Quadro ✅',recusado:'A autorização foi recusada na Samsung.',expirou:'A autorização demorou demasiado. Tenta outra vez.',erro:'Não foi possível ligar o forno. Tenta outra vez.'}[m[1]]||'';
     if(m[1]==='ok')fnSave({linked:true});if(msg)toast(msg);if(S.wall){S.wallView='casa';renderWall()}},1500)})();
+
+/* ---------- Trabalho: remoto / presencial (quem não é estudante) ---------- */
+// config/workmode = { m1:{on:true, weeks:[['R','P','R','R','P','',''], …], start:'AAAA-MM-DD', over:{'AAAA-MM-DD':'R'|'P'|''}} }
+// weeks: uma semana (todas as semanas iguais) ou várias (ciclo); 'R' remoto, 'P' presencial, '' sem trabalho.
+function wmCfg(){return S.workmode||{}}
+function wmPeople(){return S.members.filter(m=>!m.student)}
+function wmMon(d){const x=parse(d);x.setDate(x.getDate()-dowMon(x));return x}
+function wmLab(v){return v==='R'?['🏠','Remoto']:v==='P'?['🏢','Presencial']:null}
+function workMode(m,d,noOver){
+  const c=wmCfg()[m];if(!c||!c.on)return '';
+  const mm=member(m);if(!mm||mm.student)return '';
+  if(!noOver&&c.over&&Object.prototype.hasOwnProperty.call(c.over,d))return c.over[d]||'';
+  if(holidayOn(d)||onVacation(m,d))return '';
+  const w=Array.isArray(c.weeks)?c.weeks:[];if(!w.length)return '';
+  const n=Math.round((wmMon(d)-wmMon(c.start||TODAY))/(7*864e5)),i=((n%w.length)+w.length)%w.length;
+  return (w[i]||[])[dowMon(parse(d))]||'';
+}
+// o=avatar (fotografia), short=sem texto, span=não clicável (dentro de outros botões)
+function wmBadge(m,d,o){o=o||{};const v=workMode(m,d),l=wmLab(v);if(!l)return '';
+  const mm=member(m),tip=(mm?mm.name+' · ':'')+l[1]+(o.span||S.readOnly?'':' · toca para trocar só neste dia');
+  const inner=`${o.av?avatar(m,true):o.dot&&mm?`<i class="dot" style="--c:var(--${mm.color})"></i>`:''}<span class="wm-i">${l[0]}</span>${o.short?'':`<span class="wm-t">${l[1]}</span>`}`;
+  return o.span||S.readOnly?`<span class="wm-b wm-${v}" title="${esc(tip)}">${inner}</span>`:`<button type="button" class="wm-b wm-${v}" data-wmtog="${m}|${d}" title="${esc(tip)}" aria-label="${esc(tip)}">${inner}</button>`}
+function wmRow(d,ms,o){const b=(ms||wallMembers()).map(m=>wmBadge(m.id,d,o)).filter(Boolean);return b.length?`<span class="wm-row">${b.join('')}</span>`:''}
+function wmSave(all){
+  const lim=parse(TODAY);lim.setDate(lim.getDate()-60);const L=iso(lim),out={};
+  Object.entries(all).forEach(([m,c])=>{const over={};Object.entries(c.over||{}).forEach(([d,v])=>{if(d>=L)over[d]=v});out[m]={...c,over}});
+  S.workmode=out;if(S.db)S.db.doc('config/workmode').set(out).catch(handleWriteError);render()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-wmtog]');if(!b)return;e.preventDefault();e.stopPropagation();if(S.readOnly)return;
+  const[m,d]=b.dataset.wmtog.split('|'),all={...wmCfg()},c={...(all[m]||{})},over={...(c.over||{})};
+  const cur=workMode(m,d),base=workMode(m,d,true),nx=cur==='R'?'P':'R';
+  if(nx===base)delete over[d];else over[d]=nx;c.over=over;all[m]=c;wmSave(all);
+  const mm=member(m);toast((mm?mm.name+': ':'')+wmLab(nx)[1].toLowerCase()+' em '+niceDate(d)+(nx===base?' (como de costume)':' (só neste dia)'))},true);
+function wmSheet(){
+  const ppl=wmPeople(),st=JSON.parse(JSON.stringify(wmCfg())),DN=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const def=()=>['R','R','R','R','R','',''];
+  const exc=m=>{const o=(st[m]&&st[m].over)||{};const ks=Object.keys(o).filter(d=>d>=TODAY).sort();
+    return ks.length?`<div class="wm-exc"><span class="small muted">Só em dias específicos:</span>${ks.map(d=>`<span class="wm-x">${esc(niceDate(d))} ${wmLab(o[d])?wmLab(o[d])[0]:'—'}<button type="button" class="edit" data-wmxdel="${m}|${d}" aria-label="Remover">✕</button></span>`).join('')}</div>`:''};
+  const body=()=>ppl.length?ppl.map(m=>{const c=st[m.id]||{},n=c.on?(c.weeks||[]).length:0;
+    return `<div class="wm-p"><div class="row" style="align-items:center;gap:10px">${avatar(m.id,true)}<b style="flex:1">${esc(m.name)}</b>
+      <select data-wmfreq="${m.id}" aria-label="Frequência de ${esc(m.name)}">${[[0,'Não mostrar'],[1,'Igual todas as semanas'],[2,'Ciclo de 2 semanas'],[3,'Ciclo de 3 semanas'],[4,'Ciclo de 4 semanas']].map(([v,l])=>`<option value="${v}" ${v===n?'selected':''}>${l}</option>`).join('')}</select></div>
+      ${n?`<div class="wm-grid">${c.weeks.map((w,wi)=>`<div class="wm-wk">${n>1?`<span class="wm-wl">Semana ${wi+1}${wi===((Math.round((wmMon(TODAY)-wmMon(c.start||TODAY))/(7*864e5))%n)+n)%n?' · esta':''}</span>`:''}<div class="wm-days">${DN.map((dn,di)=>{const v=w[di]||'';return `<button type="button" class="wm-d wm-${v||'X'}" data-wmd="${m.id}|${wi}|${di}" aria-label="${dn}: ${wmLab(v)?wmLab(v)[1]:'sem trabalho'}"><small>${dn}</small><span>${wmLab(v)?wmLab(v)[0]:'—'}</span></button>`}).join('')}</div></div>`).join('')}</div>
+      ${n>1?`<label class="field"><span>A semana 1 começa na semana de</span><input type="date" data-wmstart="${m.id}" value="${esc(c.start||iso(wmMon(TODAY)))}"></label>`:''}${exc(m.id)}`:''}</div>`}).join(''):'<div class="empty">Não há ninguém sem a marca Estudante. Em Configuração → A família, desmarca Estudante em quem trabalha.</div>';
+  const f=sheet('Trabalho remoto ou presencial',`<p class="muted small" style="margin:0">Para quem não é estudante. Escolhe a frequência e toca em cada dia para trocar entre 🏠 Remoto, 🏢 Presencial e — sem trabalho. Aparece nas vistas Pessoas, Semana, Linha e Mês e na Agenda. Feriados e férias não mostram nada. Para trocar só um dia, toca no 🏠/🏢 no calendário.</p><div data-wmbody>${body()}</div>`,
+    {onSave:()=>{wmSave(st);toast('Trabalho guardado')}});
+  const redraw=()=>{f.querySelector('[data-wmbody]').innerHTML=body()};
+  f.addEventListener('click',e=>{const b=e.target.closest('[data-wmd],[data-wmxdel]');if(!b)return;
+    if(b.dataset.wmd){const[m,wi,di]=b.dataset.wmd.split('|');const w=st[m].weeks[+wi];w[+di]=({'R':'P','P':''})[w[+di]||'']??'R';if(w[+di]===undefined)w[+di]='R'}
+    else{const[m,d]=b.dataset.wmxdel.split('|');delete st[m].over[d]}
+    redraw()});
+  f.addEventListener('change',e=>{const s=e.target;
+    if(s.dataset.wmfreq){const m=s.dataset.wmfreq,n=+s.value,c=st[m]||(st[m]={});
+      if(!n)c.on=false;else{c.on=true;const w=Array.isArray(c.weeks)&&c.weeks.length?c.weeks:[def()];
+        c.weeks=Array.from({length:n},(_,i)=>w[i]?w[i]:[...w[0]]);if(!c.start)c.start=iso(wmMon(TODAY))}
+      redraw()}
+    else if(s.dataset.wmstart&&s.value){st[s.dataset.wmstart].start=iso(wmMon(s.value))}});
+}
